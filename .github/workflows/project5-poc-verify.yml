@@ -1,0 +1,113 @@
+name: Project5 PoC Verify
+
+on:
+  push:
+    branches:
+    - gsoc/project5-complete-poc
+    paths:
+    - 'experimental/helm/charts/katib/**'
+    - 'experimental/helm/charts/pipelines/**'
+    - 'applications/pipeline/upstream/**'
+    - 'tests/helm_kustomize_compare.py'
+    - 'tests/helm_kustomize_compare.sh'
+    - 'tests/helm_kustomize_compare_all.sh'
+    - 'gsoc-poc/**'
+    - 'Makefile'
+    - '.github/workflows/project5-poc-verify.yml'
+  workflow_dispatch:
+    inputs:
+      run_runtime:
+        description: 'Run runtime verification (Kind + prerequisite install + runtime checks)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Python dependency
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyyaml
+
+    - name: Install Helm
+      run: |
+        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        chmod 700 get_helm.sh
+        ./get_helm.sh
+        rm get_helm.sh
+
+    - name: Install Kustomize
+      run: ./tests/kustomize_install.sh
+
+    - name: Run parity verification
+      env:
+        KUSTOMIZE_GIT_TIMEOUT: 180s
+      run: make verify
+
+  runtime:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_runtime == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Python dependency
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyyaml
+
+    - name: Install Helm
+      run: |
+        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        chmod 700 get_helm.sh
+        ./get_helm.sh
+        rm get_helm.sh
+
+    - name: Install Kustomize
+      run: ./tests/kustomize_install.sh
+
+    - name: Install Kind
+      run: |
+        curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64"
+        chmod +x ./kind
+        sudo mv ./kind /usr/local/bin/kind
+        kind --version
+
+    - name: Run prerequisite setup
+      env:
+        CLUSTER_NAME: kubeflow-gsoc-p5
+      run: make setup-kind-prereqs
+
+    - name: Run runtime verification
+      env:
+        CLUSTER_NAME: kubeflow-gsoc-p5
+        HELM_TIMEOUT: 25m
+      run: make verify-runtime
+
+    - name: Dump diagnostics on failure
+      if: failure()
+      run: |
+        kubectl get nodes || true
+        kubectl get pods -A -o wide || true
+        kubectl get events -A --sort-by=.lastTimestamp | tail -n 200 || true
