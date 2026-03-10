@@ -3,6 +3,10 @@
 
 set -euo pipefail
 
+# Avoid flaky remote fetch failures from Kustomize git URLs.
+: "${KUSTOMIZE_GIT_TIMEOUT:=180s}"
+export KUSTOMIZE_GIT_TIMEOUT
+
 COMPONENT=${1:-""}
 SCENARIO=${2:-"base"}
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -11,7 +15,7 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
     echo "Usage: $0 <component> <scenario>"
-    echo "Components: katib, model-registry, kserve-models-web-app, notebook-controller"
+    echo "Components: katib, model-registry, kserve-models-web-app, notebook-controller, pipelines"
     exit 1
 fi
 
@@ -158,10 +162,29 @@ case "$COMPONENT" in
             ["production"]="kubeflow"
         )
         ;;
+    "pipelines")
+        CHART_DIR="$ROOT_DIR/experimental/helm/charts/pipelines"
+        MANIFESTS_DIR="$ROOT_DIR/applications/pipeline/upstream"
         
+        declare -A KUSTOMIZE_PATHS=(
+            ["platform-agnostic-multi-user"]="$MANIFESTS_DIR/env/cert-manager/platform-agnostic-multi-user"
+            ["platform-agnostic-multi-user-k8s-native"]="$MANIFESTS_DIR/env/cert-manager/platform-agnostic-multi-user-k8s-native"
+        )
+        
+        declare -A HELM_VALUES=(
+            ["platform-agnostic-multi-user"]="$CHART_DIR/ci/values-platform-agnostic-multi-user.yaml"
+            ["platform-agnostic-multi-user-k8s-native"]="$CHART_DIR/ci/values-platform-agnostic-multi-user-k8s-native.yaml"
+        )
+        
+        declare -A NAMESPACES=(
+            ["platform-agnostic-multi-user"]="kubeflow"
+            ["platform-agnostic-multi-user-k8s-native"]="kubeflow"
+        )
+        ;;
+
     *)
         echo "ERROR: Unknown component: $COMPONENT"
-        echo "Supported components: katib, model-registry, kserve-models-web-app, notebook-controller"
+        echo "Supported components: katib, model-registry, kserve-models-web-app, notebook-controller, pipelines"
         exit 1
         ;;
 esac
@@ -220,6 +243,11 @@ else
             --values "$HELM_VALUES_ARG" > "$HELM_OUTPUT"
     elif [[ "$COMPONENT" == "notebook-controller" ]]; then
         helm template notebook-controller . \
+            --namespace "$NAMESPACE" \
+            --include-crds \
+            --values "$HELM_VALUES_ARG" > "$HELM_OUTPUT"
+    elif [[ "$COMPONENT" == "pipelines" ]]; then
+        helm template pipeline . \
             --namespace "$NAMESPACE" \
             --include-crds \
             --values "$HELM_VALUES_ARG" > "$HELM_OUTPUT"

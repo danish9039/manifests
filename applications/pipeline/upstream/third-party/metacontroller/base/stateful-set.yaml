@@ -16,10 +16,6 @@ spec:
         app: metacontroller
         sidecar.istio.io/inject: "false"
     spec:
-      securityContext:
-        runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
       containers:
         - resources:
             limits:

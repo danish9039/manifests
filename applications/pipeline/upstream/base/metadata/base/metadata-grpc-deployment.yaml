@@ -15,7 +15,6 @@ spec:
         component: metadata-grpc-server
     spec:
       securityContext:
-        runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -71,7 +70,7 @@ spec:
                "--mysql_config_user=$(DBCONFIG_USER)",
                "--mysql_config_password=$(DBCONFIG_PASSWORD)",
                "--enable_database_upgrade=true",
-               "--grpc_channel_arguments=grpc.max_metadata_size=16384,grpc.max_receive_message_length=104857600,grpc.max_send_message_length=104857600"
+               "--grpc_channel_arguments=grpc.max_metadata_size=16384"
                ]
         ports:
         - name: grpc-api
@@ -89,3 +88,4 @@ spec:
           periodSeconds: 5
           timeoutSeconds: 2
       serviceAccountName: metadata-grpc-server
+

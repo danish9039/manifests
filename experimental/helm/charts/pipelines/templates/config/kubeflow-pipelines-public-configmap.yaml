@@ -1,0 +1,11 @@
+{{- if eq .Values.installMode.type "multi-user" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubeflow-pipelines-public
+  namespace: {{ include "kubeflow-pipelines.namespace" . }}
+  labels:
+    {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
+data:
+  kubeflow_pipelines_version: v{{ .Values.pipeline.app.version }}
+{{- end }}

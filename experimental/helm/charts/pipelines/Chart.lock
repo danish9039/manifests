@@ -1,0 +1,9 @@
+dependencies:
+- name: argo-workflows
+  repository: https://argoproj.github.io/argo-helm
+  version: 0.40.14
+- name: mysql
+  repository: https://charts.bitnami.com/bitnami
+  version: 14.0.3
+digest: sha256:b70192daa4da03f471d12404a781f20a7c92816be513e73332d0cecfc9211c81
+generated: "2026-03-04T17:13:09.23420096+05:30"
