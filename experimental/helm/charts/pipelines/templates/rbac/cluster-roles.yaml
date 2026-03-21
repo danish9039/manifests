@@ -6,8 +6,6 @@ metadata:
   name: ml-pipeline
   labels:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
 rules:
 - apiGroups:
   - ""
@@ -105,8 +103,6 @@ metadata:
   name: ml-pipeline-ui
   labels:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
     app: ml-pipeline-ui
 rules:
 - apiGroups:
@@ -156,8 +152,6 @@ metadata:
   name: ml-pipeline-scheduledworkflow-role
   labels:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
 rules:
 - apiGroups:
   - argoproj.io
@@ -206,8 +200,6 @@ metadata:
   name: ml-pipeline-persistenceagent-role
   labels:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
 rules:
 - apiGroups:
   - argoproj.io
@@ -248,8 +240,6 @@ metadata:
   name: ml-pipeline-viewer-controller-role
   labels:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
 rules:
 - apiGroups:
   - '*'
@@ -286,8 +276,6 @@ metadata:
   name: kubeflow-pipelines-cache-role
   labels:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
     app: cache-server
 rules:
 - apiGroups:
@@ -325,8 +313,6 @@ metadata:
   name: kubeflow-pipelines-metadata-writer-role
   labels:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
 rules:
 - apiGroups:
   - ""
@@ -364,8 +350,6 @@ metadata:
   name: argo-cluster-role
   labels:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
 rules:
 - apiGroups:
   - ""
@@ -486,8 +470,6 @@ metadata:
   labels:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
     rbac.authorization.k8s.io/aggregate-to-view: "true"
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
 rules:
 - apiGroups:
   - argoproj.io
@@ -517,8 +499,6 @@ metadata:
   labels:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
     rbac.authorization.k8s.io/aggregate-to-edit: "true"
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
 rules:
 - apiGroups:
   - argoproj.io
@@ -553,8 +533,6 @@ metadata:
   labels:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
     rbac.authorization.k8s.io/aggregate-to-admin: "true"
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
 rules:
 - apiGroups:
   - argoproj.io

@@ -6,7 +6,8 @@ metadata:
   name: {{ include "katib.trialTemplates.configMapName" . }}
   namespace: {{ include "katib.namespace" . }}
   labels:
-    {{- include "katib.controller.labels" . | nindent 4 }}
+    {{- include "katib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
     katib.kubeflow.org/component: trial-templates
 data:
   defaultTrialTemplate.yaml: |-

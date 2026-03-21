@@ -1,4 +1,16 @@
 {{- if .Values.controller.service.enabled }}
+{{- $annotations := dict -}}
+{{- $_ := set $annotations "prometheus.io/port" (.Values.controller.service.ports.metrics.port | toString) -}}
+{{- $_ := set $annotations "prometheus.io/scheme" "http" -}}
+{{- $_ := set $annotations "prometheus.io/scrape" "true" -}}
+{{- if and .Values.openshift.enabled .Values.openshift.serviceCertificates -}}
+{{- $_ := set $annotations "service.beta.openshift.io/serving-cert-secret-name" "katib-webhook-cert" -}}
+{{- end -}}
+{{- with .Values.controller.service.annotations -}}
+{{- range $key, $value := . -}}
+{{- $_ := set $annotations $key $value -}}
+{{- end -}}
+{{- end -}}
 apiVersion: v1
 kind: Service
 metadata:
@@ -11,16 +23,10 @@ metadata:
   labels:
     katib.kubeflow.org/component: controller
   {{- end }}
+  {{- if $annotations }}
   annotations:
-    prometheus.io/port: "{{ .Values.controller.service.ports.metrics.port }}"
-    prometheus.io/scheme: http
-    prometheus.io/scrape: "true"
-    {{- if and .Values.openshift.enabled .Values.openshift.serviceCertificates }}
-    service.beta.openshift.io/serving-cert-secret-name: katib-webhook-cert
-    {{- end }}
-    {{- with .Values.controller.service.annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
+    {{- toYaml $annotations | nindent 4 }}
+  {{- end }}
 spec:
   {{- include "katib.serviceType" (dict "type" .Values.controller.service.type "Values" .Values) | nindent 2 }}
   ports:

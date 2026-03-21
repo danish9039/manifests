@@ -21,7 +21,6 @@ spec:
       labels:
         {{- include "kubeflow-pipelines.labels" . | nindent 8 }}
         app: seaweedfs
-        application-crd-id: kubeflow-pipelines
     spec:
       securityContext:
         seccompProfile:
@@ -98,4 +97,3 @@ spec:
           claimName: seaweedfs-pvc
       serviceAccountName: seaweedfs
 {{- end }}
-

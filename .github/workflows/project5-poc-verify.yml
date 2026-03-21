@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       run_runtime:
-        description: 'Run runtime verification (Kind + prerequisite install + runtime checks)'
+        description: 'Run runtime verification (Kind + prerequisite install + KFP + Katib smoke checks)'
         required: false
         default: false
         type: boolean
@@ -67,7 +67,7 @@ jobs:
   runtime:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_runtime == true }}
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
     - name: Checkout
       uses: actions/checkout@v4

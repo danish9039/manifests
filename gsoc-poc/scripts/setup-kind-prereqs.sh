@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CLUSTER_NAME="${CLUSTER_NAME:-kubeflow-gsoc-p5}"
 INSTALL_CERT_MANAGER="${INSTALL_CERT_MANAGER:-true}"
 INSTALL_ISTIO_CNI="${INSTALL_ISTIO_CNI:-true}"
+PRELOAD_RUNTIME_IMAGES="${PRELOAD_RUNTIME_IMAGES:-false}"
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -66,6 +67,11 @@ main() {
 
   cd "$ROOT_DIR"
   kubectl get ns kubeflow >/dev/null 2>&1 || kubectl create namespace kubeflow
+
+  if [[ "$PRELOAD_RUNTIME_IMAGES" == "true" ]]; then
+    echo "[setup-kind-prereqs] Preloading runtime images into kind cluster."
+    "$ROOT_DIR/gsoc-poc/scripts/preload-kind-images.sh"
+  fi
 
   if [[ "$INSTALL_CERT_MANAGER" == "true" ]]; then
     install_cert_manager

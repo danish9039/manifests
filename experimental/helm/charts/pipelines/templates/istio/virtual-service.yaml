@@ -6,8 +6,6 @@ metadata:
   namespace: {{ include "kubeflow-pipelines.namespace" . }}
   labels:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
 spec:
   gateways:
   - {{ .Values.networking.istio.gateway | default "kubeflow-gateway" }}
@@ -35,8 +33,6 @@ metadata:
   namespace: {{ include "kubeflow-pipelines.namespace" . }}
   labels:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
 spec:
   gateways:
   - {{ .Values.networking.istio.gateway | default "kubeflow-gateway" }}

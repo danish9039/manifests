@@ -12,8 +12,6 @@ metadata:
   labels:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
     rbac.authorization.kubeflow.org/aggregate-to-kubeflow-edit: "true"
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
 aggregationRule:
   clusterRoleSelectors:
   - matchLabels:
@@ -30,8 +28,6 @@ metadata:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
     rbac.authorization.kubeflow.org/aggregate-to-kubeflow-pipelines-edit: "true"
     rbac.authorization.kubeflow.org/aggregate-to-kubeflow-view: "true"
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
 aggregationRule:
   clusterRoleSelectors:
   - matchLabels:
@@ -47,8 +43,6 @@ metadata:
   labels:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
     rbac.authorization.kubeflow.org/aggregate-to-kubeflow-pipelines-edit: "true"
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
 rules:
 - apiGroups:
   - pipelines.kubeflow.org
@@ -118,8 +112,6 @@ metadata:
   labels:
     {{- include "kubeflow-pipelines.labels" . | nindent 4 }}
     rbac.authorization.kubeflow.org/aggregate-to-kubeflow-pipelines-view: "true"
-    app.kubernetes.io/component: ml-pipeline
-    app.kubernetes.io/name: kubeflow-pipelines
 rules:
 - apiGroups:
   - pipelines.kubeflow.org

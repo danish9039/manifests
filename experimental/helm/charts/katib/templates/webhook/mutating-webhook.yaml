@@ -1,18 +1,22 @@
 {{- if and .Values.webhook.enabled .Values.webhook.mutating.enabled }}
+{{- $annotations := dict -}}
+{{- with .Values.webhook.mutating.annotations -}}
+{{- range $key, $value := . -}}
+{{- $_ := set $annotations $key $value -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.webhook.certManager.enabled (not (hasKey $annotations "cert-manager.io/inject-ca-from")) -}}
+{{- $_ := set $annotations "cert-manager.io/inject-ca-from" (printf "%s/katib-webhook-cert" (include "katib.namespace" .)) -}}
+{{- end -}}
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
   name: {{ include "katib.webhook.mutatingName" . }}
   labels:
     {{- include "katib.webhook.labels" . | nindent 4 }}
-  {{- if or .Values.webhook.mutating.annotations .Values.webhook.certManager.enabled }}
+  {{- if $annotations }}
   annotations:
-    {{- with .Values.webhook.mutating.annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-    {{- if .Values.webhook.certManager.enabled }}
-    cert-manager.io/inject-ca-from: {{ include "katib.namespace" . }}/katib-webhook-cert
-    {{- end }}
+    {{- toYaml $annotations | nindent 4 }}
   {{- end }}
 webhooks:
   - name: defaulter.experiment.katib.kubeflow.org
