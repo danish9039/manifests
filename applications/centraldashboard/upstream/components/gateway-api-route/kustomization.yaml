@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+- gateway.yaml
+- httproute.yaml
+
+patches:
+- target:
+    group: apps
+    version: v1
+    kind: Deployment
+    name: centraldashboard
+  patch: |-
+    - op: add
+      path: /spec/template/metadata/labels/centraldashboard-workload
+      value: "true"
+- target:
+    group: security.istio.io
+    kind: AuthorizationPolicy
+    name: central-dashboard
+  patch: |-
+    - op: add
+      path: /spec/selector/matchLabels/centraldashboard-workload
+      value: "true"
+    - op: add
+      path: /spec/rules/0/from/0/source/principals/-
+      value: cluster.local/ns/kubeflow/sa/centraldashboard-gateway-api-istio

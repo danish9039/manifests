@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+- gateway.yaml
+- httproute.yaml
+
+patches:
+- target:
+    group: apps
+    version: v1
+    kind: Deployment
+    name: volumes-web-app-deployment
+  patch: |-
+    - op: add
+      path: /spec/template/metadata/labels/volumes-web-app-workload
+      value: "true"
+    - op: add
+      path: /spec/template/metadata/labels/sidecar.istio.io~1inject
+      value: "true"
+- target:
+    group: security.istio.io
+    kind: AuthorizationPolicy
+    name: volumes-web-app
+  patch: |-
+    - op: add
+      path: /spec/selector/matchLabels/volumes-web-app-workload
+      value: "true"
+    - op: add
+      path: /spec/rules/0/from/0/source/principals/-
+      value: cluster.local/ns/kubeflow/sa/volumes-web-app-gateway-api-istio
