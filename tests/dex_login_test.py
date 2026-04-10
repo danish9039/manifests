@@ -16,7 +16,7 @@ import urllib3
 ENDPOINT_URL = "http://localhost:8080"
 DEX_USERNAME = "user@example.com"
 DEX_PASSWORD = "12341234"
-DEX_AUTH_TYPE = "local"
+DEX_AUTHENTICATION_TYPE = "local"
 # Matches replicas: 2 in common/dex/base/deployment.yaml.
 # Use a larger burst so the replica-distribution assertion is statistically stable in CI.
 PARALLEL_SESSIONS = 8
@@ -50,7 +50,7 @@ class DexSessionManager:
         endpoint_url: str,
         dex_username: str,
         dex_password: str,
-        dex_auth_type: str = "local",
+        dex_authentication_type: str = "local",
         skip_tls_verify: bool = False,
     ):
         """
@@ -60,21 +60,21 @@ class DexSessionManager:
         :param skip_tls_verify: if True, skip TLS verification
         :param dex_username: the Dex username
         :param dex_password: the Dex password
-        :param dex_auth_type: the auth type to use if Dex has multiple enabled, one of: ['ldap', 'local']
+        :param dex_authentication_type: the authentication type to use if Dex has multiple enabled, one of: ['ldap', 'local']
         """
         self._endpoint_url = endpoint_url
         self._skip_tls_verify = skip_tls_verify
         self._dex_username = dex_username
         self._dex_password = dex_password
-        self._dex_auth_type = dex_auth_type
+        self._dex_authentication_type = dex_authentication_type
 
         if self._skip_tls_verify:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-        # ensure `dex_auth_type` is valid
-        if self._dex_auth_type not in ["ldap", "local"]:
+        # ensure `dex_authentication_type` is valid
+        if self._dex_authentication_type not in ["ldap", "local"]:
             raise ValueError(
-                f"Invalid `dex_auth_type` '{self._dex_auth_type}', must be one of: ['ldap', 'local']"
+                f"Invalid `dex_authentication_type` '{self._dex_authentication_type}', must be one of: ['ldap', 'local']"
             )
 
     def _request_get(self, session: requests.Session, request_url: str) -> requests.Response:
@@ -110,7 +110,7 @@ class DexSessionManager:
             split_url_object = split_url_object._replace(
                 path=re.sub(
                     r"/auth$",
-                    f"/auth/{self._dex_auth_type}",
+                    f"/auth/{self._dex_authentication_type}",
                     split_url_object.path,
                 )
             )
@@ -356,7 +356,7 @@ def run_single_authentication() -> str:
         skip_tls_verify=True,
         dex_username=DEX_USERNAME,
         dex_password=DEX_PASSWORD,
-        dex_auth_type=DEX_AUTH_TYPE,
+        dex_authentication_type=DEX_AUTHENTICATION_TYPE,
     )
     return manager.get_session_cookies()
 
