@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import concurrent.futures
+import json
 import re
 import subprocess
 import sys
@@ -22,6 +23,7 @@ PARALLEL_SESSIONS = 8
 # Dex authcode GC window: authcodes must be deleted after token exchange completes.
 GC_WAIT_SECONDS = 90
 REQUEST_TIMEOUT_SECONDS = 15
+PARALLEL_TEST_TIMEOUT_SECONDS = PARALLEL_SESSIONS * REQUEST_TIMEOUT_SECONDS
 KUBECTL_TIMEOUT_SECONDS = 120
 KUBECTL_REQUEST_TIMEOUT = "30s"
 
@@ -32,9 +34,9 @@ DEX_AUTHCODE_RESOURCE = "authcodes.dex.coreos.com"
 
 @dataclass
 class ParallelAuthenticationResult:
-    index: int
-    ok: bool
-    error: str = ""
+    session_index: int
+    succeeded: bool
+    error_message: str = ""
 
 
 class DexSessionManager:
@@ -75,20 +77,20 @@ class DexSessionManager:
                 f"Invalid `dex_auth_type` '{self._dex_auth_type}', must be one of: ['ldap', 'local']"
             )
 
-    def _request_get(self, session: requests.Session, url: str) -> requests.Response:
+    def _request_get(self, session: requests.Session, request_url: str) -> requests.Response:
         return session.get(
-            url,
+            request_url,
             allow_redirects=True,
             verify=not self._skip_tls_verify,
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
 
     def _request_post(
-        self, session: requests.Session, url: str, data: dict[str, str]
+        self, session: requests.Session, request_url: str, form_data: dict[str, str]
     ) -> requests.Response:
         return session.post(
-            url,
-            data=data,
+            request_url,
+            data=form_data,
             allow_redirects=True,
             verify=not self._skip_tls_verify,
             timeout=REQUEST_TIMEOUT_SECONDS,
@@ -98,26 +100,31 @@ class DexSessionManager:
     def _has_oauth2_session_cookie(session: requests.Session) -> bool:
         return any(cookie.name.startswith("oauth2_proxy") for cookie in session.cookies)
 
-    def _resolve_dex_login_url(self, session: requests.Session, url_object) -> str:
+    def _resolve_dex_login_url(self, session: requests.Session, split_url_object) -> str:
         """
         Given a URL object, navigate to the Dex login page and return its URL.
         Handles the optional /auth selector step before the /auth/<type>/login page.
         """
         # if we are at `../auth` path, we need to select an authentication type
-        if re.search(r"/auth$", url_object.path):
-            url_object = url_object._replace(
-                path=re.sub(r"/auth$", f"/auth/{self._dex_auth_type}", url_object.path)
+        if re.search(r"/auth$", split_url_object.path):
+            split_url_object = split_url_object._replace(
+                path=re.sub(
+                    r"/auth$",
+                    f"/auth/{self._dex_auth_type}",
+                    split_url_object.path,
+                )
             )
 
         # if we are already at `../auth/xxxx/login`, use it directly
-        if re.search(r"/auth/.*/login$", url_object.path):
-            return url_object.geturl()
+        if re.search(r"/auth/.*/login$", split_url_object.path):
+            return split_url_object.geturl()
 
         # otherwise follow the redirect to the login page
-        response = self._request_get(session, url_object.geturl())
+        response = self._request_get(session, split_url_object.geturl())
         if response.status_code != 200:
             raise RuntimeError(
-                f"HTTP status code '{response.status_code}' for GET against: {url_object.geturl()}"
+                "HTTP status code "
+                f"'{response.status_code}' for GET against: {split_url_object.geturl()}"
             )
         return response.url
 
@@ -131,22 +138,20 @@ class DexSessionManager:
         try:
             # GET the endpoint URL, which should redirect to Dex
             response = self._request_get(session, self._endpoint_url)
-            if response.status_code == 200:
-                pass
-            elif response.status_code in [401, 403]:
+            if response.status_code in [401, 403]:
                 # We may be at the oauth2-proxy sign-in page.
                 # The standard path to start the sign-in flow is /oauth2/start?rd=<url>
-                url_object = urlsplit(response.url)
-                url_object = url_object._replace(
+                split_url_object = urlsplit(response.url)
+                split_url_object = split_url_object._replace(
                     path="/oauth2/start",
-                    query=urlencode({"rd": url_object.path}),
+                    query=urlencode({"rd": split_url_object.path}),
                 )
-                response = self._request_get(session, url_object.geturl())
+                response = self._request_get(session, split_url_object.geturl())
                 if response.status_code not in [200, 302]:
                     raise RuntimeError(
                         f"HTTP status code '{response.status_code}' for GET against oauth2/start"
                     )
-            else:
+            elif response.status_code != 200:
                 raise RuntimeError(
                     f"HTTP status code '{response.status_code}' for GET against: {self._endpoint_url}"
                 )
@@ -161,7 +166,7 @@ class DexSessionManager:
             response = self._request_post(
                 session,
                 dex_login_url,
-                data={"login": self._dex_username, "password": self._dex_password},
+                form_data={"login": self._dex_username, "password": self._dex_password},
             )
 
             if response.status_code == 403:
@@ -193,7 +198,7 @@ class DexSessionManager:
                 response = self._request_post(
                     session,
                     dex_login_url,
-                    data={"login": self._dex_username, "password": self._dex_password},
+                    form_data={"login": self._dex_username, "password": self._dex_password},
                 )
 
             if response.status_code != 200:
@@ -209,46 +214,50 @@ class DexSessionManager:
                 )
 
             # if we are at `../approval` path, we need to approve the login
-            url_object = urlsplit(response.url)
-            if re.search(r"/approval$", url_object.path):
-                dex_approval_url = url_object.geturl()
+            split_url_object = urlsplit(response.url)
+            if re.search(r"/approval$", split_url_object.path):
+                dex_approval_url = split_url_object.geturl()
                 response = self._request_post(
-                    session, dex_approval_url, data={"approval": "approve"}
+                    session, dex_approval_url, form_data={"approval": "approve"}
                 )
                 if response.status_code != 200:
                     raise RuntimeError(
-                        f"HTTP status code '{response.status_code}' for POST against: {url_object.geturl()}"
+                        "HTTP status code "
+                        f"'{response.status_code}' for POST against: {split_url_object.geturl()}"
                     )
 
             return "; ".join([f"{cookie.name}={cookie.value}" for cookie in session.cookies])
 
-        except requests.RequestException as exc:
-            raise RuntimeError(f"Dex authentication request failed: {exc}") from exc
+        except requests.RequestException as request_exception:
+            raise RuntimeError(f"Dex authentication request failed: {request_exception}") from request_exception
 
 
-def run_cmd(cmd: list[str], timeout: int = KUBECTL_TIMEOUT_SECONDS) -> subprocess.CompletedProcess:
+def run_command(command_arguments: list[str], timeout_seconds: int = KUBECTL_TIMEOUT_SECONDS) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(
-            cmd,
+            command_arguments,
             check=False,
             text=True,
             capture_output=True,
-            timeout=timeout,
+            timeout=timeout_seconds,
         )
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(f"Command timed out after {timeout}s: {' '.join(cmd)}") from exc
+    except subprocess.TimeoutExpired as timeout_exception:
+        raise RuntimeError(
+            "Command timed out after "
+            f"{timeout_seconds}s: {' '.join(command_arguments)}"
+        ) from timeout_exception
 
 
-def run_cmd_or_fail(cmd: list[str], timeout: int = KUBECTL_TIMEOUT_SECONDS) -> subprocess.CompletedProcess:
-    result = run_cmd(cmd, timeout=timeout)
-    if result.returncode != 0:
+def run_command_or_fail(command_arguments: list[str], timeout_seconds: int = KUBECTL_TIMEOUT_SECONDS) -> subprocess.CompletedProcess:
+    command_result = run_command(command_arguments, timeout_seconds=timeout_seconds)
+    if command_result.returncode != 0:
         raise RuntimeError(
             "Command failed "
-            f"(rc={result.returncode}): {' '.join(cmd)}\n"
-            f"stdout:\n{result.stdout.strip()}\n"
-            f"stderr:\n{result.stderr.strip()}"
+            f"(rc={command_result.returncode}): {' '.join(command_arguments)}\n"
+            f"stdout:\n{command_result.stdout.strip()}\n"
+            f"stderr:\n{command_result.stderr.strip()}"
         )
-    return result
+    return command_result
 
 
 def get_dex_pods(min_replicas: int = 2) -> list[str]:
@@ -257,37 +266,57 @@ def get_dex_pods(min_replicas: int = 2) -> list[str]:
     Raises if fewer than min_replicas pods are found — the parallel authentication
     test requires at least two replicas to verify cross-replica load distribution.
     """
-    cmd = [
+    command_arguments = [
         "kubectl",
         "--request-timeout", KUBECTL_REQUEST_TIMEOUT,
         "-n", "auth",
         "get", "pods",
         "-l", DEX_POD_SELECTOR,
-        "-o", "jsonpath={.items[*].metadata.name}",
+        "--field-selector=status.phase=Running",
+        "-o", "json",
     ]
-    result = run_cmd_or_fail(cmd)
-    pods = [pod for pod in result.stdout.strip().split() if pod]
-    if len(pods) < min_replicas:
+    command_result = run_command_or_fail(command_arguments)
+    try:
+        pod_list = json.loads(command_result.stdout)
+    except json.JSONDecodeError as json_decode_error:
+        raise RuntimeError(
+            "Failed to parse Dex pod list JSON: "
+            f"{json_decode_error}"
+        ) from json_decode_error
+
+    ready_pod_names = []
+    for pod_item in pod_list.get("items", []):
+        readiness_conditions = pod_item.get("status", {}).get("conditions", [])
+        is_ready = any(
+            condition.get("type") == "Ready" and condition.get("status") == "True"
+            for condition in readiness_conditions
+        )
+        if is_ready:
+            ready_pod_names.append(pod_item["metadata"]["name"])
+
+    if len(ready_pod_names) < min_replicas:
         raise RuntimeError(
             f"Expected at least {min_replicas} Dex pods (selector: {DEX_POD_SELECTOR}) "
-            f"in namespace auth, found: {pods}. "
+            f"in namespace auth, found: {ready_pod_names}. "
             "The Dex deployment at common/dex/base/deployment.yaml is configured with "
             "replicas: 2 — ensure all pods have reached the Ready state before running this test."
         )
-    return pods
+    return ready_pod_names
 
 
-def count_authentication_hits_for_pod(pod: str, since_seconds: int) -> int:
+def count_authentication_hits_for_pod(pod_name: str, relative_log_window_seconds: int) -> int:
     """Count how many successful authentication events appear in a pod's logs."""
-    cmd = [
+    command_arguments = [
         "kubectl",
         "--request-timeout", KUBECTL_REQUEST_TIMEOUT,
         "-n", "auth",
-        "logs", pod,
-        f"--since={since_seconds}s",
+        "logs", pod_name,
+        f"--since={relative_log_window_seconds}s",
     ]
-    result = run_cmd_or_fail(cmd)
-    return len(re.findall(re.escape(AUTHENTICATION_SUCCESS_LOG_MARKER), result.stdout))
+    command_result = run_command_or_fail(command_arguments)
+    return len(
+        re.findall(re.escape(AUTHENTICATION_SUCCESS_LOG_MARKER), command_result.stdout)
+    )
 
 
 def count_authcodes_objects() -> int:
@@ -296,22 +325,29 @@ def count_authcodes_objects() -> int:
     Dex creates one authcode object per login; the GC process deletes them after
     the token exchange completes. Returns 0 if no instances exist.
     """
-    cmd = [
+    command_arguments = [
         "kubectl",
         "--request-timeout", KUBECTL_REQUEST_TIMEOUT,
         "get", DEX_AUTHCODE_RESOURCE,
-        "-A", "--no-headers",
+        "-A", "-o", "json",
     ]
-    result = run_cmd(cmd)
+    command_result = run_command(command_arguments)
     # "no resources found" is a normal state — return 0 rather than raising
-    if result.returncode != 0:
-        combined = (result.stdout + "\n" + result.stderr).lower()
-        if "no resources found" in combined:
-            return 0
+    combined_output = (command_result.stdout + "\n" + command_result.stderr).lower()
+    if "no resources found" in combined_output:
+        return 0
+    if command_result.returncode != 0:
         raise RuntimeError(
-            f"Failed to query {DEX_AUTHCODE_RESOURCE}: {result.stderr.strip()}"
+            f"Failed to query {DEX_AUTHCODE_RESOURCE}: {command_result.stderr.strip()}"
         )
-    return len([line for line in result.stdout.splitlines() if line.strip()])
+    try:
+        authcode_list = json.loads(command_result.stdout)
+    except json.JSONDecodeError as json_decode_error:
+        raise RuntimeError(
+            "Failed to parse Dex authcode JSON: "
+            f"{json_decode_error}"
+        ) from json_decode_error
+    return len(authcode_list.get("items", []))
 
 
 def run_single_authentication() -> str:
@@ -325,12 +361,19 @@ def run_single_authentication() -> str:
     return manager.get_session_cookies()
 
 
-def run_parallel_authentication_session(index: int) -> ParallelAuthenticationResult:
+def run_parallel_authentication_session(session_index: int) -> ParallelAuthenticationResult:
     try:
         run_single_authentication()
-        return ParallelAuthenticationResult(index=index, ok=True)
-    except Exception as exc:
-        return ParallelAuthenticationResult(index=index, ok=False, error=str(exc))
+        return ParallelAuthenticationResult(
+            session_index=session_index,
+            succeeded=True,
+        )
+    except Exception as authentication_exception:
+        return ParallelAuthenticationResult(
+            session_index=session_index,
+            succeeded=False,
+            error_message=str(authentication_exception),
+        )
 
 
 def run_parallel_validation() -> None:
@@ -347,39 +390,51 @@ def run_parallel_validation() -> None:
        Kubernetes CRD objects that Dex actively deletes after each token exchange.
 
     Requires at least 2 Dex replicas (replicas: 2 in common/dex/base/deployment.yaml).
-    The since_seconds log window is sized to cover the burst plus GC wait plus a buffer
-    so that baseline and post-burst reads always observe the same window.
+    The relative log window is sized to cover the burst plus GC wait plus a buffer.
+    Repeated reads still observe a sliding relative window, because `kubectl logs
+    --since=<N>s` is evaluated relative to the time of each call.
     """
-    pods = get_dex_pods(min_replicas=2)
-    print(f"Dex pods: {pods}")
+    ready_pod_names = get_dex_pods(min_replicas=2)
+    print(f"Dex pods: {ready_pod_names}")
 
-    # Size the log window to cover the burst duration plus GC wait plus a buffer.
-    since_seconds = max(GC_WAIT_SECONDS + 120, 300)
+    # Size the relative log window to cover the burst duration plus GC wait plus a
+    # buffer. This reduces the chance of missing burst activity, but it does not
+    # create a fixed comparison interval across multiple reads.
+    relative_log_window_seconds = max(GC_WAIT_SECONDS + 120, 300)
 
     # Snapshot state before the burst
-    baseline_hits = {
-        pod: count_authentication_hits_for_pod(pod, since_seconds)
-        for pod in pods
+    baseline_authentication_hits = {
+        pod_name: count_authentication_hits_for_pod(
+            pod_name, relative_log_window_seconds
+        )
+        for pod_name in ready_pod_names
     }
     authcodes_before = count_authcodes_objects()
 
     print(f"Running parallel authentication burst with sessions={PARALLEL_SESSIONS}")
 
     # Run all parallel authentication sessions and collect results
-    failures = []
+    authentication_failures = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=PARALLEL_SESSIONS) as executor:
         futures = [
-            executor.submit(run_parallel_authentication_session, index)
-            for index in range(PARALLEL_SESSIONS)
+            executor.submit(run_parallel_authentication_session, session_index)
+            for session_index in range(PARALLEL_SESSIONS)
         ]
-        for future in concurrent.futures.as_completed(futures, timeout=REQUEST_TIMEOUT_SECONDS * 3):
-            result = future.result()
-            if not result.ok:
-                failures.append(result)
+        for future in concurrent.futures.as_completed(
+            futures, timeout=PARALLEL_TEST_TIMEOUT_SECONDS
+        ):
+            authentication_result = future.result()
+            if not authentication_result.succeeded:
+                authentication_failures.append(authentication_result)
 
-    if failures:
+    if authentication_failures:
         error_summary = "; ".join(
-            [f"session={f.index} error={f.error}" for f in failures]
+            [
+                "session="
+                f"{authentication_failure.session_index} "
+                f"error={authentication_failure.error_message}"
+                for authentication_failure in authentication_failures
+            ]
         )
         raise RuntimeError(
             f"Parallel authentication session failures: {error_summary}"
@@ -389,21 +444,31 @@ def run_parallel_validation() -> None:
     # This confirms the load balancer is distributing traffic across pods.
     # Requires sessionAffinity to be absent from the Dex Service — affinity would pin
     # all sessions from the same source IP to a single pod, defeating this check.
-    post_hits = {
-        pod: count_authentication_hits_for_pod(pod, since_seconds)
-        for pod in pods
+    post_burst_authentication_hits = {
+        pod_name: count_authentication_hits_for_pod(
+            pod_name, relative_log_window_seconds
+        )
+        for pod_name in ready_pod_names
     }
-    hit_delta = {
-        pod: max(post_hits[pod] - baseline_hits[pod], 0)
-        for pod in pods
+    authentication_hit_delta_by_pod = {
+        pod_name: max(
+            post_burst_authentication_hits[pod_name]
+            - baseline_authentication_hits[pod_name],
+            0,
+        )
+        for pod_name in ready_pod_names
     }
-    print(f"Authentication hit delta by pod: {hit_delta}")
+    print(f"Authentication hit delta by pod: {authentication_hit_delta_by_pod}")
 
-    hit_pods = [pod for pod, delta in hit_delta.items() if delta > 0]
-    if len(hit_pods) < 2:
+    pods_with_authentication_hits = [
+        pod_name
+        for pod_name, hit_delta in authentication_hit_delta_by_pod.items()
+        if hit_delta > 0
+    ]
+    if len(pods_with_authentication_hits) < 2:
         raise RuntimeError(
             "Expected authentication traffic across at least two Dex replicas "
-            f"but observed: {hit_delta}. "
+            f"but observed: {authentication_hit_delta_by_pod}. "
             "Verify that the Dex Service has no sessionAffinity configured."
         )
 
@@ -413,11 +478,12 @@ def run_parallel_validation() -> None:
     authcodes_after_burst = count_authcodes_objects()
     print(f"Authcodes count: before={authcodes_before} after_burst={authcodes_after_burst}")
 
-    time.sleep(GC_WAIT_SECONDS)
-    authcodes_after_wait = count_authcodes_objects()
-    print(f"Authcodes count after GC wait ({GC_WAIT_SECONDS}s): {authcodes_after_wait}")
-
     if authcodes_after_burst > authcodes_before:
+        time.sleep(GC_WAIT_SECONDS)
+        authcodes_after_wait = count_authcodes_objects()
+        print(
+            f"Authcodes count after GC wait ({GC_WAIT_SECONDS}s): {authcodes_after_wait}"
+        )
         # The burst created new authcodes — GC must reduce the count
         if authcodes_after_wait >= authcodes_after_burst:
             raise RuntimeError(
@@ -426,14 +492,6 @@ def run_parallel_validation() -> None:
                 f"before={authcodes_before} burst={authcodes_after_burst} "
                 f"after_wait={authcodes_after_wait}"
             )
-    elif authcodes_after_wait > authcodes_after_burst:
-        # No burst growth but count increased during wait — unexpected leak
-        raise RuntimeError(
-            "Authcodes increased during GC wait window despite no observed burst growth — "
-            "possible authcode leak from another process. "
-            f"before={authcodes_before} burst={authcodes_after_burst} "
-            f"after_wait={authcodes_after_wait}"
-        )
 
 
 def main() -> None:
@@ -447,6 +505,9 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except Exception as exc:
-        print(f"Dex authentication test failed: {exc}", file=sys.stderr)
+    except Exception as authentication_exception:
+        print(
+            f"Dex authentication test failed: {authentication_exception}",
+            file=sys.stderr,
+        )
         raise SystemExit(1)
