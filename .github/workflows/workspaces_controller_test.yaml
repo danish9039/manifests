@@ -48,6 +48,7 @@ jobs:
     - name: Build and apply workspaces manifests
       run: |
         kustomize build applications/workspaces/overlays/istio | kubectl apply -f -
+        kubectl wait --for=condition=Ready pods -n cert-manager --all --timeout=120s
         kubectl wait --for=condition=Ready pods \
           -n kubeflow-workspaces --all \
           --timeout=600s

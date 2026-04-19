@@ -54,6 +54,7 @@ jobs:
       run: |
         kustomize build applications/workspaces/overlays/istio | kubectl apply -f -
         kustomize build applications/dashboard/upstream/poddefaults-webhooks/overlays/cert-manager | kubectl apply -f -
+        kubectl wait --for=condition=Ready pods -n cert-manager --all --timeout=120s
         kubectl wait --for=condition=Ready pods \
           -n kubeflow-workspaces --all \
           --timeout=600s
