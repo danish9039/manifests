@@ -48,8 +48,9 @@ jobs:
     - name: Build and apply workspaces manifests
       run: |
         kustomize build applications/workspaces/overlays/istio | kubectl apply -f -
-        kubectl wait --for=condition=Ready pods --all --all-namespaces --timeout=300s \
-          --field-selector=status.phase!=Succeeded
+        kubectl wait --for=condition=Ready pods \
+          -n kubeflow-workspaces --all \
+          --timeout=600s
 
     - name: Check rollout status of workspaces deployments
       run: |
