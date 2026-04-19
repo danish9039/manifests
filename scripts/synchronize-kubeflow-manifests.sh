@@ -33,27 +33,9 @@ copy_component_manifests "components/admission-webhook/manifests" \
 copy_component_manifests "components/centraldashboard/manifests" \
     "applications/centraldashboard/upstream" \
     "centraldashboard/manifests"
-copy_component_manifests "components/crud-web-apps/jupyter/manifests" \
-    "applications/jupyter/jupyter-web-app/upstream" \
-    "crud-web-apps/jupyter/manifests"
-copy_component_manifests "components/crud-web-apps/volumes/manifests" \
-    "applications/volumes-web-app/upstream" \
-    "crud-web-apps/volumes/manifests"
-copy_component_manifests "components/crud-web-apps/tensorboards/manifests" \
-    "applications/tensorboard/tensorboards-web-app/upstream" \
-    "crud-web-apps/tensorboards/manifests"
 copy_component_manifests "components/profile-controller/config" \
     "applications/profiles/upstream" \
     "profile-controller/config"
-copy_component_manifests "components/notebook-controller/config" \
-    "applications/jupyter/notebook-controller/upstream" \
-    "notebook-controller/config"
-copy_component_manifests "components/tensorboard-controller/config" \
-    "applications/tensorboard/tensorboard-controller/upstream" \
-    "tensorboard-controller/config"
-copy_component_manifests "components/pvcviewer-controller/config" \
-    "applications/pvcviewer-controller/upstream" \
-    "pvcviewer-controller/config"
 commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" \
   "applications" \
   "README.md"

@@ -11,7 +11,7 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
     echo "Usage: $0 <component> <scenario>"
-    echo "Components: katib, model-registry, kserve-models-web-app, notebook-controller"
+    echo "Components: katib, model-registry, kserve-models-web-app"
     exit 1
 fi
 
@@ -122,8 +122,8 @@ case "$COMPONENT" in
         )
         
         declare -A HELM_VALUES=(
-            ["base"]=""  
-            ["kubeflow"]="--set kubeflow.enabled=true --set global.namespace=kubeflow"
+            ["base"]="$CHART_DIR/ci/base-values.yaml"
+            ["kubeflow"]="$CHART_DIR/ci/kubeflow-values.yaml"
         )
         
         declare -A NAMESPACES=(
@@ -131,37 +131,10 @@ case "$COMPONENT" in
             ["kubeflow"]="kubeflow"
         )
         ;;
-        
-    "notebook-controller")
-        CHART_DIR="$ROOT_DIR/experimental/helm/charts/notebook-controller"
-        MANIFESTS_DIR="$ROOT_DIR/applications/jupyter/notebook-controller/upstream"
-        
-        declare -A KUSTOMIZE_PATHS=(
-            ["base"]="$MANIFESTS_DIR/base"
-            ["kubeflow"]="$MANIFESTS_DIR/overlays/kubeflow"
-            ["standalone"]="$MANIFESTS_DIR/overlays/standalone"
-        )
-        
-        declare -A HELM_VALUES=(
-            ["base"]="$CHART_DIR/ci/base-values.yaml"
-            ["kubeflow"]="$CHART_DIR/ci/kubeflow-values.yaml"
-            ["standalone"]="$CHART_DIR/ci/standalone-values.yaml"
-            ["webhook"]="$CHART_DIR/ci/webhook-values.yaml"
-            ["production"]="$CHART_DIR/ci/production-values.yaml"
-        )
-        
-        declare -A NAMESPACES=(
-            ["base"]="notebook-controller-system"
-            ["kubeflow"]="kubeflow"
-            ["standalone"]="notebook-controller-system"
-            ["webhook"]="kubeflow"
-            ["production"]="kubeflow"
-        )
-        ;;
-        
+
     *)
         echo "ERROR: Unknown component: $COMPONENT"
-        echo "Supported components: katib, model-registry, kserve-models-web-app, notebook-controller"
+        echo "Supported components: katib, model-registry, kserve-models-web-app"
         exit 1
         ;;
 esac
@@ -191,7 +164,7 @@ if [ ! -d "$CHART_DIR" ]; then
     exit 1
 fi
 
-if [[ "$COMPONENT" != "kserve-models-web-app" ]] && [ ! -f "$HELM_VALUES_ARG" ]; then
+if [ -n "$HELM_VALUES_ARG" ] && [ ! -f "$HELM_VALUES_ARG" ]; then
     echo "ERROR: Helm values file does not exist: $HELM_VALUES_ARG"
     exit 1
 fi
@@ -205,21 +178,19 @@ kustomize build "$KUSTOMIZE_PATH" > "$KUSTOMIZE_OUTPUT"
 # Generate Helm manifests (different approach for KServe Models Web App)
 cd "$ROOT_DIR"
 if [[ "$COMPONENT" == "kserve-models-web-app" ]]; then
-    # KServe uses command-line arguments
+    # KServe uses chart-local CI values files, but still templates from the repository root.
     if [ -n "$HELM_VALUES_ARG" ]; then
-        eval "helm template kserve-models-web-app $CHART_DIR --namespace $NAMESPACE $HELM_VALUES_ARG > $HELM_OUTPUT"
+        helm template kserve-models-web-application "$CHART_DIR" \
+            --namespace "$NAMESPACE" \
+            --values "$HELM_VALUES_ARG" > "$HELM_OUTPUT"
     else
-        helm template kserve-models-web-app "$CHART_DIR" --namespace "$NAMESPACE" > "$HELM_OUTPUT"
+        helm template kserve-models-web-application "$CHART_DIR" \
+            --namespace "$NAMESPACE" > "$HELM_OUTPUT"
     fi
 else
     cd "$CHART_DIR"
     if [[ "$COMPONENT" == "katib" ]]; then
         helm template katib . \
-            --namespace "$NAMESPACE" \
-            --include-crds \
-            --values "$HELM_VALUES_ARG" > "$HELM_OUTPUT"
-    elif [[ "$COMPONENT" == "notebook-controller" ]]; then
-        helm template notebook-controller . \
             --namespace "$NAMESPACE" \
             --include-crds \
             --values "$HELM_VALUES_ARG" > "$HELM_OUTPUT"
@@ -246,4 +217,4 @@ rm -f "$KUSTOMIZE_OUTPUT" "$HELM_OUTPUT"
 
 
 
-exit $COMPARISON_RESULT 
+exit $COMPARISON_RESULT
