@@ -75,7 +75,7 @@ jobs:
 
         STATUS_CODE=$(curl -v \
           --silent --output /dev/stderr --write-out "%{http_code}" \
-          "localhost:8080/workspaces/api/v1/namespaces/${KF_PROFILE}/workspaces" \
+          "localhost:8080/workspaces/api/v1/workspaces/${KF_PROFILE}" \
           -H "Authorization: Bearer ${TOKEN}")
 
         if test "${STATUS_CODE}" -ne 200; then
@@ -90,7 +90,7 @@ jobs:
 
         STATUS_CODE=$(curl -v \
           --silent --output /dev/stderr --write-out "%{http_code}" \
-          "localhost:8080/workspaces/api/v1/namespaces/${KF_PROFILE}/workspaces" \
+          "localhost:8080/workspaces/api/v1/workspaces/${KF_PROFILE}" \
           -H "Authorization: Bearer ${TOKEN}")
 
         if test "${STATUS_CODE}" -ne 403; then

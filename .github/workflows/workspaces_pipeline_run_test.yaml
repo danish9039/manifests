@@ -81,12 +81,16 @@ jobs:
 
     - name: Copy and execute the pipeline run script in KF Workspace
       run: |
+        WORKSPACE_POD="$(kubectl -n kubeflow-user-example-com get pods \
+          -l notebooks.kubeflow.org/workspace-name=test \
+          -o jsonpath='{.items[0].metadata.name}')"
+
         kubectl -n kubeflow-user-example-com cp \
           ./tests/pipeline_run_and_wait_kubeflow.py \
-          test-0:/home/jovyan/pipeline_run_and_wait_kubeflow.py
+          ${WORKSPACE_POD}:/home/jovyan/pipeline_run_and_wait_kubeflow.py
 
         kubectl -n kubeflow-user-example-com exec -ti \
-          test-0 -- python /home/jovyan/pipeline_run_and_wait_kubeflow.py
+          ${WORKSPACE_POD} -- python /home/jovyan/pipeline_run_and_wait_kubeflow.py
 
     - name: Apply Pod Security Standards restricted levels
       run: ./tests/PSS_enable.sh
