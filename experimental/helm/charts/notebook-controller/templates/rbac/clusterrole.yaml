@@ -17,12 +17,6 @@ metadata:
   {{- end }}
 rules:
 - apiGroups:
-  - apps
-  resources:
-  - statefulsets
-  verbs:
-  - '*'
-- apiGroups:
   - ""
   resources:
   - events
@@ -46,7 +40,12 @@ rules:
   - services
   verbs:
   - '*'
-
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  verbs:
+  - '*'
 - apiGroups:
   - kubeflow.org
   resources:

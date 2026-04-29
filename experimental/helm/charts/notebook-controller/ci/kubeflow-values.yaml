@@ -5,8 +5,8 @@ nameOverride: "notebook-controller"
 
 global:
   namespace: kubeflow
-  imageRegistry: ghcr.io/kubeflow/kubeflow
-  imageTag: v1.10.0
+  imageRegistry: ghcr.io/kubeflow/notebooks
+  imageTag: v1.11.0-rc.1
 
 # Common labels 
 commonLabels:

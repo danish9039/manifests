@@ -17,9 +17,9 @@ global:
   # -- Namespace to install Notebook Controller
   namespace: kubeflow
   # -- Image registry for Notebook Controller images
-  imageRegistry: ghcr.io/kubeflow/kubeflow
+  imageRegistry: ghcr.io/kubeflow/notebooks
   # -- Global image tag for the notebook controller
-  imageTag: v1.10.0
+  imageTag: v1.11.0-rc.1
   # -- Global image pull policy
   imagePullPolicy: IfNotPresent
   # -- Global image pull secrets
