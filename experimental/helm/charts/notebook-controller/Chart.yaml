@@ -1,8 +1,8 @@
 apiVersion: v2
 name: notebook-controller
 description: A Helm chart for Kubeflow Notebook Controller - Jupyter notebook management on Kubernetes
-version: 1.10.0
-appVersion: v1.10.0
+version: 1.11.0-rc.1
+appVersion: 1.11.0-rc.1
 keywords:
 - kubeflow
 - jupyter
