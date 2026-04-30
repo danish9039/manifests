@@ -10,10 +10,10 @@ server:
   replicas: 1
   # Configure for embedmd datastore
   dataStoreType: embedmd
-  
+
   image:
     tag: "v0.3.8"
-    
+
   # Configure readiness probe
   rest:
     readinessProbe:
@@ -22,11 +22,11 @@ server:
       periodSeconds: 60
       timeoutSeconds: 2
       failureThreshold: 3
-      
+
   # Disable gRPC container for embedmd mode
   grpc:
     enabled: false
-    
+
   resources:
     limits:
       cpu: 200m
@@ -43,26 +43,26 @@ configMap:
     MODEL_REGISTRY_DATA_STORE_TYPE: "embedmd"
 
 database:
-  type: sqlite  
+  type: sqlite
   mysql:
-    enabled: false  
+    enabled: false
 
 ui:
-  enabled: false  
+  enabled: false
 
 controller:
-  enabled: false  
+  enabled: false
   rbac:
-    create: false  
+    create: false
 
 istio:
-  enabled: false  
+  enabled: false
 
 monitoring:
-  enabled: false  
+  enabled: false
 
 security:
   networkPolicy:
-    enabled: false  
+    enabled: false
   podSecurityPolicy:
-    enabled: false  
+    enabled: false

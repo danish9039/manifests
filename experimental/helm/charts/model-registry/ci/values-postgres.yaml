@@ -54,8 +54,8 @@ database:
         cpu: 100m
         memory: 128Mi
     persistence:
-      enabled: true  
-      size: 10Gi      
+      enabled: true
+      size: 10Gi
   external:
     enabled: false
 
@@ -86,4 +86,4 @@ configMap:
     MODEL_REGISTRY_DATA_STORE_TYPE: "embedmd"
 
 rbac:
-  create: true 
+  create: true

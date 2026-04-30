@@ -76,4 +76,4 @@ configMap:
     MODEL_REGISTRY_DATA_STORE_TYPE: "embedmd"
 
 rbac:
-  create: true 
+  create: true
