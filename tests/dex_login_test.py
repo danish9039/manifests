@@ -23,7 +23,15 @@ PARALLEL_SESSIONS = 8
 # Dex authcode GC window: authcodes must be deleted after token exchange completes.
 GC_WAIT_SECONDS = 90
 REQUEST_TIMEOUT_SECONDS = 15
-PARALLEL_TEST_TIMEOUT_SECONDS = PARALLEL_SESSIONS * REQUEST_TIMEOUT_SECONDS
+# One authentication session can perform several sequential HTTP requests:
+# endpoint GET, oauth2-proxy start, Dex login GET and POST, optional approval,
+# and optional recovery after a 403 response.
+MAXIMUM_SEQUENTIAL_HTTP_REQUESTS_PER_SESSION = 8
+PARALLEL_TEST_TIMEOUT_BUFFER_SECONDS = 30
+PARALLEL_TEST_TIMEOUT_SECONDS = (
+    REQUEST_TIMEOUT_SECONDS * MAXIMUM_SEQUENTIAL_HTTP_REQUESTS_PER_SESSION
+    + PARALLEL_TEST_TIMEOUT_BUFFER_SECONDS
+)
 KUBECTL_TIMEOUT_SECONDS = 120
 KUBECTL_REQUEST_TIMEOUT = "30s"
 
@@ -420,12 +428,27 @@ def run_parallel_validation() -> None:
             executor.submit(run_parallel_authentication_session, session_index)
             for session_index in range(PARALLEL_SESSIONS)
         ]
-        for future in concurrent.futures.as_completed(
-            futures, timeout=PARALLEL_TEST_TIMEOUT_SECONDS
-        ):
-            authentication_result = future.result()
-            if not authentication_result.succeeded:
-                authentication_failures.append(authentication_result)
+        completed_futures = set()
+        try:
+            for future in concurrent.futures.as_completed(
+                futures, timeout=PARALLEL_TEST_TIMEOUT_SECONDS
+            ):
+                completed_futures.add(future)
+                authentication_result = future.result()
+                if not authentication_result.succeeded:
+                    authentication_failures.append(authentication_result)
+        except concurrent.futures.TimeoutError as timeout_error:
+            pending_futures = [
+                future for future in futures if future not in completed_futures
+            ]
+            for future in pending_futures:
+                future.cancel()
+            raise RuntimeError(
+                "Parallel authentication sessions exceeded the batch timeout of "
+                f"{PARALLEL_TEST_TIMEOUT_SECONDS} seconds: "
+                f"completed={len(completed_futures)} "
+                f"pending={len(pending_futures)}"
+            ) from timeout_error
 
     if authentication_failures:
         error_summary = "; ".join(
