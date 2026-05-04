@@ -20,8 +20,8 @@ DEX_AUTHENTICATION_TYPE = "local"
 # Matches replicas: 2 in common/dex/base/deployment.yaml.
 # Use a larger burst so the replica-distribution assertion is statistically stable in CI.
 PARALLEL_SESSIONS = 8
-# Dex authcode GC window: authcodes must be deleted after token exchange completes.
-GC_WAIT_SECONDS = 90
+# Dex authcode garbage-collection window: authcodes must be deleted after token exchange completes.
+GARBAGE_COLLECTION_WAIT_SECONDS = 90
 REQUEST_TIMEOUT_SECONDS = 15
 # One authentication session can perform several sequential HTTP requests:
 # endpoint GET, oauth2-proxy start, Dex login GET and POST, optional approval,
@@ -329,15 +329,16 @@ def count_authentication_hits_for_pod(pod_name: str, relative_log_window_seconds
 
 def count_authcodes_objects() -> int:
     """
-    Count the number of Dex authcode CRD objects currently in the cluster.
+    Count the number of Dex authcode CRD objects currently in the auth namespace.
     Dex creates one authcode object per login; the GC process deletes them after
     the token exchange completes. Returns 0 if no instances exist.
     """
     command_arguments = [
         "kubectl",
         "--request-timeout", KUBECTL_REQUEST_TIMEOUT,
+        "-n", "auth",
         "get", DEX_AUTHCODE_RESOURCE,
-        "-A", "-o", "json",
+        "-o", "json",
     ]
     command_result = run_command(command_arguments)
     # "no resources found" is a normal state — return 0 rather than raising
@@ -394,11 +395,11 @@ def run_parallel_validation() -> None:
        balancer distributes connections freely, so a single burst is sufficient to
        observe both replicas receiving traffic.
     3. Dex authcode CRD objects created during the burst are garbage collected after
-       the GC_WAIT_SECONDS window. With storage.type=kubernetes, authcodes are
+       the GARBAGE_COLLECTION_WAIT_SECONDS window. With storage.type=kubernetes, authcodes are
        Kubernetes CRD objects that Dex actively deletes after each token exchange.
 
     Requires at least 2 Dex replicas (replicas: 2 in common/dex/base/deployment.yaml).
-    The relative log window is sized to cover the burst plus GC wait plus a buffer.
+    The relative log window is sized to cover the burst plus the garbage-collection wait plus a buffer.
     Repeated reads still observe a sliding relative window, because `kubectl logs
     --since=<N>s` is evaluated relative to the time of each call.
     """
@@ -408,7 +409,7 @@ def run_parallel_validation() -> None:
     # Size the relative log window to cover the burst duration plus GC wait plus a
     # buffer. This reduces the chance of missing burst activity, but it does not
     # create a fixed comparison interval across multiple reads.
-    relative_log_window_seconds = max(GC_WAIT_SECONDS + 120, 300)
+    relative_log_window_seconds = max(GARBAGE_COLLECTION_WAIT_SECONDS + 120, 300)
 
     # Snapshot state before the burst
     baseline_authentication_hits = {
@@ -502,10 +503,10 @@ def run_parallel_validation() -> None:
     print(f"Authcodes count: before={authcodes_before} after_burst={authcodes_after_burst}")
 
     if authcodes_after_burst > authcodes_before:
-        time.sleep(GC_WAIT_SECONDS)
+        time.sleep(GARBAGE_COLLECTION_WAIT_SECONDS)
         authcodes_after_wait = count_authcodes_objects()
         print(
-            f"Authcodes count after GC wait ({GC_WAIT_SECONDS}s): {authcodes_after_wait}"
+            f"Authcodes count after garbage-collection wait ({GARBAGE_COLLECTION_WAIT_SECONDS}s): {authcodes_after_wait}"
         )
         # The burst created new authcodes — GC must reduce the count
         if authcodes_after_wait >= authcodes_after_burst:
