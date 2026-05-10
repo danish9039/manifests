@@ -351,13 +351,13 @@ kustomize build applications/admission-webhook/upstream/overlays/cert-manager | 
 #### Knative (used by KServe)
 
 ```sh
-./tests/knative_install.sh
+./tests/knative_serving_install.sh
 ```
 
 Optionally, you can install Knative Eventing, which can be used for inference request logging:
 
 ```sh
-kustomize build common/knative/knative-eventing/base | kubectl apply -f -
+./tests/knative_eventing_install.sh
 ```
 
 #### KServe model serving and KServe models web application

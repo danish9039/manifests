@@ -15,7 +15,7 @@ on:
     - common/cert-manager/**
     - tests/istio*
     - common/knative/**
-    - tests/knative_install.sh
+    - tests/knative_serving_install.sh
 
 permissions:
   contents: read
@@ -44,8 +44,8 @@ jobs:
     - name: Install cert-manager
       run: ./tests/cert_manager_install.sh
 
-    - name: Install knative CNI
-      run: ./tests/knative_install.sh
+    - name: Install Knative Serving
+      run: ./tests/knative_serving_install.sh
 
     - name: Install KServe
       run: ./tests/kserve_install.sh

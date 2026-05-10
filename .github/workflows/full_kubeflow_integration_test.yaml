@@ -54,8 +54,11 @@ jobs:
     - name: Install Central Dashboard
       run: ./tests/central_dashboard_install.sh
 
-    - name: Install Knative
-      run: ./tests/knative_install.sh
+    - name: Install Knative Serving
+      run: ./tests/knative_serving_install.sh
+
+    - name: Install Knative Eventing
+      run: ./tests/knative_eventing_install.sh
 
     - name: Install KServe
       run: ./tests/kserve_install.sh
