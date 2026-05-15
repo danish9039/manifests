@@ -1,9 +1,9 @@
-name: Test Notebook Controller
+name: Test Notebooks API Authorization
 on:
   pull_request:
     paths:
     - tests/install_KinD_create_KinD_cluster_install_kustomize.sh
-    - .github/workflows/notebook_controller_test.yaml
+    - .github/workflows/notebooks_api_authorization_test.yaml
     - applications/notebooks-v1/**
     - common/cert-manager/**
     - common/oauth2-proxy/**
@@ -13,13 +13,15 @@ on:
     - tests/notebooks_install.sh
     - tests/oauth2-proxy_install.sh
     - tests/multi_tenancy_install.sh
+    - tests/profile_controller_install.sh
+    - applications/dashboard/upstream/profile-controller/**
 
 permissions:
   contents: read
   actions: read
 
 jobs:
-  notebook_controller_test:
+  notebooks_api_authorization_test:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -42,6 +44,9 @@ jobs:
 
     - name: Install kubeflow-istio-resources
       run: kustomize build common/istio/kubeflow-istio-resources/base | kubectl apply -f -
+
+    - name: Install Profile Controller
+      run: ./tests/profile_controller_install.sh
 
     - name: Install KF Multi Tenancy
       run: ./tests/multi_tenancy_install.sh

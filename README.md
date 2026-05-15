@@ -261,7 +261,7 @@ Install Kubeflow Istio resources:
 kustomize build common/istio/kubeflow-istio-resources/base | kubectl apply -f -
 ```
 
-#### Multi-tenancy components (Profiles + KFAM)
+#### Multi-tenancy components (Kubeflow roles)
 
 ```sh
 ./tests/multi_tenancy_install.sh
@@ -410,21 +410,11 @@ For detailed pipeline compilation instructions, please refer to the [Kubeflow Pi
 ./tests/notebooks_install.sh
 ```
 
+This installs the Notebook Controller, Jupyter Web Application, PVC Viewer Controller, Volumes Web Application, Tensorboard Controller, and Tensorboards Web Application.
+
 #### Workspaces (Notebooks 2.0)
 
 This feature is still in development.
-
-#### PVC Viewer Controller
-
-The PVC Viewer Controller is installed by the Notebooks 1.0 step above.
-
-#### Volumes Web Application
-
-The Volumes Web Application is installed by the Notebooks 1.0 step above.
-
-#### Tensorboard web application and controller
-
-The Tensorboard web application and controller are installed by the Notebooks 1.0 step above.
 
 #### Trainer (training operator v2)
 
