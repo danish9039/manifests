@@ -221,8 +221,16 @@ def preserve_cert_manager_kubeflow_labels(original: Dict, normalized: Dict) -> N
 
 def should_compare_manifest(manifest: Dict, component: str, scenario: str) -> bool:
     """Select the resource subset owned by a comparison scenario."""
+    kind = manifest.get("kind", "")
+
     if component == "cert-manager" and manifest.get("kind") == "Namespace":
         return False
+
+    if component == "kubeflow-namespaces" and scenario == "base":
+        return kind != "Namespace"
+
+    if component == "kubeflow-namespaces" and scenario == "platform-namespaces":
+        return kind == "Namespace"
 
     return True
 
@@ -236,8 +244,8 @@ def get_resource_key(manifest: Dict, component: str = "katib") -> str:
     if kind in ["Secret", "ConfigMap"]:
         name = re.sub(r"-[a-z0-9]{10}$", "", name)
 
-    # Include namespace in key for components that render resources across multiple namespaces.
-    if component in ["katib", "cert-manager"] and namespace:
+    # Include namespace in key for components with same-named namespaced resources.
+    if component in ["katib", "cert-manager", "kubeflow-namespaces"] and namespace:
         return f"{kind}/{namespace}/{name}"
     else:
         return f"{kind}/{name}"
@@ -368,7 +376,9 @@ if __name__ == "__main__":
         print(
             "Usage: python compare.py <kustomize_file> <helm_file> <component> <scenario> [namespace] [--verbose]"
         )
-        print("Components: katib, hub, kserve-models-web-application, cert-manager")
+        print(
+            "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform"
+        )
         sys.exit(1)
 
     kustomize_file = sys.argv[1]
@@ -384,10 +394,12 @@ if __name__ == "__main__":
         "hub",
         "kserve-models-web-application",
         "cert-manager",
+        "kubeflow-namespaces",
+        "kubeflow-platform",
     ]:
         print(f"ERROR: Unknown component: {component}")
         print(
-            "Supported components: katib, hub, kserve-models-web-application, cert-manager"
+            "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform"
         )
         sys.exit(1)
 

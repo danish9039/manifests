@@ -11,7 +11,7 @@ ROOT_DIRECTORY="$(dirname "$SCRIPT_DIRECTORY")"
 if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
     echo "Usage: $0 <component> <scenario>"
-    echo "Components: katib, hub, kserve-models-web-application, cert-manager"
+    echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform"
     exit 1
 fi
 
@@ -155,9 +155,54 @@ case "$COMPONENT" in
         )
         ;;
 
+    "kubeflow-namespaces")
+        CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/kubeflow-namespaces"
+        MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/common/kubeflow-namespace"
+        PLATFORM_NAMESPACE_KUSTOMIZE_PATHS=(
+            "$MANIFESTS_DIRECTORY/base"
+            "$ROOT_DIRECTORY/common/cert-manager/base"
+            "$ROOT_DIRECTORY/common/istio/istio-namespace/base"
+            "$ROOT_DIRECTORY/common/oauth2-proxy/base"
+            "$ROOT_DIRECTORY/common/dex/base"
+        )
+        PLATFORM_NAMESPACE_PATHS="$(printf '%s\n' "${PLATFORM_NAMESPACE_KUSTOMIZE_PATHS[@]}")"
+
+        declare -A KUSTOMIZE_PATHS=(
+            ["base"]="$MANIFESTS_DIRECTORY/base"
+            ["platform-namespaces"]="$PLATFORM_NAMESPACE_PATHS"
+        )
+
+        declare -A HELM_VALUES=(
+            ["base"]="$CHART_DIRECTORY/ci/values-default.yaml"
+            ["platform-namespaces"]="$CHART_DIRECTORY/ci/values-default.yaml"
+        )
+
+        declare -A NAMESPACES=(
+            ["base"]="default"
+            ["platform-namespaces"]="default"
+        )
+        ;;
+
+    "kubeflow-platform")
+        CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/kubeflow-platform"
+        MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/common/kubeflow-roles"
+
+        declare -A KUSTOMIZE_PATHS=(
+            ["base"]="$MANIFESTS_DIRECTORY/base"
+        )
+
+        declare -A HELM_VALUES=(
+            ["base"]="$CHART_DIRECTORY/ci/values-default.yaml"
+        )
+
+        declare -A NAMESPACES=(
+            ["base"]="kubeflow-system"
+        )
+        ;;
+
     *)
         echo "ERROR: Unknown component: $COMPONENT"
-        echo "Supported components: katib, hub, kserve-models-web-application, cert-manager"
+        echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform"
         exit 1
         ;;
 esac
@@ -229,6 +274,10 @@ elif [[ "$COMPONENT" == "cert-manager" ]]; then
     helm template cert-manager . \
         --namespace "$NAMESPACE" \
         --include-crds \
+        --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
+elif [[ "$COMPONENT" == "kubeflow-namespaces" || "$COMPONENT" == "kubeflow-platform" ]]; then
+    helm template "$COMPONENT" "$CHART_DIRECTORY" \
+        --namespace "$NAMESPACE" \
         --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
 else
     cd "$CHART_DIRECTORY"

@@ -13,6 +13,8 @@ declare -A COMPONENT_SCENARIOS=(
     ["hub"]="base overlay-postgres overlay-db controller-manager controller-rbac controller-default controller-prometheus controller-network-policy ui-base ui-standalone ui-integrated ui-istio istio csi"
     ["kserve-models-web-application"]="base kubeflow"
     ["cert-manager"]="base kubeflow existing-cert-manager"
+    ["kubeflow-namespaces"]="base platform-namespaces"
+    ["kubeflow-platform"]="base"
 )
 
 prepare_component() {
@@ -61,7 +63,7 @@ if [[ "$COMPONENT" == "all" ]]; then
     declare -a passed_components=()
     declare -a failed_components=()
     
-    for component in katib hub kserve-models-web-application cert-manager; do
+    for component in katib hub kserve-models-web-application cert-manager kubeflow-namespaces kubeflow-platform; do
         if test_component "$component"; then
             passed_components+=("$component")
         else
@@ -90,6 +92,8 @@ elif [[ "$COMPONENT" == "help" ]] || [[ "$COMPONENT" == "--help" ]] || [[ "$COMP
     echo "  hub                    Test Hub / Model Registry scenarios"
     echo "  kserve-models-web-application  Test KServe UI scenarios"
     echo "  cert-manager           Test cert-manager wrapper scenarios"
+    echo "  kubeflow-namespaces    Test Kubeflow namespace foundation chart"
+    echo "  kubeflow-platform      Test Kubeflow platform foundation chart"
     echo ""
     echo "Examples:"
     echo "  $0                     # Test all components"
@@ -109,7 +113,7 @@ elif [[ "${COMPONENT_SCENARIOS[$COMPONENT]:-}" ]]; then
     
 else
     echo "ERROR: Unknown component: $COMPONENT"
-    echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, all"
+    echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, all"
     echo "Use '$0 help' for more information."
     exit 1
 fi 
