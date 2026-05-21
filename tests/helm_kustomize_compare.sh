@@ -11,7 +11,7 @@ ROOT_DIRECTORY="$(dirname "$SCRIPT_DIRECTORY")"
 if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
     echo "Usage: $0 <component> [scenario]"
-    echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex"
+    echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy"
     echo "The scenario defaults to 'base', except KServe Models Web Application defaults to 'kubeflow' and Dex defaults to 'oauth2-proxy'."
     exit 1
 fi
@@ -214,9 +214,35 @@ case "$COMPONENT" in
         )
         ;;
 
+    "oauth2-proxy")
+        CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/oauth2-proxy"
+        MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/common/oauth2-proxy"
+
+        declare -A KUSTOMIZE_PATHS=(
+            ["base"]="$MANIFESTS_DIRECTORY/base"
+            ["m2m-dex-only"]="$MANIFESTS_DIRECTORY/overlays/m2m-dex-only"
+            ["m2m-dex-and-kind"]="$MANIFESTS_DIRECTORY/overlays/m2m-dex-and-kind"
+            ["m2m-dex-and-eks"]="$MANIFESTS_DIRECTORY/overlays/m2m-dex-and-eks"
+        )
+
+        declare -A HELM_VALUES=(
+            ["base"]="$CHART_DIRECTORY/ci/values-base.yaml"
+            ["m2m-dex-only"]="$CHART_DIRECTORY/ci/values-m2m-dex-only.yaml"
+            ["m2m-dex-and-kind"]="$CHART_DIRECTORY/ci/values-m2m-dex-and-kind.yaml"
+            ["m2m-dex-and-eks"]="$CHART_DIRECTORY/ci/values-m2m-dex-and-eks.yaml"
+        )
+
+        declare -A NAMESPACES=(
+            ["base"]="kubeflow-system"
+            ["m2m-dex-only"]="kubeflow-system"
+            ["m2m-dex-and-kind"]="kubeflow-system"
+            ["m2m-dex-and-eks"]="kubeflow-system"
+        )
+        ;;
+
     *)
         echo "ERROR: Unknown component: $COMPONENT"
-        echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex"
+        echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy"
         exit 1
         ;;
 esac
@@ -325,6 +351,11 @@ else
     cd "$CHART_DIRECTORY"
     if [[ "$COMPONENT" == "katib" ]]; then
         helm template katib . \
+            --namespace "$NAMESPACE" \
+            --include-crds \
+            --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
+    elif [[ "$COMPONENT" == "oauth2-proxy" ]]; then
+        helm template oauth2-proxy . \
             --namespace "$NAMESPACE" \
             --include-crds \
             --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"

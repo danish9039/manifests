@@ -16,6 +16,7 @@ declare -A COMPONENT_SCENARIOS=(
     ["kubeflow-namespaces"]="base platform-namespaces"
     ["kubeflow-platform"]="base"
     ["dex"]="oauth2-proxy"
+    ["oauth2-proxy"]="base m2m-dex-only m2m-dex-and-kind m2m-dex-and-eks"
 )
 
 prepare_component() {
@@ -65,7 +66,7 @@ if [[ "$COMPONENT" == "all" ]]; then
     declare -a passed_components=()
     declare -a failed_components=()
     
-    for component in katib hub kserve-models-web-application cert-manager kubeflow-namespaces kubeflow-platform dex; do
+    for component in katib hub kserve-models-web-application cert-manager kubeflow-namespaces kubeflow-platform dex oauth2-proxy; do
         if test_component "$component"; then
             passed_components+=("$component")
         else
@@ -97,6 +98,7 @@ elif [[ "$COMPONENT" == "help" ]] || [[ "$COMPONENT" == "--help" ]] || [[ "$COMP
     echo "  kubeflow-namespaces    Test Kubeflow namespace foundation chart"
     echo "  kubeflow-platform      Test Kubeflow platform foundation chart"
     echo "  dex                    Test Dex scenarios"
+    echo "  oauth2-proxy           Test oauth2-proxy wrapper scenarios"
     echo ""
     echo "Examples:"
     echo "  $0                     # Test all components"
@@ -117,7 +119,7 @@ elif [[ "${COMPONENT_SCENARIOS[$COMPONENT]:-}" ]]; then
     
 else
     echo "ERROR: Unknown component: $COMPONENT"
-    echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, all"
+    echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy, all"
     echo "Use '$0 help' for more information."
     exit 1
 fi 

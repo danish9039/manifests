@@ -6,6 +6,10 @@ import json
 from typing import Dict, List, Tuple, Any
 import re
 
+KUSTOMIZE_HASH_SUFFIX = re.compile(
+    r"-(?=[a-z0-9]{10}$)(?=[a-z0-9]*[0-9])[a-z0-9]{10}$"
+)
+
 CERT_MANAGER_KUBEFLOW_RESOURCES = {
     ("ClusterIssuer", "kubeflow-self-signing-issuer"),
     ("NetworkPolicy", "cert-manager-webhook"),
@@ -125,11 +129,11 @@ def normalize_kustomize_refs(obj: Any, path: str = "") -> Any:
                         "volumes",
                     ]
                 ):
-                    value = re.sub(r"-[a-z0-9]{10}$", "", value)
+                    value = KUSTOMIZE_HASH_SUFFIX.sub("", value)
                 elif "volumes" in path and key == "secretName":
-                    value = re.sub(r"-[a-z0-9]{10}$", "", value)
+                    value = KUSTOMIZE_HASH_SUFFIX.sub("", value)
                 elif "volumes" in path and "configMap" in path:
-                    value = re.sub(r"-[a-z0-9]{10}$", "", value)
+                    value = KUSTOMIZE_HASH_SUFFIX.sub("", value)
 
             normalized[key] = normalize_kustomize_refs(value, current_path)
         return normalized
@@ -180,7 +184,7 @@ def normalize_manifest(manifest: Dict, component: str = "katib") -> Dict:
         kind = normalized.get("kind", "")
         if kind in ["Secret", "ConfigMap"]:
             name = normalized["metadata"]["name"]
-            normalized["metadata"]["name"] = re.sub(r"-[a-z0-9]{10}$", "", name)
+            normalized["metadata"]["name"] = KUSTOMIZE_HASH_SUFFIX.sub("", name)
 
     if "metadata" in normalized:
         metadata = normalized["metadata"]
@@ -289,7 +293,7 @@ def get_resource_key(manifest: Dict, component: str = "katib") -> str:
     namespace = manifest.get("metadata", {}).get("namespace", "")
 
     if kind in ["Secret", "ConfigMap"]:
-        name = re.sub(r"-[a-z0-9]{10}$", "", name)
+        name = KUSTOMIZE_HASH_SUFFIX.sub("", name)
 
     # Include namespace for namespaced resources so same-name objects in
     # different namespaces cannot overwrite each other in the comparison map.
@@ -345,7 +349,7 @@ def get_expected_helm_extras(component: str, scenario: str) -> set:
         return set()  # No extra resources in Helm for Model Registry
     elif component == "kserve-models-web-application":
         return set()
-    elif component == "dex":
+    elif component in ["dex", "oauth2-proxy"]:
         return set()
     else:
         return set()
@@ -427,7 +431,7 @@ if __name__ == "__main__":
             "Usage: python compare.py <kustomize_file> <helm_file> <component> <scenario> [namespace] [--verbose]"
         )
         print(
-            "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex"
+            "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy"
         )
         sys.exit(1)
 
@@ -447,10 +451,11 @@ if __name__ == "__main__":
         "kubeflow-namespaces",
         "kubeflow-platform",
         "dex",
+        "oauth2-proxy",
     ]:
         print(f"ERROR: Unknown component: {component}")
         print(
-            "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex"
+            "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy"
         )
         sys.exit(1)
 
