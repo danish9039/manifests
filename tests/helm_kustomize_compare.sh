@@ -11,7 +11,7 @@ ROOT_DIRECTORY="$(dirname "$SCRIPT_DIRECTORY")"
 if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
     echo "Usage: $0 <component> [scenario]"
-    echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform"
+    echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex"
     echo "The scenario defaults to 'base', except KServe UI defaults to 'kubeflow'."
     exit 1
 fi
@@ -205,9 +205,32 @@ case "$COMPONENT" in
         )
         ;;
 
+    "dex")
+        CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/dex"
+        MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/common/dex"
+
+        declare -A KUSTOMIZE_PATHS=(
+            ["base"]="$MANIFESTS_DIRECTORY/base"
+            ["istio"]="$MANIFESTS_DIRECTORY/overlays/istio"
+            ["oauth2-proxy"]="$MANIFESTS_DIRECTORY/overlays/oauth2-proxy"
+        )
+
+        declare -A HELM_VALUES=(
+            ["base"]="$CHART_DIRECTORY/ci/values-base.yaml"
+            ["istio"]="$CHART_DIRECTORY/ci/values-istio.yaml"
+            ["oauth2-proxy"]="$CHART_DIRECTORY/ci/values-oauth2-proxy.yaml"
+        )
+
+        declare -A NAMESPACES=(
+            ["base"]="kubeflow-system"
+            ["istio"]="kubeflow-system"
+            ["oauth2-proxy"]="kubeflow-system"
+        )
+        ;;
+
     *)
         echo "ERROR: Unknown component: $COMPONENT"
-        echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform"
+        echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex"
         exit 1
         ;;
 esac
@@ -289,6 +312,12 @@ elif [[ "$COMPONENT" == "cert-manager" ]]; then
 elif [[ "$COMPONENT" == "kubeflow-namespaces" || "$COMPONENT" == "kubeflow-platform" ]]; then
     helm template "$COMPONENT" "$CHART_DIRECTORY" \
         --namespace "$NAMESPACE" \
+        --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
+elif [[ "$COMPONENT" == "dex" ]]; then
+    cd "$CHART_DIRECTORY"
+    helm template dex . \
+        --namespace "$NAMESPACE" \
+        --include-crds \
         --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
 else
     cd "$CHART_DIRECTORY"

@@ -245,7 +245,7 @@ def get_resource_key(manifest: Dict, component: str = "katib") -> str:
         name = re.sub(r"-[a-z0-9]{10}$", "", name)
 
     # Include namespace in key for components with same-named namespaced resources.
-    if component in ["katib", "cert-manager", "kubeflow-namespaces"] and namespace:
+    if component in ["katib", "cert-manager", "kubeflow-namespaces", "dex"] and namespace:
         return f"{kind}/{namespace}/{name}"
     else:
         return f"{kind}/{name}"
@@ -296,6 +296,8 @@ def get_expected_helm_extras(component: str, scenario: str) -> set:
     elif component == "hub":
         return set()  # No extra resources in Helm for Model Registry
     elif component == "kserve-models-web-application":
+        return set()
+    elif component == "dex":
         return set()
     else:
         return set()
@@ -377,7 +379,7 @@ if __name__ == "__main__":
             "Usage: python compare.py <kustomize_file> <helm_file> <component> <scenario> [namespace] [--verbose]"
         )
         print(
-            "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform"
+            "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex"
         )
         sys.exit(1)
 
@@ -396,10 +398,11 @@ if __name__ == "__main__":
         "cert-manager",
         "kubeflow-namespaces",
         "kubeflow-platform",
+        "dex",
     ]:
         print(f"ERROR: Unknown component: {component}")
         print(
-            "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform"
+            "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex"
         )
         sys.exit(1)
 
