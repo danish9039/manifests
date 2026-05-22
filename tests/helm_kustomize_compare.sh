@@ -11,7 +11,7 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
     echo "Usage: $0 <component> <scenario>"
-    echo "Components: katib, hub, kserve-models-web-app"
+    echo "Components: katib, hub, kserve-models-web-app, kubeflow-pipelines"
     exit 1
 fi
 
@@ -132,9 +132,29 @@ case "$COMPONENT" in
         )
         ;;
 
+    "kubeflow-pipelines")
+        CHART_DIR="$ROOT_DIR/experimental/helm/charts/kubeflow-pipelines"
+        MANIFESTS_DIR="$ROOT_DIR/applications/pipeline"
+
+        declare -A KUSTOMIZE_PATHS=(
+            ["platform-database"]="$MANIFESTS_DIR/overlays"
+            ["platform-k8s-native"]="$MANIFESTS_DIR/upstream/env/cert-manager/platform-agnostic-multi-user-k8s-native"
+        )
+
+        declare -A HELM_VALUES=(
+            ["platform-database"]="$CHART_DIR/ci/values-platform-database.yaml"
+            ["platform-k8s-native"]="$CHART_DIR/ci/values-platform-k8s-native.yaml"
+        )
+
+        declare -A NAMESPACES=(
+            ["platform-database"]="kubeflow-system"
+            ["platform-k8s-native"]="kubeflow-system"
+        )
+        ;;
+
     *)
         echo "ERROR: Unknown component: $COMPONENT"
-        echo "Supported components: katib, hub, kserve-models-web-app"
+        echo "Supported components: katib, hub, kserve-models-web-app, kubeflow-pipelines"
         exit 1
         ;;
 esac
@@ -187,6 +207,10 @@ if [[ "$COMPONENT" == "kserve-models-web-app" ]]; then
         helm template kserve-models-web-application "$CHART_DIR" \
             --namespace "$NAMESPACE" > "$HELM_OUTPUT"
     fi
+elif [[ "$COMPONENT" == "kubeflow-pipelines" ]]; then
+    helm template kubeflow-pipelines "$CHART_DIR" \
+        --namespace "$NAMESPACE" \
+        --values "$HELM_VALUES_ARG" > "$HELM_OUTPUT"
 else
     cd "$CHART_DIR"
     if [[ "$COMPONENT" == "katib" ]]; then

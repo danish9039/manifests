@@ -1,0 +1,37 @@
+# Default values for the Kubeflow Pipelines chart.
+
+# -- Installation mode. The first chart slice supports platform mode only.
+installationMode: platform
+
+# -- Install stage. Use crds first, then upgrade with full.
+installStage: full
+
+pipelineDefinition:
+  # -- Pipeline definition storage mode: database or k8s-native.
+  storage: database
+
+mysqlSecret:
+  username: root
+  password: ""
+
+seaweedfsSecret:
+  accesskey: minio
+  secretkey: minio123
+
+pipelineInstallConfig:
+  defaultPipelineRoot: ""
+  autoUpdatePipelineDefaultVersion: "true"
+  cronScheduleTimezone: UTC
+  cacheImage: ghcr.io/containerd/busybox
+  cacheNodeRestrictions: "false"
+  maximumCacheStaleness: ""
+  defaultCacheStaleness: ""
+  conMaxLifeTime: 120s
+  logLevel: info
+  artifactsProxyEnabled: "false"
+  artifactRetentionDays: "-1"
+  defaultSecurityContextRunAsUser: ""
+  defaultSecurityContextRunAsGroup: ""
+  defaultSecurityContextRunAsNonRoot: ""
+  blockV1Pipelines: "false"
+  v1AllowedNamespaces: ""

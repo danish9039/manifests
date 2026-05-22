@@ -1,0 +1,4 @@
+installationMode: platform
+installStage: crds
+pipelineDefinition:
+  storage: database

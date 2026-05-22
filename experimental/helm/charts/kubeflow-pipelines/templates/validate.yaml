@@ -1,0 +1,12 @@
+{{- $installationMode := default "" .Values.installationMode -}}
+{{- $installStage := default "" .Values.installStage -}}
+{{- $storage := default "" .Values.pipelineDefinition.storage -}}
+{{- if ne $installationMode "platform" -}}
+{{- fail (printf "invalid installationMode %q; supported values: platform" $installationMode) -}}
+{{- end -}}
+{{- if not (has $installStage (list "crds" "full")) -}}
+{{- fail (printf "invalid installStage %q; supported values: crds, full" $installStage) -}}
+{{- end -}}
+{{- if not (has $storage (list "database" "k8s-native")) -}}
+{{- fail (printf "invalid pipelineDefinition.storage %q; supported values: database, k8s-native" $storage) -}}
+{{- end -}}

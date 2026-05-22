@@ -1,0 +1,21 @@
+apiVersion: v2
+name: kubeflow-pipelines
+description: A Helm chart for Kubeflow Pipelines platform resources
+version: 0.1.0
+appVersion: 2.16.1
+
+keywords:
+- kubeflow
+- pipelines
+- machine-learning
+- workflows
+
+home: https://github.com/kubeflow/pipelines
+
+sources:
+- https://github.com/kubeflow/manifests/tree/master/applications/pipeline
+- https://github.com/kubeflow/pipelines
+
+annotations:
+  category: Machine Learning
+  licenses: Apache-2.0

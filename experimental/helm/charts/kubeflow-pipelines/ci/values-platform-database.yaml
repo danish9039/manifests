@@ -1,0 +1,4 @@
+installationMode: platform
+installStage: full
+pipelineDefinition:
+  storage: database

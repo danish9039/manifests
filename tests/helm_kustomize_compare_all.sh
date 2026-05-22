@@ -12,6 +12,7 @@ declare -A COMPONENT_SCENARIOS=(
     ["katib"]="standalone cert-manager external-db leader-election openshift standalone-postgres with-kubeflow"
     ["hub"]="base overlay-postgres overlay-db controller-manager controller-rbac controller-default controller-prometheus controller-network-policy ui-base ui-standalone ui-integrated ui-istio istio csi"
     ["kserve-models-web-app"]="base kubeflow"
+    ["kubeflow-pipelines"]="platform-database platform-k8s-native"
 )
 
 test_component() {
@@ -49,7 +50,7 @@ if [[ "$COMPONENT" == "all" ]]; then
     declare -a passed_components=()
     declare -a failed_components=()
     
-    for comp in katib hub kserve-models-web-app; do
+    for comp in katib hub kserve-models-web-app kubeflow-pipelines; do
         if test_component "$comp"; then
             passed_components+=("$comp")
         else
@@ -77,11 +78,13 @@ elif [[ "$COMPONENT" == "help" ]] || [[ "$COMPONENT" == "--help" ]] || [[ "$COMP
     echo "  katib                  Test Katib scenarios"
     echo "  hub                    Test Hub / Model Registry scenarios"
     echo "  kserve-models-web-app  Test KServe Models Web App scenarios"
+    echo "  kubeflow-pipelines     Test Kubeflow Pipelines scenarios"
     echo ""
     echo "Examples:"
     echo "  $0                     # Test all components"
     echo "  $0 katib               # Test only Katib"
     echo "  $0 hub                 # Test only Hub / Model Registry"
+    echo "  $0 kubeflow-pipelines  # Test only Kubeflow Pipelines"
     exit 0
     
 elif [[ "${COMPONENT_SCENARIOS[$COMPONENT]:-}" ]]; then
@@ -96,7 +99,7 @@ elif [[ "${COMPONENT_SCENARIOS[$COMPONENT]:-}" ]]; then
     
 else
     echo "ERROR: Unknown component: $COMPONENT"
-    echo "Supported components: katib, hub, kserve-models-web-app, all"
+    echo "Supported components: katib, hub, kserve-models-web-app, kubeflow-pipelines, all"
     echo "Use '$0 help' for more information."
     exit 1
 fi 
