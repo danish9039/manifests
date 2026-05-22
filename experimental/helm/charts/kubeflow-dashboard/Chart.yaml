@@ -1,0 +1,21 @@
+apiVersion: v2
+name: kubeflow-dashboard
+description: A Helm chart for Kubeflow Dashboard platform resources
+version: 0.1.0
+appVersion: v2.0.0-rc.1
+
+keywords:
+- kubeflow
+- dashboard
+- profiles
+- poddefaults
+
+home: https://github.com/kubeflow/manifests
+
+sources:
+- https://github.com/kubeflow/manifests/tree/master/applications/dashboard
+- https://github.com/kubeflow/dashboard
+
+annotations:
+  category: Dashboard
+  licenses: Apache-2.0

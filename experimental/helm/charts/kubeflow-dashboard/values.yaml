@@ -1,0 +1,11 @@
+# Default values for the Kubeflow Dashboard chart.
+
+# -- Rendered Kustomize parity scenario.
+# Supported values:
+# - centraldashboard-base
+# - centraldashboard-istio
+# - centraldashboard-kserve
+# - poddefaults-cert-manager
+# - profile-kubeflow-pss
+# - platform
+scenario: platform

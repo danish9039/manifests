@@ -11,7 +11,7 @@ ROOT_DIRECTORY="$(dirname "$SCRIPT_DIRECTORY")"
 if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
     echo "Usage: $0 <component> [scenario]"
-    echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy, istio"
+    echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy, istio, kubeflow-dashboard"
     echo "The scenario is optional. Defaults: KServe Models Web Application uses 'kubeflow', Dex uses 'oauth2-proxy', OAuth2-proxy uses 'm2m-dex-and-kind', and other components use 'base'."
     exit 1
 fi
@@ -266,9 +266,41 @@ case "$COMPONENT" in
         )
         ;;
 
+    "kubeflow-dashboard")
+        CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/kubeflow-dashboard"
+        MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/applications/dashboard"
+
+        declare -A KUSTOMIZE_PATHS=(
+            ["centraldashboard-base"]="$MANIFESTS_DIRECTORY/upstream/centraldashboard/base"
+            ["centraldashboard-istio"]="$MANIFESTS_DIRECTORY/upstream/centraldashboard/overlays/istio"
+            ["centraldashboard-kserve"]="$MANIFESTS_DIRECTORY/upstream/centraldashboard/overlays/kserve"
+            ["poddefaults-cert-manager"]="$MANIFESTS_DIRECTORY/upstream/poddefaults-webhooks/overlays/cert-manager"
+            ["profile-kubeflow-pss"]="$MANIFESTS_DIRECTORY/upstream/profile-controller/overlays/kubeflow-pss"
+            ["platform"]="$MANIFESTS_DIRECTORY/overlays/istio"
+        )
+
+        declare -A HELM_VALUES=(
+            ["centraldashboard-base"]="$CHART_DIRECTORY/ci/values-centraldashboard-base.yaml"
+            ["centraldashboard-istio"]="$CHART_DIRECTORY/ci/values-centraldashboard-istio.yaml"
+            ["centraldashboard-kserve"]="$CHART_DIRECTORY/ci/values-centraldashboard-kserve.yaml"
+            ["poddefaults-cert-manager"]="$CHART_DIRECTORY/ci/values-poddefaults-cert-manager.yaml"
+            ["profile-kubeflow-pss"]="$CHART_DIRECTORY/ci/values-profile-kubeflow-pss.yaml"
+            ["platform"]="$CHART_DIRECTORY/ci/values-platform.yaml"
+        )
+
+        declare -A NAMESPACES=(
+            ["centraldashboard-base"]="kubeflow-system"
+            ["centraldashboard-istio"]="kubeflow-system"
+            ["centraldashboard-kserve"]="kubeflow-system"
+            ["poddefaults-cert-manager"]="kubeflow-system"
+            ["profile-kubeflow-pss"]="kubeflow-system"
+            ["platform"]="kubeflow-system"
+        )
+        ;;
+
     *)
         echo "ERROR: Unknown component: $COMPONENT"
-        echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy, istio"
+        echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy, istio, kubeflow-dashboard"
         exit 1
         ;;
 esac
@@ -380,6 +412,10 @@ elif [[ "$COMPONENT" == "dex" ]]; then
             --namespace "$NAMESPACE" \
             --include-crds > "$HELM_OUTPUT"
     fi
+elif [[ "$COMPONENT" == "kubeflow-dashboard" ]]; then
+    helm template kubeflow-dashboard "$CHART_DIRECTORY" \
+        --namespace "$NAMESPACE" \
+        --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
 else
     cd "$CHART_DIRECTORY"
     if [[ "$COMPONENT" == "katib" ]]; then
