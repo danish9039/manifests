@@ -1,0 +1,21 @@
+# Default values for the Kubeflow KServe wrapper chart.
+#
+# KServe CRDs live under the chart crds/ directory. Install the chart first
+# with the CRD-only values, then upgrade with the full platform values after
+# the CRDs are available to the API server.
+
+# -- Installation mode. The first chart slice supports platform mode only.
+installationMode: platform
+
+# -- Install stage. Use crds first, then upgrade with full.
+installStage: crds
+
+global:
+  # -- Namespace for Kubeflow and KServe platform workloads.
+  # Keep this as kubeflow in the first slice because KServe CRDs live under
+  # crds/ and contain non-templated webhook and cert-manager namespace refs.
+  kubeflowNamespace: kubeflow
+  # -- Namespace for Istio gateway services referenced by KServe.
+  istioNamespace: istio-system
+  # -- Namespace for Knative Serving gateway references.
+  knativeServingNamespace: knative-serving

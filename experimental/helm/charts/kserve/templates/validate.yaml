@@ -1,0 +1,11 @@
+{{- $installationMode := default "" .Values.installationMode -}}
+{{- $installStage := default "" .Values.installStage -}}
+{{- if ne $installationMode "platform" -}}
+{{- fail (printf "invalid installationMode %q; supported values: platform" $installationMode) -}}
+{{- end -}}
+{{- if not (has $installStage (list "crds" "full")) -}}
+{{- fail (printf "invalid installStage %q; supported values: crds, full" $installStage) -}}
+{{- end -}}
+{{- if ne (.Values.global.kubeflowNamespace | toString) "kubeflow" -}}
+{{- fail "global.kubeflowNamespace is fixed to kubeflow in this first KServe slice because CRDs under crds/ contain non-templated webhook and cert-manager namespace references" -}}
+{{- end -}}

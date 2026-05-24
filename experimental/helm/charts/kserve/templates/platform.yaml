@@ -1,0 +1,3 @@
+{{- if eq .Values.installStage "full" }}
+{{ include "kubeflow-kserve.renderFile" (dict "root" . "path" "manifests/platform.yaml") }}
+{{- end }}

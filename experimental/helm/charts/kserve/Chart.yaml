@@ -1,0 +1,16 @@
+apiVersion: v2
+name: kserve
+description: A Helm wrapper chart for KServe with Kubeflow platform defaults
+type: application
+version: 0.1.0
+appVersion: 0.18.0
+keywords:
+  - kubeflow
+  - kserve
+  - model-serving
+home: https://www.kubeflow.org/
+sources:
+  - https://github.com/kubeflow/manifests
+  - https://github.com/kserve/kserve
+maintainers:
+  - name: Kubeflow Manifests WG

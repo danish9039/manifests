@@ -1,0 +1,2 @@
+# CI values for the managed Kubeflow KServe platform slice.
+installStage: full
