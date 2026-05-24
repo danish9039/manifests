@@ -1,0 +1,11 @@
+{{- $installationMode := default "" .Values.installationMode -}}
+{{- $installStage := default "" .Values.installStage -}}
+{{- if ne $installationMode "platform" -}}
+{{- fail (printf "invalid installationMode %q; supported values: platform" $installationMode) -}}
+{{- end -}}
+{{- if not (has $installStage (list "crds" "platform")) -}}
+{{- fail (printf "invalid installStage %q; supported values: crds, platform" $installStage) -}}
+{{- end -}}
+{{- if not (.Values.global.systemNamespace | toString) -}}
+{{- fail "global.systemNamespace must not be empty" -}}
+{{- end -}}

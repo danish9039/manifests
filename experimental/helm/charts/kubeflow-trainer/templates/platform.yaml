@@ -1,0 +1,3 @@
+{{- if eq .Values.installStage "platform" }}
+{{ include "kubeflow-trainer.renderFile" (dict "root" . "path" "manifests/platform.yaml") }}
+{{- end }}

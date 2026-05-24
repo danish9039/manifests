@@ -1,0 +1,17 @@
+apiVersion: v2
+name: kubeflow-trainer
+description: A Helm wrapper chart for Kubeflow Trainer with Kubeflow platform defaults
+type: application
+version: 0.1.0
+appVersion: 2.2.0
+keywords:
+  - kubeflow
+  - trainer
+  - training
+  - machine-learning
+home: https://www.kubeflow.org/
+sources:
+  - https://github.com/kubeflow/manifests
+  - https://github.com/kubeflow/trainer
+maintainers:
+  - name: Kubeflow Manifests WG

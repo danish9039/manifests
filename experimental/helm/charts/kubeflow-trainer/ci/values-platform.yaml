@@ -1,0 +1,2 @@
+# CI values for the Kubeflow Trainer platform slice.
+installStage: platform
