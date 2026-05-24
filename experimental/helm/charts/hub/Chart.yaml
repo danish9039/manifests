@@ -2,11 +2,11 @@ apiVersion: v2
 
 name: hub
 
-description: A Helm chart for Kubeflow Hub - Model versioning and metadata management on Kubernetes
+description: A Helm chart for Kubeflow Hub / Model Registry resources on Kubernetes
 
 version: 0.1.0
 
-appVersion: 0.1.0
+appVersion: v0.3.9
 
 home: https://github.com/kubeflow/hub
 
