@@ -1,0 +1,6 @@
+# Default values for the Kubeflow Notebooks chart.
+
+# -- Rendered Kustomize parity scenario.
+# Supported values:
+# - platform
+scenario: platform
