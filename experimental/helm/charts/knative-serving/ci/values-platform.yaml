@@ -1,0 +1,2 @@
+# CI values for the managed Kubeflow Knative Serving platform slice.
+installStage: full

@@ -1,0 +1,2 @@
+# CI values for the first Knative Serving CRD lifecycle step.
+installStage: crds

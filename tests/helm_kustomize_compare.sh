@@ -11,9 +11,11 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
     echo "Usage: $0 <component> <scenario>"
-    echo "Components: katib, hub, kserve-models-web-app"
+    echo "Components: katib, hub, kserve-models-web-app, knative-serving"
     exit 1
 fi
+
+declare -A KUSTOMIZE_FILTERS=()
 
 # Component-specific configurations
 case "$COMPONENT" in
@@ -132,9 +134,31 @@ case "$COMPONENT" in
         )
         ;;
 
+    "knative-serving")
+        CHART_DIR="$ROOT_DIR/experimental/helm/charts/knative-serving"
+        MANIFESTS_DIR="$ROOT_DIR/common/knative/knative-serving/overlays/gateways"
+
+        declare -A KUSTOMIZE_PATHS=(
+            ["crds"]="$MANIFESTS_DIR"
+            ["platform"]="$MANIFESTS_DIR"
+        )
+
+        declare -A HELM_VALUES=(
+            ["crds"]="$CHART_DIR/ci/values-crds.yaml"
+            ["platform"]="$CHART_DIR/ci/values-platform.yaml"
+        )
+
+        declare -A NAMESPACES=(
+            ["crds"]="kubeflow-system"
+            ["platform"]="kubeflow-system"
+        )
+
+        KUSTOMIZE_FILTERS["crds"]="CustomResourceDefinition"
+        ;;
+
     *)
         echo "ERROR: Unknown component: $COMPONENT"
-        echo "Supported components: katib, hub, kserve-models-web-app"
+        echo "Supported components: katib, hub, kserve-models-web-app, knative-serving"
         exit 1
         ;;
 esac
@@ -151,6 +175,7 @@ fi
 KUSTOMIZE_PATH="${KUSTOMIZE_PATHS[$SCENARIO]}"
 HELM_VALUES_ARG="${HELM_VALUES[$SCENARIO]}"
 NAMESPACE="${NAMESPACES[$SCENARIO]}"
+KUSTOMIZE_FILTER="${KUSTOMIZE_FILTERS[$SCENARIO]:-}"
 
 echo "Comparing $COMPONENT manifests for scenario: $SCENARIO"
 
@@ -175,6 +200,31 @@ HELM_OUTPUT="/tmp/helm-${COMPONENT}-${SCENARIO}.yaml"
 cd "$ROOT_DIR"
 kustomize build "$KUSTOMIZE_PATH" > "$KUSTOMIZE_OUTPUT"
 
+filter_manifests_by_kind() {
+    local manifest_file=$1
+    local kind=$2
+    local filtered_file="${manifest_file}.filtered"
+
+    python3 - "$manifest_file" "$kind" > "$filtered_file" <<'PY'
+import sys
+import yaml
+
+path, expected_kind = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    docs = [
+        doc for doc in yaml.safe_load_all(f)
+        if doc and doc.get("kind") == expected_kind
+    ]
+yaml.safe_dump_all(docs, sys.stdout, sort_keys=False)
+PY
+
+    mv "$filtered_file" "$manifest_file"
+}
+
+if [ -n "$KUSTOMIZE_FILTER" ]; then
+    filter_manifests_by_kind "$KUSTOMIZE_OUTPUT" "$KUSTOMIZE_FILTER"
+fi
+
 # Generate Helm manifests (different approach for KServe Models Web App)
 cd "$ROOT_DIR"
 if [[ "$COMPONENT" == "kserve-models-web-app" ]]; then
@@ -191,6 +241,11 @@ else
     cd "$CHART_DIR"
     if [[ "$COMPONENT" == "katib" ]]; then
         helm template katib . \
+            --namespace "$NAMESPACE" \
+            --include-crds \
+            --values "$HELM_VALUES_ARG" > "$HELM_OUTPUT"
+    elif [[ "$COMPONENT" == "knative-serving" ]]; then
+        helm template knative-serving . \
             --namespace "$NAMESPACE" \
             --include-crds \
             --values "$HELM_VALUES_ARG" > "$HELM_OUTPUT"

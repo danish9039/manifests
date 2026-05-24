@@ -1,0 +1,17 @@
+apiVersion: v2
+name: knative-serving
+description: A Helm wrapper chart for Knative Serving with Kubeflow platform defaults
+type: application
+version: 0.1.0
+appVersion: 1.21.1
+keywords:
+  - kubeflow
+  - knative
+  - serving
+home: https://www.kubeflow.org/
+sources:
+  - https://github.com/kubeflow/manifests
+  - https://github.com/knative/serving
+  - https://github.com/knative-extensions/net-istio
+maintainers:
+  - name: Kubeflow Manifests WG
