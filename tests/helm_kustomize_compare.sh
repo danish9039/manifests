@@ -28,6 +28,7 @@ case "$COMPONENT" in
             ["leader-election"]="$MANIFESTS_DIR/installs/katib-leader-election"
             ["openshift"]="$MANIFESTS_DIR/installs/katib-openshift"
             ["standalone-postgres"]="$MANIFESTS_DIR/installs/katib-standalone-postgres"
+            ["platform"]="$MANIFESTS_DIR/installs/katib-with-kubeflow"
             ["with-kubeflow"]="$MANIFESTS_DIR/installs/katib-with-kubeflow"
         )
         
@@ -38,6 +39,7 @@ case "$COMPONENT" in
             ["leader-election"]="$CHART_DIR/ci/values-leader-election.yaml"
             ["openshift"]="$CHART_DIR/ci/values-openshift.yaml"
             ["standalone-postgres"]="$CHART_DIR/ci/values-postgres.yaml"
+            ["platform"]="$CHART_DIR/ci/values-kubeflow.yaml"
             ["with-kubeflow"]="$CHART_DIR/ci/values-kubeflow.yaml"
             ["enterprise"]="$CHART_DIR/ci/values-enterprise.yaml"
             ["production"]="$CHART_DIR/ci/values-production.yaml"
@@ -50,6 +52,7 @@ case "$COMPONENT" in
             ["leader-election"]="kubeflow"
             ["openshift"]="kubeflow"
             ["standalone-postgres"]="kubeflow"
+            ["platform"]="kubeflow"
             ["with-kubeflow"]="kubeflow"
             ["enterprise"]="kubeflow"
             ["production"]="kubeflow"

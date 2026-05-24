@@ -9,7 +9,7 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # Define all scenarios for each component
 declare -A COMPONENT_SCENARIOS=(
-    ["katib"]="standalone cert-manager external-db leader-election openshift standalone-postgres with-kubeflow"
+    ["katib"]="standalone cert-manager external-db leader-election openshift standalone-postgres with-kubeflow platform"
     ["hub"]="base overlay-postgres overlay-db controller-manager controller-rbac controller-default controller-prometheus controller-network-policy ui-base ui-standalone ui-integrated ui-istio istio csi"
     ["kserve-models-web-app"]="base kubeflow"
 )
