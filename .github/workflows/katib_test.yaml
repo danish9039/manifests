@@ -12,6 +12,7 @@ on:
     - tests/profile_controller_install.sh
     - applications/dashboard/upstream/profile-controller/**
     - common/cert-manager/**
+    - applications/katib/overlays/**
     - tests/kubeflow_profile_install.sh
     - tests/PSS_enable.sh
 
