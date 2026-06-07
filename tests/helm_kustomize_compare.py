@@ -211,7 +211,6 @@ def normalize_manifest(manifest: Dict, component: str = "katib") -> Dict:
 
     return remove_empty_values(normalized)
 
-
 def remove_dex_pod_template_checksums(manifest: Dict) -> None:
     """Ignore rollout checksums while preserving other Dex annotations."""
     metadata = manifest.get("metadata", {})
@@ -248,7 +247,6 @@ def normalize_dex_config_map(manifest: Dict) -> None:
     if isinstance(config_yaml, str):
         manifest["data"]["config.yaml"] = yaml.safe_load(config_yaml)
 
-
 def preserve_cert_manager_kubeflow_labels(original: Dict, normalized: Dict) -> None:
     """Keep labels that are intentionally added by cert-manager's Kubeflow overlay."""
     kind = original.get("kind", "")
@@ -274,7 +272,7 @@ def should_compare_manifest(manifest: Dict, component: str, scenario: str) -> bo
     """Select the resource subset owned by a comparison scenario."""
     kind = manifest.get("kind", "")
 
-    if component in ["cert-manager", "dex"] and kind == "Namespace":
+    if component in ["cert-manager", "dex", "oauth2-proxy"] and kind == "Namespace":
         return False
 
     if component == "kubeflow-namespaces" and scenario == "base":
@@ -284,7 +282,6 @@ def should_compare_manifest(manifest: Dict, component: str, scenario: str) -> bo
         return kind == "Namespace"
 
     return True
-
 
 def get_resource_key(manifest: Dict, component: str = "katib") -> str:
     """Generate a unique key for the resource."""
