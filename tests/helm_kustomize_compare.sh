@@ -219,16 +219,18 @@ fi
 KUSTOMIZE_PATH="${KUSTOMIZE_PATHS[$SCENARIO]}"
 HELM_VALUES_ARGUMENTS="${HELM_VALUES[$SCENARIO]}"
 NAMESPACE="${NAMESPACES[$SCENARIO]}"
-mapfile -t KUSTOMIZE_ROOTS <<< "$KUSTOMIZE_PATH"
 
 echo "Comparing $COMPONENT manifests for scenario: $SCENARIO"
 
-for path in "${KUSTOMIZE_ROOTS[@]}"; do
+while IFS= read -r path; do
+    if [ -z "$path" ]; then
+        continue
+    fi
     if [ ! -d "$path" ]; then
         echo "ERROR: Kustomize path does not exist: $path"
         exit 1
     fi
-done
+done <<< "$KUSTOMIZE_PATH"
 
 if [ ! -d "$CHART_DIRECTORY" ]; then
     echo "ERROR: Helm chart directory does not exist: $CHART_DIRECTORY"
@@ -245,13 +247,17 @@ HELM_OUTPUT="/tmp/helm-${COMPONENT}-${SCENARIO}.yaml"
 
 cd "$ROOT_DIRECTORY"
 : > "$KUSTOMIZE_OUTPUT"
-for i in "${!KUSTOMIZE_ROOTS[@]}"; do
-    path="${KUSTOMIZE_ROOTS[$i]}"
-    if [ "$i" -gt 0 ]; then
+path_index=0
+while IFS= read -r path; do
+    if [ -z "$path" ]; then
+        continue
+    fi
+    if [ "$path_index" -gt 0 ]; then
         printf "\n---\n" >> "$KUSTOMIZE_OUTPUT"
     fi
     kustomize build "$path" >> "$KUSTOMIZE_OUTPUT"
-done
+    path_index=$((path_index + 1))
+done <<< "$KUSTOMIZE_PATH"
 
 # Generate Helm manifests (different approach for KServe UI)
 cd "$ROOT_DIRECTORY"
