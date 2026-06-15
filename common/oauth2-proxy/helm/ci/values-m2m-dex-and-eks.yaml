@@ -1,6 +1,6 @@
 credentials:
-  clientSecret: pUBnBOY80SnXgjibTYM9ZWNzY2xreNGQok
-  cookieSecret: 7d16fee92f8d11b8940b081b3f8b8acb
+  clientSecret: not-a-real-client-secret
+  cookieSecret: not-a-real-cookie-secret-00000
 
 istioExternalAuth:
   enabled: true

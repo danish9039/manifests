@@ -17,8 +17,8 @@ secretGenerator:
   type: Opaque
   literals:
   - client-id=kubeflow-oidc-authservice
-  - client-secret=pUBnBOY80SnXgjibTYM9ZWNzY2xreNGQok
-  - cookie-secret=7d16fee92f8d11b8940b081b3f8b8acb
+  - client-secret=not-a-real-client-secret
+  - cookie-secret=not-a-real-cookie-secret-00000
 
 configMapGenerator:
 - name: oauth2-proxy

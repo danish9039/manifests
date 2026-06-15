@@ -47,7 +47,7 @@ spec:
         - --accept-hosts=.*
         - --accept-paths=^(?:/openid/v1/jwks)|(?:/.well-known/openid-configuration)$
         - --reject-methods=^(POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT|TRACE)$
-        image: {{ .Values.clusterJwksProxy.image }}
+        image: {{ required "clusterJwksProxy.image is required when clusterJwksProxy.enabled is true" .Values.clusterJwksProxy.image }}
         livenessProbe:
           httpGet:
             path: /openid/v1/jwks
