@@ -11,6 +11,7 @@ on:
     - common/kubeflow-roles/**
     - scripts/synchronize-cert-manager-manifests.sh
     - scripts/synchronize-hub-manifests.sh
+    - common/dex/helm/**
     - tests/kustomize_install.sh
     - tests/helm_kustomize_compare.py
     - tests/helm_kustomize_compare.sh
