@@ -337,7 +337,11 @@ def compare_manifests(kustomize_file: str, helm_file: str, component: str, scena
     for manifest in helm_manifests:
         if not should_compare_manifest(manifest, component, scenario):
             continue
-        normalized = normalize_manifest(manifest, component, normalize_kustomize_names=False)
+        normalized = normalize_manifest(
+            manifest,
+            component,
+            normalize_kustomize_names=(component != "oauth2-proxy"),
+        )
         key = get_resource_key(normalized, component)
         helm_resources[key] = normalized
     
