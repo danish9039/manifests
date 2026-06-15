@@ -206,6 +206,7 @@ if [[ "$COMPONENT" == "kserve-models-web-app" ]]; then
     fi
 elif [[ "$COMPONENT" == "cert-manager" ]]; then
     cd "$CHART_DIR"
+    helm repo add jetstack https://charts.jetstack.io >/dev/null 2>&1 || helm repo update jetstack >/dev/null
     helm dependency build .
     helm template cert-manager . \
         --namespace "$NAMESPACE" \
