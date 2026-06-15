@@ -138,20 +138,14 @@ case "$COMPONENT" in
 
         declare -A KUSTOMIZE_PATHS=(
             ["base"]="$MANIFESTS_DIR/base"
-            ["kubeflow"]="$MANIFESTS_DIR/base $MANIFESTS_DIR/overlays/kubeflow"
-            ["existing"]="$MANIFESTS_DIR/overlays/kubeflow"
         )
 
         declare -A HELM_VALUES=(
             ["base"]="$CHART_DIR/ci/values-base.yaml"
-            ["kubeflow"]="$CHART_DIR/ci/values-kubeflow.yaml"
-            ["existing"]="$CHART_DIR/ci/values-existing-cert-manager.yaml"
         )
 
         declare -A NAMESPACES=(
             ["base"]="cert-manager"
-            ["kubeflow"]="cert-manager"
-            ["existing"]="cert-manager"
         )
         ;;
 
@@ -177,14 +171,7 @@ NAMESPACE="${NAMESPACES[$SCENARIO]}"
 
 echo "Comparing $COMPONENT manifests for scenario: $SCENARIO"
 
-if [[ "$COMPONENT" == "cert-manager" && "$SCENARIO" == "kubeflow" ]]; then
-    for path in $KUSTOMIZE_PATH; do
-        if [ ! -d "$path" ]; then
-            echo "ERROR: Kustomize path does not exist: $path"
-            exit 1
-        fi
-    done
-elif [ ! -d "$KUSTOMIZE_PATH" ]; then
+if [ ! -d "$KUSTOMIZE_PATH" ]; then
     echo "ERROR: Kustomize path does not exist: $KUSTOMIZE_PATH"
     exit 1
 fi
@@ -203,15 +190,7 @@ KUSTOMIZE_OUTPUT="/tmp/kustomize-${COMPONENT}-${SCENARIO}.yaml"
 HELM_OUTPUT="/tmp/helm-${COMPONENT}-${SCENARIO}.yaml"
 
 cd "$ROOT_DIR"
-if [[ "$COMPONENT" == "cert-manager" && "$SCENARIO" == "kubeflow" ]]; then
-    : > "$KUSTOMIZE_OUTPUT"
-    for path in $KUSTOMIZE_PATH; do
-        kustomize build "$path" >> "$KUSTOMIZE_OUTPUT"
-        printf "\n---\n" >> "$KUSTOMIZE_OUTPUT"
-    done
-else
-    kustomize build "$KUSTOMIZE_PATH" > "$KUSTOMIZE_OUTPUT"
-fi
+kustomize build "$KUSTOMIZE_PATH" > "$KUSTOMIZE_OUTPUT"
 
 # Generate Helm manifests (different approach for KServe Models Web App)
 cd "$ROOT_DIR"
@@ -226,10 +205,11 @@ if [[ "$COMPONENT" == "kserve-models-web-app" ]]; then
             --namespace "$NAMESPACE" > "$HELM_OUTPUT"
     fi
 elif [[ "$COMPONENT" == "cert-manager" ]]; then
-    helm repo add jetstack https://charts.jetstack.io --force-update >/dev/null
-    helm dependency build "$CHART_DIR" >/dev/null
-    helm template cert-manager "$CHART_DIR" \
+    cd "$CHART_DIR"
+    helm dependency build .
+    helm template cert-manager . \
         --namespace "$NAMESPACE" \
+        --include-crds \
         --values "$HELM_VALUES_ARG" > "$HELM_OUTPUT"
 else
     cd "$CHART_DIR"

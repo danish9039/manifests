@@ -12,7 +12,7 @@ declare -A COMPONENT_SCENARIOS=(
     ["katib"]="standalone cert-manager external-db leader-election openshift standalone-postgres with-kubeflow"
     ["hub"]="base overlay-postgres overlay-db controller-manager controller-rbac controller-default controller-prometheus controller-network-policy ui-base ui-standalone ui-integrated ui-istio istio csi"
     ["kserve-models-web-app"]="base kubeflow"
-    ["cert-manager"]="base kubeflow existing"
+    ["cert-manager"]="base"
 )
 
 test_component() {
@@ -98,7 +98,7 @@ elif [[ "${COMPONENT_SCENARIOS[$COMPONENT]:-}" ]]; then
     
 else
     echo "ERROR: Unknown component: $COMPONENT"
-    echo "Supported components: katib, hub, kserve-models-web-app, all"
+    echo "Supported components: katib, hub, kserve-models-web-app, cert-manager, all"
     echo "Use '$0 help' for more information."
     exit 1
 fi 

@@ -47,6 +47,4 @@ Validate parity with:
 
 ```bash
 ./tests/helm_kustomize_compare.sh cert-manager base
-./tests/helm_kustomize_compare.sh cert-manager kubeflow
-./tests/helm_kustomize_compare.sh cert-manager existing
 ```
