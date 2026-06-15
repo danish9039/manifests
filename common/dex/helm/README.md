@@ -45,6 +45,5 @@ until the default Dex + oauth2-proxy path is stable.
 ```bash
 helm lint common/dex/helm
 ./tests/helm_kustomize_compare.sh dex base
-./tests/helm_kustomize_compare.sh dex istio
-./tests/helm_kustomize_compare.sh dex oauth2-proxy
+./tests/helm_kustomize_compare.sh dex overlays-istio
 ```
