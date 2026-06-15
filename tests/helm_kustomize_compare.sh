@@ -219,24 +219,15 @@ case "$COMPONENT" in
         MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/common/oauth2-proxy"
 
         declare -A KUSTOMIZE_PATHS=(
-            ["base"]="$MANIFESTS_DIRECTORY/base"
             ["m2m-dex-only"]="$MANIFESTS_DIRECTORY/overlays/m2m-dex-only"
-            ["m2m-dex-and-kind"]="$MANIFESTS_DIRECTORY/overlays/m2m-dex-and-kind"
-            ["m2m-dex-and-eks"]="$MANIFESTS_DIRECTORY/overlays/m2m-dex-and-eks"
         )
 
         declare -A HELM_VALUES=(
-            ["base"]="$CHART_DIRECTORY/ci/values-base.yaml"
             ["m2m-dex-only"]="$CHART_DIRECTORY/ci/values-m2m-dex-only.yaml"
-            ["m2m-dex-and-kind"]="$CHART_DIRECTORY/ci/values-m2m-dex-and-kind.yaml"
-            ["m2m-dex-and-eks"]="$CHART_DIRECTORY/ci/values-m2m-dex-and-eks.yaml"
         )
 
         declare -A NAMESPACES=(
-            ["base"]="oauth2-proxy"
             ["m2m-dex-only"]="oauth2-proxy"
-            ["m2m-dex-and-kind"]="oauth2-proxy"
-            ["m2m-dex-and-eks"]="oauth2-proxy"
         )
         ;;
 
@@ -252,6 +243,8 @@ if [[ -z "$SCENARIO" ]]; then
         SCENARIO="kubeflow"
     elif [[ "$COMPONENT" == "dex" ]]; then
         SCENARIO="oauth2-proxy"
+    elif [[ "$COMPONENT" == "oauth2-proxy" ]]; then
+        SCENARIO="m2m-dex-only"
     else
         SCENARIO="base"
     fi

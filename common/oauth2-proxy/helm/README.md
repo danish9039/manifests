@@ -45,7 +45,5 @@ stable.
 ```bash
 helm lint common/oauth2-proxy/helm
 ./tests/helm_kustomize_compare.sh oauth2-proxy base
-./tests/helm_kustomize_compare.sh oauth2-proxy m2m-dex-only
-./tests/helm_kustomize_compare.sh oauth2-proxy m2m-dex-and-kind
-./tests/helm_kustomize_compare.sh oauth2-proxy m2m-dex-and-eks
+./tests/helm_kustomize_compare.sh oauth2-proxy overlays-istio
 ```
