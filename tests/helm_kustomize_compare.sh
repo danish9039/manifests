@@ -11,8 +11,12 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
     echo "Usage: $0 <component> <scenario>"
-    echo "Components: katib, hub, kserve-models-web-app, cert-manager"
+    echo "Components: katib, hub, kserve-models-web-application, cert-manager"
     exit 1
+fi
+
+if [[ "$COMPONENT" == "kserve-models-web-app" ]]; then
+    COMPONENT="kserve-models-web-application"
 fi
 
 # Component-specific configurations
@@ -112,7 +116,7 @@ case "$COMPONENT" in
         )
         ;;
         
-    "kserve-models-web-app")
+    "kserve-models-web-application")
         CHART_DIR="$ROOT_DIR/experimental/helm/charts/kserve-models-web-app"
         MANIFESTS_DIR="$ROOT_DIR/applications/kserve/models-web-app"
         
@@ -151,7 +155,7 @@ case "$COMPONENT" in
 
     *)
         echo "ERROR: Unknown component: $COMPONENT"
-        echo "Supported components: katib, hub, kserve-models-web-app, cert-manager"
+        echo "Supported components: katib, hub, kserve-models-web-application, cert-manager"
         exit 1
         ;;
 esac
@@ -194,7 +198,7 @@ kustomize build "$KUSTOMIZE_PATH" > "$KUSTOMIZE_OUTPUT"
 
 # Generate Helm manifests (different approach for KServe Models Web App)
 cd "$ROOT_DIR"
-if [[ "$COMPONENT" == "kserve-models-web-app" ]]; then
+if [[ "$COMPONENT" == "kserve-models-web-application" ]]; then
     # KServe uses chart-local CI values files, but still templates from the repository root.
     if [ -n "$HELM_VALUES_ARG" ]; then
         helm template kserve-models-web-application "$CHART_DIR" \

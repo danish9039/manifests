@@ -56,7 +56,7 @@ def clean_helm_metadata(obj: Any, component: str = "katib") -> Any:
                         # Remove Helm-specific labels (component-specific logic)
                         cleaned_labels = {}
                         for label_key, label_value in meta_value.items():
-                            if component == "kserve-models-web-app":
+                            if component == "kserve-models-web-application":
                                 # More restrictive filtering for KServe
                                 if not label_key.startswith(
                                     ("helm.sh/", "app.kubernetes.io/managed-by")
@@ -287,7 +287,7 @@ def get_expected_helm_extras(component: str, scenario: str) -> set:
         }
     elif component == "hub":
         return set()  # No extra resources in Helm for Model Registry
-    elif component == "kserve-models-web-app":
+    elif component == "kserve-models-web-application":
         return set()
     else:
         return set()
@@ -368,7 +368,7 @@ if __name__ == "__main__":
         print(
             "Usage: python compare.py <kustomize_file> <helm_file> <component> <scenario> [namespace] [--verbose]"
         )
-        print("Components: katib, hub, kserve-models-web-app, cert-manager")
+        print("Components: katib, hub, kserve-models-web-application, cert-manager")
         sys.exit(1)
 
     kustomize_file = sys.argv[1]
@@ -379,9 +379,19 @@ if __name__ == "__main__":
         sys.argv[5] if len(sys.argv) > 5 and not sys.argv[5].startswith("--") else ""
     )
 
-    if component not in ["katib", "hub", "kserve-models-web-app", "cert-manager"]:
+    if component == "kserve-models-web-app":
+        component = "kserve-models-web-application"
+
+    if component not in [
+        "katib",
+        "hub",
+        "kserve-models-web-application",
+        "cert-manager",
+    ]:
         print(f"ERROR: Unknown component: {component}")
-        print("Supported components: katib, hub, kserve-models-web-app, cert-manager")
+        print(
+            "Supported components: katib, hub, kserve-models-web-application, cert-manager"
+        )
         sys.exit(1)
 
     success = compare_manifests(
