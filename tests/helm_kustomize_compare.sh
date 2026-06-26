@@ -5,8 +5,8 @@ set -euo pipefail
 
 COMPONENT=${1:-""}
 SCENARIO=${2:-"base"}
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+SCRIPT_DIRECTORY="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ROOT_DIRECTORY="$(dirname "$SCRIPT_DIRECTORY")"
 
 if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
@@ -15,36 +15,32 @@ if [[ -z "$COMPONENT" ]]; then
     exit 1
 fi
 
-if [[ "$COMPONENT" == "kserve-models-web-app" ]]; then
-    COMPONENT="kserve-models-web-application"
-fi
-
 # Component-specific configurations
 case "$COMPONENT" in
     "katib")
-        CHART_DIR="$ROOT_DIR/experimental/helm/charts/katib"
-        MANIFESTS_DIR="$ROOT_DIR/applications/katib/upstream"
+        CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/katib"
+        MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/applications/katib/upstream"
         
         declare -A KUSTOMIZE_PATHS=(
-            ["standalone"]="$MANIFESTS_DIR/installs/katib-standalone"
-            ["cert-manager"]="$MANIFESTS_DIR/installs/katib-cert-manager"
-            ["external-db"]="$MANIFESTS_DIR/installs/katib-external-db"
-            ["leader-election"]="$MANIFESTS_DIR/installs/katib-leader-election"
-            ["openshift"]="$MANIFESTS_DIR/installs/katib-openshift"
-            ["standalone-postgres"]="$MANIFESTS_DIR/installs/katib-standalone-postgres"
-            ["with-kubeflow"]="$MANIFESTS_DIR/installs/katib-with-kubeflow"
+            ["standalone"]="$MANIFESTS_DIRECTORY/installs/katib-standalone"
+            ["cert-manager"]="$MANIFESTS_DIRECTORY/installs/katib-cert-manager"
+            ["external-db"]="$MANIFESTS_DIRECTORY/installs/katib-external-db"
+            ["leader-election"]="$MANIFESTS_DIRECTORY/installs/katib-leader-election"
+            ["openshift"]="$MANIFESTS_DIRECTORY/installs/katib-openshift"
+            ["standalone-postgres"]="$MANIFESTS_DIRECTORY/installs/katib-standalone-postgres"
+            ["with-kubeflow"]="$MANIFESTS_DIRECTORY/installs/katib-with-kubeflow"
         )
         
         declare -A HELM_VALUES=(
-            ["standalone"]="$CHART_DIR/ci/values-standalone.yaml"
-            ["cert-manager"]="$CHART_DIR/ci/values-cert-manager.yaml"
-            ["external-db"]="$CHART_DIR/ci/values-external-db.yaml"
-            ["leader-election"]="$CHART_DIR/ci/values-leader-election.yaml"
-            ["openshift"]="$CHART_DIR/ci/values-openshift.yaml"
-            ["standalone-postgres"]="$CHART_DIR/ci/values-postgres.yaml"
-            ["with-kubeflow"]="$CHART_DIR/ci/values-kubeflow.yaml"
-            ["enterprise"]="$CHART_DIR/ci/values-enterprise.yaml"
-            ["production"]="$CHART_DIR/ci/values-production.yaml"
+            ["standalone"]="$CHART_DIRECTORY/ci/values-standalone.yaml"
+            ["cert-manager"]="$CHART_DIRECTORY/ci/values-cert-manager.yaml"
+            ["external-db"]="$CHART_DIRECTORY/ci/values-external-db.yaml"
+            ["leader-election"]="$CHART_DIRECTORY/ci/values-leader-election.yaml"
+            ["openshift"]="$CHART_DIRECTORY/ci/values-openshift.yaml"
+            ["standalone-postgres"]="$CHART_DIRECTORY/ci/values-postgres.yaml"
+            ["with-kubeflow"]="$CHART_DIRECTORY/ci/values-kubeflow.yaml"
+            ["enterprise"]="$CHART_DIRECTORY/ci/values-enterprise.yaml"
+            ["production"]="$CHART_DIRECTORY/ci/values-production.yaml"
         )
         
         declare -A NAMESPACES=(
@@ -61,41 +57,41 @@ case "$COMPONENT" in
         ;;
         
     "hub")
-        CHART_DIR="$ROOT_DIR/experimental/helm/charts/hub"
-        MANIFESTS_DIR="$ROOT_DIR/applications/hub/upstream"
+        CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/hub"
+        MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/applications/hub/upstream"
         
         declare -A KUSTOMIZE_PATHS=(
-            ["base"]="$MANIFESTS_DIR/base"
-            ["overlay-postgres"]="$MANIFESTS_DIR/overlays/postgres"
-            ["overlay-db"]="$MANIFESTS_DIR/overlays/db"
-            ["controller-manager"]="$MANIFESTS_DIR/options/controller/manager"
-            ["controller-rbac"]="$MANIFESTS_DIR/options/controller/rbac" 
-            ["controller-default"]="$MANIFESTS_DIR/options/controller/default"
-            ["controller-prometheus"]="$MANIFESTS_DIR/options/controller/prometheus"
-            ["controller-network-policy"]="$MANIFESTS_DIR/options/controller/network-policy"
-            ["ui-base"]="$MANIFESTS_DIR/options/ui/base"
-            ["ui-standalone"]="$MANIFESTS_DIR/options/ui/overlays/standalone"
-            ["ui-integrated"]="$MANIFESTS_DIR/options/ui/overlays/kubeflow"
-            ["ui-istio"]="$MANIFESTS_DIR/options/ui/overlays/istio"
-            ["istio"]="$MANIFESTS_DIR/options/istio"
-            ["csi"]="$MANIFESTS_DIR/options/csi"
+            ["base"]="$MANIFESTS_DIRECTORY/base"
+            ["overlay-postgres"]="$MANIFESTS_DIRECTORY/overlays/postgres"
+            ["overlay-db"]="$MANIFESTS_DIRECTORY/overlays/db"
+            ["controller-manager"]="$MANIFESTS_DIRECTORY/options/controller/manager"
+            ["controller-rbac"]="$MANIFESTS_DIRECTORY/options/controller/rbac"
+            ["controller-default"]="$MANIFESTS_DIRECTORY/options/controller/default"
+            ["controller-prometheus"]="$MANIFESTS_DIRECTORY/options/controller/prometheus"
+            ["controller-network-policy"]="$MANIFESTS_DIRECTORY/options/controller/network-policy"
+            ["ui-base"]="$MANIFESTS_DIRECTORY/options/ui/base"
+            ["ui-standalone"]="$MANIFESTS_DIRECTORY/options/ui/overlays/standalone"
+            ["ui-integrated"]="$MANIFESTS_DIRECTORY/options/ui/overlays/kubeflow"
+            ["ui-istio"]="$MANIFESTS_DIRECTORY/options/ui/overlays/istio"
+            ["istio"]="$MANIFESTS_DIRECTORY/options/istio"
+            ["csi"]="$MANIFESTS_DIRECTORY/options/csi"
         )
         
         declare -A HELM_VALUES=(
-            ["base"]="$CHART_DIR/ci/ci-values.yaml"
-            ["overlay-postgres"]="$CHART_DIR/ci/values-postgres.yaml"
-            ["overlay-db"]="$CHART_DIR/ci/values-db.yaml"
-            ["controller-manager"]="$CHART_DIR/ci/values-controller-manager.yaml"
-            ["controller-rbac"]="$CHART_DIR/ci/values-controller-rbac.yaml"
-            ["controller-default"]="$CHART_DIR/ci/values-controller.yaml"
-            ["controller-prometheus"]="$CHART_DIR/ci/values-controller-prometheus.yaml"
-            ["controller-network-policy"]="$CHART_DIR/ci/values-controller-network-policy.yaml"
-            ["ui-base"]="$CHART_DIR/ci/values-ui.yaml"
-            ["ui-standalone"]="$CHART_DIR/ci/values-ui-standalone.yaml"
-            ["ui-integrated"]="$CHART_DIR/ci/values-ui-integrated.yaml"
-            ["ui-istio"]="$CHART_DIR/ci/values-ui-istio.yaml"
-            ["istio"]="$CHART_DIR/ci/values-istio.yaml"
-            ["csi"]="$CHART_DIR/ci/values-csi.yaml"
+            ["base"]="$CHART_DIRECTORY/ci/ci-values.yaml"
+            ["overlay-postgres"]="$CHART_DIRECTORY/ci/values-postgres.yaml"
+            ["overlay-db"]="$CHART_DIRECTORY/ci/values-db.yaml"
+            ["controller-manager"]="$CHART_DIRECTORY/ci/values-controller-manager.yaml"
+            ["controller-rbac"]="$CHART_DIRECTORY/ci/values-controller-rbac.yaml"
+            ["controller-default"]="$CHART_DIRECTORY/ci/values-controller.yaml"
+            ["controller-prometheus"]="$CHART_DIRECTORY/ci/values-controller-prometheus.yaml"
+            ["controller-network-policy"]="$CHART_DIRECTORY/ci/values-controller-network-policy.yaml"
+            ["ui-base"]="$CHART_DIRECTORY/ci/values-ui.yaml"
+            ["ui-standalone"]="$CHART_DIRECTORY/ci/values-ui-standalone.yaml"
+            ["ui-integrated"]="$CHART_DIRECTORY/ci/values-ui-integrated.yaml"
+            ["ui-istio"]="$CHART_DIRECTORY/ci/values-ui-istio.yaml"
+            ["istio"]="$CHART_DIRECTORY/ci/values-istio.yaml"
+            ["csi"]="$CHART_DIRECTORY/ci/values-csi.yaml"
         )
         
         declare -A NAMESPACES=(
@@ -117,17 +113,17 @@ case "$COMPONENT" in
         ;;
         
     "kserve-models-web-application")
-        CHART_DIR="$ROOT_DIR/experimental/helm/charts/kserve-models-web-app"
-        MANIFESTS_DIR="$ROOT_DIR/applications/kserve/models-web-app"
+        CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/kserve-models-web-app"
+        MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/applications/kserve/models-web-app"
         
         declare -A KUSTOMIZE_PATHS=(
-            ["base"]="$MANIFESTS_DIR/base"
-            ["kubeflow"]="$MANIFESTS_DIR/overlays/kubeflow"
+            ["base"]="$MANIFESTS_DIRECTORY/base"
+            ["kubeflow"]="$MANIFESTS_DIRECTORY/overlays/kubeflow"
         )
         
         declare -A HELM_VALUES=(
-            ["base"]="$CHART_DIR/ci/base-values.yaml"
-            ["kubeflow"]="$CHART_DIR/ci/kubeflow-values.yaml"
+            ["base"]="$CHART_DIRECTORY/ci/base-values.yaml"
+            ["kubeflow"]="$CHART_DIRECTORY/ci/kubeflow-values.yaml"
         )
         
         declare -A NAMESPACES=(
@@ -137,15 +133,15 @@ case "$COMPONENT" in
         ;;
 
     "cert-manager")
-        CHART_DIR="$ROOT_DIR/common/cert-manager/helm"
-        MANIFESTS_DIR="$ROOT_DIR/common/cert-manager"
+        CHART_DIRECTORY="$ROOT_DIRECTORY/common/cert-manager/helm"
+        MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/common/cert-manager"
 
         declare -A KUSTOMIZE_PATHS=(
-            ["base"]="$MANIFESTS_DIR/base"
+            ["base"]="$MANIFESTS_DIRECTORY/base"
         )
 
         declare -A HELM_VALUES=(
-            ["base"]="$CHART_DIR/ci/values-base.yaml"
+            ["base"]="$CHART_DIRECTORY/ci/values-base.yaml"
         )
 
         declare -A NAMESPACES=(
@@ -170,7 +166,7 @@ if [[ ! "${KUSTOMIZE_PATHS[$SCENARIO]:-}" ]]; then
 fi
 
 KUSTOMIZE_PATH="${KUSTOMIZE_PATHS[$SCENARIO]}"
-HELM_VALUES_ARG="${HELM_VALUES[$SCENARIO]}"
+HELM_VALUES_ARGUMENTS="${HELM_VALUES[$SCENARIO]}"
 NAMESPACE="${NAMESPACES[$SCENARIO]}"
 
 echo "Comparing $COMPONENT manifests for scenario: $SCENARIO"
@@ -180,59 +176,59 @@ if [ ! -d "$KUSTOMIZE_PATH" ]; then
     exit 1
 fi
 
-if [ ! -d "$CHART_DIR" ]; then
-    echo "ERROR: Helm chart directory does not exist: $CHART_DIR"
+if [ ! -d "$CHART_DIRECTORY" ]; then
+    echo "ERROR: Helm chart directory does not exist: $CHART_DIRECTORY"
     exit 1
 fi
 
-if [ -n "$HELM_VALUES_ARG" ] && [ ! -f "$HELM_VALUES_ARG" ]; then
-    echo "ERROR: Helm values file does not exist: $HELM_VALUES_ARG"
+if [ -n "$HELM_VALUES_ARGUMENTS" ] && [ ! -f "$HELM_VALUES_ARGUMENTS" ]; then
+    echo "ERROR: Helm values file does not exist: $HELM_VALUES_ARGUMENTS"
     exit 1
 fi
 
 KUSTOMIZE_OUTPUT="/tmp/kustomize-${COMPONENT}-${SCENARIO}.yaml"
 HELM_OUTPUT="/tmp/helm-${COMPONENT}-${SCENARIO}.yaml"
 
-cd "$ROOT_DIR"
+cd "$ROOT_DIRECTORY"
 kustomize build "$KUSTOMIZE_PATH" > "$KUSTOMIZE_OUTPUT"
 
 # Generate Helm manifests (different approach for KServe Models Web App)
-cd "$ROOT_DIR"
+cd "$ROOT_DIRECTORY"
 if [[ "$COMPONENT" == "kserve-models-web-application" ]]; then
     # KServe uses chart-local CI values files, but still templates from the repository root.
-    if [ -n "$HELM_VALUES_ARG" ]; then
-        helm template kserve-models-web-application "$CHART_DIR" \
+    if [ -n "$HELM_VALUES_ARGUMENTS" ]; then
+        helm template kserve-models-web-application "$CHART_DIRECTORY" \
             --namespace "$NAMESPACE" \
-            --values "$HELM_VALUES_ARG" > "$HELM_OUTPUT"
+            --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
     else
-        helm template kserve-models-web-application "$CHART_DIR" \
+        helm template kserve-models-web-application "$CHART_DIRECTORY" \
             --namespace "$NAMESPACE" > "$HELM_OUTPUT"
     fi
 elif [[ "$COMPONENT" == "cert-manager" ]]; then
-    cd "$CHART_DIR"
+    cd "$CHART_DIRECTORY"
     helm repo add jetstack https://charts.jetstack.io >/dev/null 2>&1 || helm repo update jetstack >/dev/null
     helm dependency build .
     helm template cert-manager . \
         --namespace "$NAMESPACE" \
         --include-crds \
-        --values "$HELM_VALUES_ARG" > "$HELM_OUTPUT"
+        --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
 else
-    cd "$CHART_DIR"
+    cd "$CHART_DIRECTORY"
     if [[ "$COMPONENT" == "katib" ]]; then
         helm template katib . \
             --namespace "$NAMESPACE" \
             --include-crds \
-            --values "$HELM_VALUES_ARG" > "$HELM_OUTPUT"
+            --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
     else
         helm template hub . \
             --namespace "$NAMESPACE" \
             --include-crds \
-            --values "$HELM_VALUES_ARG" > "$HELM_OUTPUT"
+            --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
     fi
 fi
 
-cd "$ROOT_DIR"
-python3 "$SCRIPT_DIR/helm_kustomize_compare.py" \
+cd "$ROOT_DIRECTORY"
+python3 "$SCRIPT_DIRECTORY/helm_kustomize_compare.py" \
     "$KUSTOMIZE_OUTPUT" \
     "$HELM_OUTPUT" \
     "$COMPONENT" \

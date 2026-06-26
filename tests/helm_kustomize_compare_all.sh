@@ -4,15 +4,14 @@
 set -euo pipefail
 
 COMPONENT=${1:-"all"}
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+SCRIPT_DIRECTORY="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ROOT_DIRECTORY="$(dirname "$SCRIPT_DIRECTORY")"
 
 # Define all scenarios for each component
 declare -A COMPONENT_SCENARIOS=(
     ["katib"]="standalone cert-manager external-db leader-election openshift standalone-postgres with-kubeflow"
     ["hub"]="base overlay-postgres overlay-db controller-manager controller-rbac controller-default controller-prometheus controller-network-policy ui-base ui-standalone ui-integrated ui-istio istio csi"
     ["kserve-models-web-application"]="base kubeflow"
-    ["kserve-models-web-app"]="base kubeflow"
     ["cert-manager"]="base"
 )
 
@@ -31,7 +30,7 @@ test_component() {
     declare -a failed_scenarios=()
     
     for scenario in "${scenarios[@]}"; do
-        if "$SCRIPT_DIR/helm_kustomize_compare.sh" "$component" "$scenario"; then
+        if "$SCRIPT_DIRECTORY/helm_kustomize_compare.sh" "$component" "$scenario"; then
             passed_scenarios+=("$scenario")
         else
             echo "FAILED: $component/$scenario"

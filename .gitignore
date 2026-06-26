@@ -17,4 +17,4 @@
 image_lists/*
 
 # Helm dependency archives generated during local wrapper-chart validation.
-experimental/helm/charts/cert-manager/charts/*.tgz
+common/cert-manager/helm/charts/*.tgz

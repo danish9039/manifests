@@ -379,9 +379,6 @@ if __name__ == "__main__":
         sys.argv[5] if len(sys.argv) > 5 and not sys.argv[5].startswith("--") else ""
     )
 
-    if component == "kserve-models-web-app":
-        component = "kserve-models-web-application"
-
     if component not in [
         "katib",
         "hub",
