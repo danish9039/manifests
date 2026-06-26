@@ -15,7 +15,7 @@ declare -A COMPONENT_SCENARIOS=(
     ["cert-manager"]="base kubeflow existing-cert-manager"
     ["kubeflow-namespaces"]="base platform-namespaces"
     ["kubeflow-platform"]="base"
-    ["dex"]="base istio oauth2-proxy"
+    ["dex"]="oauth2-proxy"
 )
 
 prepare_component() {

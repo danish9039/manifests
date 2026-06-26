@@ -210,20 +210,14 @@ case "$COMPONENT" in
         MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/common/dex"
 
         declare -A KUSTOMIZE_PATHS=(
-            ["base"]="$MANIFESTS_DIRECTORY/base"
-            ["istio"]="$MANIFESTS_DIRECTORY/overlays/istio"
             ["oauth2-proxy"]="$MANIFESTS_DIRECTORY/overlays/oauth2-proxy"
         )
 
         declare -A HELM_VALUES=(
-            ["base"]="$CHART_DIRECTORY/ci/values-base.yaml"
-            ["istio"]="$CHART_DIRECTORY/ci/values-istio.yaml"
             ["oauth2-proxy"]="$CHART_DIRECTORY/ci/values-oauth2-proxy.yaml"
         )
 
         declare -A NAMESPACES=(
-            ["base"]="auth"
-            ["istio"]="auth"
             ["oauth2-proxy"]="auth"
         )
         ;;
@@ -234,6 +228,14 @@ case "$COMPONENT" in
         exit 1
         ;;
 esac
+
+if [[ -z "$SCENARIO" ]]; then
+    if [[ "$COMPONENT" == "dex" ]]; then
+        SCENARIO="oauth2-proxy"
+    else
+        SCENARIO="base"
+    fi
+fi
 
 if [[ ! "${KUSTOMIZE_PATHS[$SCENARIO]:-}" ]]; then
     echo "ERROR: Unknown scenario '$SCENARIO' for component '$COMPONENT'"
@@ -346,7 +348,5 @@ python3 "$SCRIPT_DIRECTORY/helm_kustomize_compare.py" \
 COMPARISON_RESULT=$?
 
 rm -f "$KUSTOMIZE_OUTPUT" "$HELM_OUTPUT"
-
-
 
 exit $COMPARISON_RESULT
