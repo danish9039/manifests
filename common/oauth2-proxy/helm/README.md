@@ -4,7 +4,7 @@ This chart renders the current Kubeflow oauth2-proxy Kustomize resources with
 Helm. It is intentionally static for the first chart slice so rendered output
 stays aligned with `common/oauth2-proxy`.
 
-## Install
+## Installation
 
 Install foundation, cert-manager, and Istio first. The `kubeflow-namespaces`
 foundation chart creates `Namespace/oauth2-proxy`; this chart stores Helm
@@ -32,6 +32,7 @@ helm install oauth2-proxy ./common/oauth2-proxy/helm \
 ## Kustomize Mapping
 
 - `ci/values-base.yaml`: `common/oauth2-proxy/base`
+- `ci/values-istio.yaml`: `common/oauth2-proxy/overlays/istio`
 - `ci/values-m2m-dex-only.yaml`: `common/oauth2-proxy/overlays/m2m-dex-only`
 - `ci/values-m2m-dex-and-kind.yaml`: `common/oauth2-proxy/overlays/m2m-dex-and-kind`
 - `ci/values-m2m-dex-and-eks.yaml`: `common/oauth2-proxy/overlays/m2m-dex-and-eks`

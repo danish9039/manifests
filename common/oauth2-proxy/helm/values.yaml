@@ -13,7 +13,7 @@ parameters:
   forceHttps: "false"
   # -- Allow self-signed issuer certificates.
   allowSelfSignedIssuer: "true"
-  # -- Allow machine-to-machine bearer tokens.
+  # -- Allow machine-to-machine bearer tokens by setting OAUTH2_PROXY_SKIP_JWT_BEARER_TOKENS.
   enableM2MTokens: "true"
   # -- Extra JWT issuers in oauth2-proxy --extra-jwt-issuers format.
   extraJwtIssuers: ""
@@ -27,7 +27,7 @@ networkPolicies:
   enabled: true
 
 istioExternalAuth:
-  # -- Render Istio external auth resources for oauth2-proxy.
+  # -- Render Istio AuthorizationPolicy and RequestAuthentication resources for oauth2-proxy external auth.
   enabled: false
 
 m2m:
