@@ -1,6 +1,6 @@
 # Kubeflow Namespaces Helm Chart
 
-This chart renders the Kubeflow-owned namespace foundation resources from `common/kubeflow-namespace/base` and the platform dependency namespaces used by the managed Kubeflow install.
+This chart renders the Kubeflow-owned namespace foundation resources from `common/kubeflow-namespace/base` and the platform dependency namespaces used by the managed Kubeflow installation.
 
 Templates are split by resource type to keep namespace and NetworkPolicy review focused.
 

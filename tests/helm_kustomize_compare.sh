@@ -20,7 +20,7 @@ case "$COMPONENT" in
     "katib")
         CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/katib"
         MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/applications/katib/upstream"
-        
+
         declare -A KUSTOMIZE_PATHS=(
             ["standalone"]="$MANIFESTS_DIRECTORY/installs/katib-standalone"
             ["cert-manager"]="$MANIFESTS_DIRECTORY/installs/katib-cert-manager"
@@ -30,7 +30,7 @@ case "$COMPONENT" in
             ["standalone-postgres"]="$MANIFESTS_DIRECTORY/installs/katib-standalone-postgres"
             ["with-kubeflow"]="$MANIFESTS_DIRECTORY/installs/katib-with-kubeflow"
         )
-        
+
         declare -A HELM_VALUES=(
             ["standalone"]="$CHART_DIRECTORY/ci/values-standalone.yaml"
             ["cert-manager"]="$CHART_DIRECTORY/ci/values-cert-manager.yaml"
@@ -42,7 +42,7 @@ case "$COMPONENT" in
             ["enterprise"]="$CHART_DIRECTORY/ci/values-enterprise.yaml"
             ["production"]="$CHART_DIRECTORY/ci/values-production.yaml"
         )
-        
+
         declare -A NAMESPACES=(
             ["standalone"]="kubeflow"
             ["cert-manager"]="kubeflow"
@@ -55,11 +55,11 @@ case "$COMPONENT" in
             ["production"]="kubeflow"
         )
         ;;
-        
+
     "hub")
         CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/hub"
         MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/applications/hub/upstream"
-        
+
         declare -A KUSTOMIZE_PATHS=(
             ["base"]="$MANIFESTS_DIRECTORY/base"
             ["overlay-postgres"]="$MANIFESTS_DIRECTORY/overlays/postgres"
@@ -76,7 +76,7 @@ case "$COMPONENT" in
             ["istio"]="$MANIFESTS_DIRECTORY/options/istio"
             ["csi"]="$MANIFESTS_DIRECTORY/options/csi"
         )
-        
+
         declare -A HELM_VALUES=(
             ["base"]="$CHART_DIRECTORY/ci/ci-values.yaml"
             ["overlay-postgres"]="$CHART_DIRECTORY/ci/values-postgres.yaml"
@@ -93,7 +93,7 @@ case "$COMPONENT" in
             ["istio"]="$CHART_DIRECTORY/ci/values-istio.yaml"
             ["csi"]="$CHART_DIRECTORY/ci/values-csi.yaml"
         )
-        
+
         declare -A NAMESPACES=(
             ["base"]="kubeflow"
             ["overlay-postgres"]="kubeflow"
@@ -111,21 +111,20 @@ case "$COMPONENT" in
             ["csi"]="kubeflow"
         )
         ;;
-        
     "kserve-models-web-application")
         CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/kserve-ui"
         MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/applications/kserve/kserve-ui/upstream"
-        
+
         declare -A KUSTOMIZE_PATHS=(
             ["base"]="$MANIFESTS_DIRECTORY/base"
             ["kubeflow"]="$MANIFESTS_DIRECTORY/overlays/kubeflow"
         )
-        
+
         declare -A HELM_VALUES=(
             ["base"]="$CHART_DIRECTORY/ci/base-values.yaml"
             ["kubeflow"]="$CHART_DIRECTORY/ci/kubeflow-values.yaml"
         )
-        
+
         declare -A NAMESPACES=(
             ["base"]="kserve"
             ["kubeflow"]="kubeflow"

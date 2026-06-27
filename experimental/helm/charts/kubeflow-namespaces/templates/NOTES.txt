@@ -24,7 +24,7 @@ Kubeflow namespace foundation status:
 {{- end }}
 
 {{- if $skippedNamespaces }}
-WARNING: The following namespaces were skipped because they already existed before this install:
+WARNING: The following namespaces were skipped because they already existed before this installation:
 {{ range $ns := $skippedNamespaces }}  - {{ $ns }}
 {{ end }}
 If these namespaces are missing PSS labels, pods may fail admission. Apply labels manually:
