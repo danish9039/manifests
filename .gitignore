@@ -15,6 +15,3 @@
 
 # Scanning reports of trivy
 image_lists/*
-
-# Local validation log
-docs/log.md
