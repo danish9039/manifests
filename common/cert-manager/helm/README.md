@@ -9,7 +9,7 @@ It installs:
 - optional `ClusterIssuer/kubeflow-self-signing-issuer`
 - optional Kubeflow-specific cert-manager NetworkPolicies
 
-In the Kubeflow platform install, apply the foundation charts first:
+In the Kubeflow platform installation, apply the foundation charts first:
 
 | Chart | Provides |
 | --- | --- |
@@ -32,7 +32,7 @@ helm upgrade cert-manager ./common/cert-manager/helm --namespace cert-manager \
   --values ./common/cert-manager/helm/ci/values-kubeflow.yaml --wait
 ```
 
-The installation is split into base install plus upgrade because `ClusterIssuer` cannot be created until cert-manager CRDs are available.
+The installation is split into base installation plus upgrade because `ClusterIssuer` cannot be created until cert-manager CRDs are available.
 
 If the cluster already has a company-managed cert-manager installation, disable the upstream dependency, then install only the Kubeflow-specific resources. If `Namespace/cert-manager` already exists, the foundation chart does not recreate or adopt it; apply any required labels separately if they are missing.
 

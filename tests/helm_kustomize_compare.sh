@@ -192,7 +192,7 @@ HELM_OUTPUT="/tmp/helm-${COMPONENT}-${SCENARIO}.yaml"
 cd "$ROOT_DIRECTORY"
 kustomize build "$KUSTOMIZE_PATH" > "$KUSTOMIZE_OUTPUT"
 
-# Generate Helm manifests (different approach for KServe Models Web App)
+# Generate Helm manifests (different approach for KServe Models Web Application)
 cd "$ROOT_DIRECTORY"
 if [[ "$COMPONENT" == "kserve-models-web-application" ]]; then
     # KServe uses chart-local CI values files, but still templates from the repository root.

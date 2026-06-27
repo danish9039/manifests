@@ -221,13 +221,13 @@ If removing the groups claim in oauth2-proxy is not enough then you can add an e
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kserve-models-web-app
+  name: kserve-models-web-application
   namespace: kubeflow
 spec:
   template:
     spec:
       containers:
-        - name: kserve-models-web-app # repeat for all other *-web-app-(deployment)
+        - name: kserve-models-web-application # repeat for all other *-web-app-(deployment)
           env:
             - name: GUNICORN_CMD_ARGS
               value: --limit-request-field_size 32000

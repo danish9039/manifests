@@ -77,7 +77,7 @@ elif [[ "$COMPONENT" == "help" ]] || [[ "$COMPONENT" == "--help" ]] || [[ "$COMP
     echo "  all                    Test all components"
     echo "  katib                  Test Katib scenarios"
     echo "  hub                    Test Hub / Model Registry scenarios"
-    echo "  kserve-models-web-application  Test KServe Models Web App scenarios"
+    echo "  kserve-models-web-application  Test KServe Models Web Application scenarios"
     echo "  cert-manager           Test cert-manager wrapper scenarios"
     echo ""
     echo "Examples:"
