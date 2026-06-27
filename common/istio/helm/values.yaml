@@ -4,7 +4,7 @@
 # CRD-only values, then upgrade with a supported profile after the CRDs are
 # available to the API server.
 
-# -- Istio install profile used when install.enabled=true. Supported values: base, oauth2-proxy, gke.
+# -- Istio installation profile used when install.enabled=true. Supported values: base, oauth2-proxy, gke.
 profile: oauth2-proxy
 
 crds:

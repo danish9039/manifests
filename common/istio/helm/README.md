@@ -4,7 +4,7 @@ This chart renders the current Kubeflow Istio Kustomize resources with Helm.
 It is intentionally static for the first platform wrapper slice so the rendered
 output stays aligned with the generated manifests under `common/istio`.
 
-## Install
+## Installation
 
 Install the foundation charts first, then install Istio in two steps because
 Istio custom resources cannot be created until the Istio CRDs exist. The
