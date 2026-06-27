@@ -4,7 +4,7 @@ This chart renders the current Kubeflow Dex Kustomize resources with Helm. It is
 intentionally static for the first chart slice so rendered output stays aligned
 with `common/dex`.
 
-## Install
+## Installation
 
 Install foundation, cert-manager, Istio, and oauth2-proxy first. The
 `kubeflow-namespaces` foundation chart creates `Namespace/auth`; this chart
