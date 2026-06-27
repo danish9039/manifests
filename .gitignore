@@ -15,6 +15,3 @@
 
 # Scanning reports of trivy
 image_lists/*
-
-# Helm dependency archives generated during local wrapper-chart validation.
-common/cert-manager/helm/charts/*.tgz
