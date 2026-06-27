@@ -10,7 +10,7 @@ server:
   replicas: 1
   dataStoreType: embedmd
   image:
-    tag: "v0.3.9"
+    tag: "v0.3.10"
   resources:
     limits:
       cpu: 200m
