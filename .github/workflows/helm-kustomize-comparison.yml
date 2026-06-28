@@ -4,7 +4,8 @@ on:
   pull_request:
     paths:
     - experimental/helm/charts/**
-    - common/cert-manager/helm/**
+    - common/cert-manager/**
+    - scripts/synchronize-cert-manager-manifests.sh
     - tests/kustomize_install.sh
     - tests/helm_kustomize_compare.py
     - tests/helm_kustomize_compare.sh
