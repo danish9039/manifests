@@ -14,18 +14,27 @@ MANIFESTS_DIRECTORY=$(dirname $SCRIPT_DIRECTORY)
 DESTINATION_MANIFESTS_PATH="common/${COMPONENT_NAME}"
 DESTINATION_DIRECTORY=$MANIFESTS_DIRECTORY/${DESTINATION_MANIFESTS_PATH}
 UPSTREAM_DIRECTORY=$DESTINATION_DIRECTORY/base/upstream
+CHART_DIRECTORY="$DESTINATION_DIRECTORY/helm"
 create_branch "$BRANCH_NAME"
 clone_and_checkout "$SOURCE_DIRECTORY" "$REPOSITORY_URL" "$REPOSITORY_DIRECTORY" "$COMMIT"
 
 sed -i "s|ghcr.io/dexidp/dex:v[0-9.]*|ghcr.io/dexidp/dex:${COMMIT}|g" \
   "$DESTINATION_DIRECTORY/base/deployment.yaml"
+sed -i "s|^appVersion: .*|appVersion: ${COMMIT#v}|g" \
+  "$CHART_DIRECTORY/Chart.yaml"
+sed -i "s|ghcr.io/dexidp/dex:v[0-9.]*|ghcr.io/dexidp/dex:${COMMIT}|g" \
+  "$CHART_DIRECTORY/values.yaml"
 
 mkdir -p "$UPSTREAM_DIRECTORY"
 cp \
   "$SOURCE_DIRECTORY/$REPOSITORY_DIRECTORY/scripts/manifests/crds/authcodes.yaml" \
   "$UPSTREAM_DIRECTORY/crds.yaml"
+cp "$UPSTREAM_DIRECTORY/crds.yaml" "$CHART_DIRECTORY/crds/authcodes.yaml"
 SOURCE_TEXT="\[.*\](https://github.com/${REPOSITORY_NAME}/releases/tag/v.*)"
 DESTINATION_TEXT="\[${COMMIT#v}\](https://github.com/${REPOSITORY_NAME}/releases/tag/${COMMIT})"
 update_readme "$MANIFESTS_DIRECTORY" "$SOURCE_TEXT" "$DESTINATION_TEXT"
-commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" "$DESTINATION_MANIFESTS_PATH"
+commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" \
+  "README.md" \
+  "scripts/synchronize-dex-manifests.sh" \
+  "$DESTINATION_MANIFESTS_PATH"
 echo "Synchronization completed successfully."
