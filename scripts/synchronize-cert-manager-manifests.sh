@@ -10,11 +10,23 @@ BRANCH_NAME=${BRANCH_NAME:=synchronize-${COMPONENT_NAME}-manifests-${COMMIT?}}
 MANIFESTS_DIRECTORY=$(dirname $SCRIPT_DIRECTORY)
 DESTINATION_DIRECTORY=$MANIFESTS_DIRECTORY/common/${COMPONENT_NAME}
 DESTINATION_FILE="$DESTINATION_DIRECTORY/base/upstream/cert-manager.yaml"
+CHART_DIRECTORY="$DESTINATION_DIRECTORY/helm"
 create_branch "$BRANCH_NAME"
 wget -O "$DESTINATION_FILE" \
   "https://github.com/${REPOSITORY_NAME}/releases/download/${COMMIT}/cert-manager.yaml"
+sed -i "s|^appVersion: .*|appVersion: ${COMMIT}|g" \
+  "$CHART_DIRECTORY/Chart.yaml"
+sed -i "s|  version: \"[0-9][0-9.]*\"|  version: \"${COMMIT#v}\"|g" \
+  "$CHART_DIRECTORY/Chart.yaml"
+sed -i "s|upstream cert-manager \`v[0-9.]*\`|upstream cert-manager \`${COMMIT}\`|g" \
+  "$CHART_DIRECTORY/README.md"
+helm dependency update "$CHART_DIRECTORY"
+rm -f "$CHART_DIRECTORY"/charts/*.tgz
 SOURCE_TEXT="\[.*\](https://github.com/${REPOSITORY_NAME}/releases/tag/v.*)"
 DESTINATION_TEXT="\[${COMMIT#v}\](https://github.com/${REPOSITORY_NAME}/releases/tag/${COMMIT})"
 update_readme "$MANIFESTS_DIRECTORY" "$SOURCE_TEXT" "$DESTINATION_TEXT"
-commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" "$MANIFESTS_DIRECTORY"
+commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" \
+  "README.md" \
+  "scripts/synchronize-cert-manager-manifests.sh" \
+  "common/${COMPONENT_NAME}"
 echo "Synchronization completed successfully."
