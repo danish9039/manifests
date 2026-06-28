@@ -13,7 +13,8 @@ on:
     - scripts/synchronize-hub-manifests.sh
     - common/dex/**
     - scripts/synchronize-dex-manifests.sh
-    - common/oauth2-proxy/helm/**
+    - common/oauth2-proxy/**
+    - scripts/synchronize-oauth2-proxy-manifests.sh
     - tests/kustomize_install.sh
     - tests/helm_kustomize_compare.py
     - tests/helm_kustomize_compare.sh
