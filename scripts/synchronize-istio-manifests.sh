@@ -11,6 +11,7 @@ SOURCE_DIRECTORY=${SOURCE_DIRECTORY:=/tmp/kubeflow-${COMPONENT_NAME}}
 BRANCH_NAME=${BRANCH_NAME:=synchronize-${COMPONENT_NAME}-manifests-${COMMIT?}}
 MANIFESTS_DIRECTORY=$(dirname $SCRIPT_DIRECTORY)
 ISTIO_DIRECTORY=$MANIFESTS_DIRECTORY/common/${COMPONENT_NAME}
+HELM_MANIFESTS_DIRECTORY="$ISTIO_DIRECTORY/helm/manifests"
 create_branch "$BRANCH_NAME"
 mkdir -p "$SOURCE_DIRECTORY"
 cd "$SOURCE_DIRECTORY"
@@ -41,8 +42,26 @@ sed -i "s/\"tag\": \".*\"/\"tag\": \"$COMMIT\"/" "$ISTIO_DIRECTORY/istio-install
 # (e.g. image tags, helm chart labels). Update PREVIOUS_COMMIT when needed.
 find "$ISTIO_DIRECTORY" -name "*.yaml" -exec sed -i \
   -e "s/${PREVIOUS_COMMIT}/$COMMIT/g" {} +
+sed -i "s|^appVersion: .*|appVersion: $COMMIT|g" "$ISTIO_DIRECTORY/helm/Chart.yaml"
+kustomize build "$ISTIO_DIRECTORY/istio-crds/base" \
+  > "$HELM_MANIFESTS_DIRECTORY/crds.yaml"
+kustomize build "$ISTIO_DIRECTORY/istio-install/base" \
+  > "$HELM_MANIFESTS_DIRECTORY/install-base.yaml"
+kustomize build "$ISTIO_DIRECTORY/istio-install/overlays/oauth2-proxy" \
+  > "$HELM_MANIFESTS_DIRECTORY/install-oauth2-proxy.yaml"
+kustomize build "$ISTIO_DIRECTORY/istio-install/overlays/gke" \
+  > "$HELM_MANIFESTS_DIRECTORY/install-gke.yaml"
+kustomize build "$ISTIO_DIRECTORY/cluster-local-gateway/base" \
+  > "$HELM_MANIFESTS_DIRECTORY/cluster-local-gateway.yaml"
+kustomize build "$ISTIO_DIRECTORY/kubeflow-istio-resources/base" \
+  > "$HELM_MANIFESTS_DIRECTORY/kubeflow-istio-resources.yaml"
+kustomize build "$ISTIO_DIRECTORY/istio-namespace/base" \
+  | sed '1,/^---$/d' > "$HELM_MANIFESTS_DIRECTORY/networkpolicies.yaml"
 SOURCE_TEXT="\[.*\](https://github.com/${REPOSITORY_NAME}/releases/tag/.*)"
 DESTINATION_TEXT="\[$COMMIT\](https://github.com/${REPOSITORY_NAME}/releases/tag/$COMMIT)"
 update_readme "$MANIFESTS_DIRECTORY" "$SOURCE_TEXT" "$DESTINATION_TEXT"
-commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" "$MANIFESTS_DIRECTORY"
+commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" \
+  "README.md" \
+  "scripts/synchronize-istio-manifests.sh" \
+  "common/${COMPONENT_NAME}"
 echo "Synchronization completed successfully."
