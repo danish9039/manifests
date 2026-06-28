@@ -15,7 +15,8 @@ on:
     - scripts/synchronize-dex-manifests.sh
     - common/oauth2-proxy/**
     - scripts/synchronize-oauth2-proxy-manifests.sh
-    - common/istio/helm/**
+    - common/istio/**
+    - scripts/synchronize-istio-manifests.sh
     - tests/kustomize_install.sh
     - tests/helm_kustomize_compare.py
     - tests/test_helm_kustomize_compare.py
