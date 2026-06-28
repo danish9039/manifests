@@ -1,8 +1,8 @@
 # Dex Helm Chart
 
-This chart renders the current Kubeflow Dex Kustomize resources with Helm. It is
-intentionally static for the first chart slice so rendered output stays aligned
-with `common/dex`.
+This chart renders the default Kubeflow Dex with oauth2-proxy Kustomize path
+with Helm. It is intentionally static for the first chart slice so rendered
+output stays aligned with `common/dex/overlays/oauth2-proxy`.
 
 ## Installation
 
@@ -33,8 +33,8 @@ lifecycle behavior.
 
 ## Kustomize Mapping
 
-- `ci/values-base.yaml`: `common/dex/base`
-- `ci/values-istio.yaml`: `common/dex/overlays/istio`
+This chart currently validates one meaningful Kubeflow customer scenario:
+
 - `ci/values-oauth2-proxy.yaml`: `common/dex/overlays/oauth2-proxy`
 
 Direct Keycloak, Azure, and other enterprise connector profiles are deferred
@@ -44,6 +44,5 @@ until the default Dex + oauth2-proxy path is stable.
 
 ```bash
 helm lint common/dex/helm
-./tests/helm_kustomize_compare.sh dex base
-./tests/helm_kustomize_compare.sh dex overlays-istio
+./tests/helm_kustomize_compare.sh dex oauth2-proxy
 ```
