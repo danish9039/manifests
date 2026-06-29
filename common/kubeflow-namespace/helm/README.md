@@ -1,6 +1,6 @@
 # Kubeflow Namespaces Helm Chart
 
-This chart renders the Kubeflow-owned namespace foundation resources from `common/kubeflow-namespace/base` and the platform dependency namespaces used by the managed Kubeflow installation.
+This chart renders the Kubeflow-owned namespace foundation resources from `common/kubeflow-namespace/base` and the optional platform namespaces used by the managed Kubeflow installation.
 
 Templates are split by resource type to keep namespace and NetworkPolicy review focused.
 
@@ -12,6 +12,7 @@ It creates:
 - `Namespace/istio-system`
 - `Namespace/oauth2-proxy`
 - `Namespace/auth` for Dex
+- `Namespace/kserve`
 - namespace-scoped NetworkPolicies required by the platform baseline
 
 If one of these namespaces already exists, for example a company-managed `cert-manager` namespace, the chart does not recreate or adopt it. Helm does not patch labels on unmanaged pre-existing resources; apply the required labels to that namespace separately if they are missing.
@@ -22,7 +23,7 @@ Namespaces created by this chart are kept when the Helm release is uninstalled, 
 
 All namespace names are fixed to match the Kustomize baseline. They are not configurable.
 
-To opt out of a platform dependency namespace, set `platformNamespaces.<key>.enabled: false` in your values file.
+To opt out of an optional platform namespace, set `platformNamespaces.<key>.enabled: false` in your values file.
 
 This chart uses Helm `lookup` to detect pre-existing unmanaged namespaces and skip them, so Helm does not try to adopt resources owned outside this release. `helm template` cannot exercise this branch because `lookup` needs a live cluster.
 
