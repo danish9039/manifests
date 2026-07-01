@@ -1,3 +1,6 @@
+{{- if ne .Release.Namespace "cert-manager" }}
+{{- fail "cert-manager wrapper chart must be installed into the cert-manager namespace" }}
+{{- end }}
 {{ if .Values.kubeflow.enabled }}
 {{ if .Values.kubeflow.clusterIssuer.enabled }}
 apiVersion: cert-manager.io/v1
