@@ -1,11 +1,12 @@
 apiVersion: v2
 name: oauth2-proxy
-description: A Helm chart for Kubeflow oauth2-proxy authentication resources
+description: A Helm chart for Kubeflow oauth2-proxy authentication and authorization resources
 version: 0.1.0
 appVersion: 7.15.2
 
 keywords:
 - authentication
+- authorization
 - oauth2
 - kubeflow
 - oauth2-proxy

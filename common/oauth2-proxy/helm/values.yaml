@@ -26,8 +26,8 @@ networkPolicies:
   # -- Render oauth2-proxy namespace NetworkPolicies.
   enabled: true
 
-istioExternalAuth:
-  # -- Render Istio AuthorizationPolicy and RequestAuthentication resources for oauth2-proxy external auth.
+istioExternalAuthorization:
+  # -- Render Istio AuthorizationPolicy and RequestAuthentication resources for oauth2-proxy external authorization.
   enabled: false
 
 m2m:
