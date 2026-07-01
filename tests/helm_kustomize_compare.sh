@@ -138,14 +138,20 @@ case "$COMPONENT" in
 
         declare -A KUSTOMIZE_PATHS=(
             ["base"]="$MANIFESTS_DIRECTORY/base"
+            ["kubeflow"]="$MANIFESTS_DIRECTORY/base"$'\n'"$MANIFESTS_DIRECTORY/overlays/kubeflow"
+            ["existing-cert-manager"]="$MANIFESTS_DIRECTORY/overlays/kubeflow"
         )
 
         declare -A HELM_VALUES=(
             ["base"]="$CHART_DIRECTORY/ci/values-base.yaml"
+            ["kubeflow"]="$CHART_DIRECTORY/ci/values-kubeflow.yaml"
+            ["existing-cert-manager"]="$CHART_DIRECTORY/ci/values-existing-cert-manager.yaml"
         )
 
         declare -A NAMESPACES=(
             ["base"]="cert-manager"
+            ["kubeflow"]="cert-manager"
+            ["existing-cert-manager"]="cert-manager"
         )
         ;;
 
@@ -168,13 +174,16 @@ fi
 KUSTOMIZE_PATH="${KUSTOMIZE_PATHS[$SCENARIO]}"
 HELM_VALUES_ARGUMENTS="${HELM_VALUES[$SCENARIO]}"
 NAMESPACE="${NAMESPACES[$SCENARIO]}"
+mapfile -t KUSTOMIZE_ROOTS <<< "$KUSTOMIZE_PATH"
 
 echo "Comparing $COMPONENT manifests for scenario: $SCENARIO"
 
-if [ ! -d "$KUSTOMIZE_PATH" ]; then
-    echo "ERROR: Kustomize path does not exist: $KUSTOMIZE_PATH"
-    exit 1
-fi
+for path in "${KUSTOMIZE_ROOTS[@]}"; do
+    if [ ! -d "$path" ]; then
+        echo "ERROR: Kustomize path does not exist: $path"
+        exit 1
+    fi
+done
 
 if [ ! -d "$CHART_DIRECTORY" ]; then
     echo "ERROR: Helm chart directory does not exist: $CHART_DIRECTORY"
@@ -190,7 +199,14 @@ KUSTOMIZE_OUTPUT="/tmp/kustomize-${COMPONENT}-${SCENARIO}.yaml"
 HELM_OUTPUT="/tmp/helm-${COMPONENT}-${SCENARIO}.yaml"
 
 cd "$ROOT_DIRECTORY"
-kustomize build "$KUSTOMIZE_PATH" > "$KUSTOMIZE_OUTPUT"
+: > "$KUSTOMIZE_OUTPUT"
+for i in "${!KUSTOMIZE_ROOTS[@]}"; do
+    path="${KUSTOMIZE_ROOTS[$i]}"
+    if [ "$i" -gt 0 ]; then
+        printf "\n---\n" >> "$KUSTOMIZE_OUTPUT"
+    fi
+    kustomize build "$path" >> "$KUSTOMIZE_OUTPUT"
+done
 
 # Generate Helm manifests (different approach for KServe Models Web Application)
 cd "$ROOT_DIRECTORY"
