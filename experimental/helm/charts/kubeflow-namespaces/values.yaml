@@ -18,7 +18,7 @@ platformNamespaces:
   oauth2Proxy:
     enabled: true    # creates Namespace/oauth2-proxy
   auth:
-    enabled: true    # creates Namespace/auth
+    enabled: true    # creates Namespace/auth for Dex
 
 networkPolicies:
   enabled: true

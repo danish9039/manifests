@@ -11,7 +11,7 @@ It creates:
 - `Namespace/cert-manager`
 - `Namespace/istio-system`
 - `Namespace/oauth2-proxy`
-- `Namespace/auth`
+- `Namespace/auth` for Dex
 - namespace-scoped NetworkPolicies required by the platform baseline
 
 If one of these namespaces already exists, for example a company-managed `cert-manager` namespace, the chart does not recreate or adopt it. Helm does not patch labels on unmanaged pre-existing resources; apply the required labels to that namespace separately if they are missing.
