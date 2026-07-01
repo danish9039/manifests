@@ -57,6 +57,10 @@ kustomize build "$ISTIO_DIRECTORY/kubeflow-istio-resources/base" \
   > "$HELM_MANIFESTS_DIRECTORY/kubeflow-istio-resources.yaml"
 kustomize build "$ISTIO_DIRECTORY/istio-namespace/base" \
   | sed '1,/^---$/d' > "$HELM_MANIFESTS_DIRECTORY/networkpolicies.yaml"
+# Keep generated Istio and Helm YAML clean for git diff --check.
+find "$ISTIO_DIRECTORY" -name "*.yaml" -exec sed -i \
+  -e 's/[[:space:]]\+$//' \
+  -e '${/^$/d;}' {} +
 SOURCE_TEXT="\[.*\](https://github.com/${REPOSITORY_NAME}/releases/tag/.*)"
 DESTINATION_TEXT="\[$COMMIT\](https://github.com/${REPOSITORY_NAME}/releases/tag/$COMMIT)"
 update_readme "$MANIFESTS_DIRECTORY" "$SOURCE_TEXT" "$DESTINATION_TEXT"
