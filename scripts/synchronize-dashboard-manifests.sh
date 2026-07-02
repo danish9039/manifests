@@ -41,7 +41,7 @@ update_dashboard_helm_chart() {
         sed -i "s|^appVersion:.*|appVersion: ${COMMIT}|" "$chart_yaml"
     fi
 
-    temporary_platform_template="$(mktemp)"
+    temporary_platform_template="$(mktemp "${HELM_PLATFORM_TEMPLATE}.tmp.XXXXXX")"
     {
         printf '{{- if eq .Values.scenario "platform" }}\n'
         (cd "$MANIFESTS_DIRECTORY" && kustomize build "applications/dashboard/overlays/istio")
