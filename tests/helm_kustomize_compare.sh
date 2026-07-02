@@ -317,10 +317,16 @@ elif [[ "$COMPONENT" == "kubeflow-namespaces" || "$COMPONENT" == "kubeflow-platf
         --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
 elif [[ "$COMPONENT" == "dex" ]]; then
     cd "$CHART_DIRECTORY"
-    helm template dex . \
-        --namespace "$NAMESPACE" \
-        --include-crds \
-        --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
+    if [ -n "$HELM_VALUES_ARGUMENTS" ]; then
+        helm template dex . \
+            --namespace "$NAMESPACE" \
+            --include-crds \
+            --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
+    else
+        helm template dex . \
+            --namespace "$NAMESPACE" \
+            --include-crds > "$HELM_OUTPUT"
+    fi
 else
     cd "$CHART_DIRECTORY"
     if [[ "$COMPONENT" == "katib" ]]; then
