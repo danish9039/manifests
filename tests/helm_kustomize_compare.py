@@ -109,7 +109,10 @@ def clean_helm_metadata(obj: Any, component: str = "katib") -> Any:
                         # Remove Helm-specific labels (component-specific logic)
                         cleaned_labels = {}
                         for label_key, label_value in meta_value.items():
-                            if component == "kserve-models-web-application":
+                            if component == "kubeflow-notebooks":
+                                if not label_key.startswith("helm.sh/"):
+                                    cleaned_labels[label_key] = label_value
+                            elif component == "kserve-models-web-application":
                                 # More restrictive filtering for KServe
                                 if not label_key.startswith(
                                     ("helm.sh/", "app.kubernetes.io/managed-by")
