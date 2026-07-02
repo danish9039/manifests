@@ -7,8 +7,8 @@ COMPONENT_NAME="cert-manager"
 REPOSITORY_NAME="cert-manager/cert-manager"
 COMMIT="v1.20.2"
 BRANCH_NAME=${BRANCH_NAME:=synchronize-${COMPONENT_NAME}-manifests-${COMMIT?}}
-MANIFESTS_DIRECTORY=$(dirname $SCRIPT_DIRECTORY)
-DESTINATION_DIRECTORY=$MANIFESTS_DIRECTORY/common/${COMPONENT_NAME}
+MANIFESTS_DIRECTORY="$(dirname "$SCRIPT_DIRECTORY")"
+DESTINATION_DIRECTORY="$MANIFESTS_DIRECTORY/common/${COMPONENT_NAME}"
 DESTINATION_FILE="$DESTINATION_DIRECTORY/base/upstream/cert-manager.yaml"
 CHART_DIRECTORY="$DESTINATION_DIRECTORY/helm"
 create_branch "$BRANCH_NAME"
@@ -20,6 +20,7 @@ sed -i "s|  version: \"[0-9][0-9.]*\"|  version: \"${COMMIT#v}\"|g" \
   "$CHART_DIRECTORY/Chart.yaml"
 sed -i "s|upstream cert-manager \`v[0-9.]*\`|upstream cert-manager \`${COMMIT}\`|g" \
   "$CHART_DIRECTORY/README.md"
+helm repo add jetstack https://charts.jetstack.io >/dev/null 2>&1 || helm repo update jetstack >/dev/null
 helm dependency update "$CHART_DIRECTORY"
 rm -f "$CHART_DIRECTORY"/charts/*.tgz
 SOURCE_TEXT="\[.*\](https://github.com/${REPOSITORY_NAME}/releases/tag/v.*)"

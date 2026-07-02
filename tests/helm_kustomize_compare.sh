@@ -222,8 +222,10 @@ if [[ "$COMPONENT" == "kserve-models-web-application" ]]; then
     fi
 elif [[ "$COMPONENT" == "cert-manager" ]]; then
     cd "$CHART_DIRECTORY"
-    helm repo add jetstack https://charts.jetstack.io >/dev/null 2>&1 || helm repo update jetstack >/dev/null
-    helm dependency build .
+    if [[ "${CERT_MANAGER_DEPENDENCIES_READY:-false}" != "true" ]]; then
+        helm repo add jetstack https://charts.jetstack.io >/dev/null 2>&1 || helm repo update jetstack >/dev/null
+        helm dependency build .
+    fi
     helm template cert-manager . \
         --namespace "$NAMESPACE" \
         --include-crds \

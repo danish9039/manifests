@@ -15,6 +15,15 @@ declare -A COMPONENT_SCENARIOS=(
     ["cert-manager"]="base kubeflow existing-cert-manager"
 )
 
+prepare_component() {
+    local component=$1
+
+    if [[ "$component" == "cert-manager" ]]; then
+        helm repo add jetstack https://charts.jetstack.io >/dev/null 2>&1 || helm repo update jetstack >/dev/null
+        helm dependency build "$ROOT_DIRECTORY/common/cert-manager/helm" >/dev/null
+    fi
+}
+
 test_component() {
     local component=$1
     local scenarios_str="${COMPONENT_SCENARIOS[$component]}"
@@ -28,9 +37,11 @@ test_component() {
     
     declare -a passed_scenarios=()
     declare -a failed_scenarios=()
+
+    prepare_component "$component"
     
     for scenario in "${scenarios[@]}"; do
-        if "$SCRIPT_DIRECTORY/helm_kustomize_compare.sh" "$component" "$scenario"; then
+        if CERT_MANAGER_DEPENDENCIES_READY=true "$SCRIPT_DIRECTORY/helm_kustomize_compare.sh" "$component" "$scenario"; then
             passed_scenarios+=("$scenario")
         else
             echo "FAILED: $component/$scenario"
