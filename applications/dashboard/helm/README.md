@@ -10,9 +10,9 @@ Install the platform foundation and wrapper charts first. Store Helm release
 metadata in `kubeflow-system`; Dashboard workloads still run in `kubeflow`.
 
 ```bash
-helm install kubeflow-dashboard ./experimental/helm/charts/kubeflow-dashboard \
+helm install kubeflow-dashboard ./applications/dashboard/helm \
   --namespace kubeflow-system \
-  --values ./experimental/helm/charts/kubeflow-dashboard/ci/values-platform.yaml \
+  --values ./applications/dashboard/helm/ci/values-platform.yaml \
   --wait
 ```
 
@@ -28,17 +28,12 @@ caveat before making this chart a long-term supported install surface.
 
 ## Kustomize Mapping
 
-- `ci/values-centraldashboard-base.yaml`: `applications/dashboard/upstream/centraldashboard/base`
-- `ci/values-centraldashboard-istio.yaml`: `applications/dashboard/upstream/centraldashboard/overlays/istio`
-- `ci/values-centraldashboard-kserve.yaml`: `applications/dashboard/upstream/centraldashboard/overlays/kserve`
-- `ci/values-poddefaults-cert-manager.yaml`: `applications/dashboard/upstream/poddefaults-webhooks/overlays/cert-manager`
-- `ci/values-profile-kubeflow-pss.yaml`: `applications/dashboard/upstream/profile-controller/overlays/kubeflow-pss`
 - `ci/values-platform.yaml`: `applications/dashboard/overlays/istio`
 
 ## Comparison
 
 ```bash
-helm lint experimental/helm/charts/kubeflow-dashboard
+helm lint applications/dashboard/helm
 ./tests/helm_kustomize_compare.sh kubeflow-dashboard platform
 ./tests/helm_kustomize_compare_all.sh kubeflow-dashboard
 ```

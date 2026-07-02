@@ -1,5 +1,5 @@
 {{- $scenario := default "" .Values.scenario -}}
-{{- $validScenarios := list "centraldashboard-base" "centraldashboard-istio" "centraldashboard-kserve" "poddefaults-cert-manager" "profile-kubeflow-pss" "platform" -}}
+{{- $validScenarios := list "platform" -}}
 {{- if not (has $scenario $validScenarios) -}}
 {{- fail (printf "invalid scenario %q; supported values: %s" $scenario (join ", " $validScenarios)) -}}
 {{- end -}}

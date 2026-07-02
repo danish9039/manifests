@@ -267,33 +267,18 @@ case "$COMPONENT" in
         ;;
 
     "kubeflow-dashboard")
-        CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/kubeflow-dashboard"
+        CHART_DIRECTORY="$ROOT_DIRECTORY/applications/dashboard/helm"
         MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/applications/dashboard"
 
         declare -A KUSTOMIZE_PATHS=(
-            ["centraldashboard-base"]="$MANIFESTS_DIRECTORY/upstream/centraldashboard/base"
-            ["centraldashboard-istio"]="$MANIFESTS_DIRECTORY/upstream/centraldashboard/overlays/istio"
-            ["centraldashboard-kserve"]="$MANIFESTS_DIRECTORY/upstream/centraldashboard/overlays/kserve"
-            ["poddefaults-cert-manager"]="$MANIFESTS_DIRECTORY/upstream/poddefaults-webhooks/overlays/cert-manager"
-            ["profile-kubeflow-pss"]="$MANIFESTS_DIRECTORY/upstream/profile-controller/overlays/kubeflow-pss"
             ["platform"]="$MANIFESTS_DIRECTORY/overlays/istio"
         )
 
         declare -A HELM_VALUES=(
-            ["centraldashboard-base"]="$CHART_DIRECTORY/ci/values-centraldashboard-base.yaml"
-            ["centraldashboard-istio"]="$CHART_DIRECTORY/ci/values-centraldashboard-istio.yaml"
-            ["centraldashboard-kserve"]="$CHART_DIRECTORY/ci/values-centraldashboard-kserve.yaml"
-            ["poddefaults-cert-manager"]="$CHART_DIRECTORY/ci/values-poddefaults-cert-manager.yaml"
-            ["profile-kubeflow-pss"]="$CHART_DIRECTORY/ci/values-profile-kubeflow-pss.yaml"
             ["platform"]="$CHART_DIRECTORY/ci/values-platform.yaml"
         )
 
         declare -A NAMESPACES=(
-            ["centraldashboard-base"]="kubeflow-system"
-            ["centraldashboard-istio"]="kubeflow-system"
-            ["centraldashboard-kserve"]="kubeflow-system"
-            ["poddefaults-cert-manager"]="kubeflow-system"
-            ["profile-kubeflow-pss"]="kubeflow-system"
             ["platform"]="kubeflow-system"
         )
         ;;

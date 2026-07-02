@@ -5606,7 +5606,7 @@ spec:
         envFrom:
         - configMapRef:
             name: dashboard-parameters-ckkh684h89
-        image: ghcr.io/kubeflow/dashboard/dashboard:v2.0.0-rc.1
+        image: ghcr.io/kubeflow/dashboard/dashboard:v2.0.0
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -5672,7 +5672,7 @@ spec:
       - args:
         - --tlsCertFile=/etc/webhook/certs/tls.crt
         - --tlsKeyFile=/etc/webhook/certs/tls.key
-        image: ghcr.io/kubeflow/dashboard/poddefaults-webhook:v2.0.0-rc.1
+        image: ghcr.io/kubeflow/dashboard/poddefaults-webhook:v2.0.0
         name: poddefaults-webhook
         ports:
         - containerPort: 4443
@@ -5741,7 +5741,7 @@ spec:
         envFrom:
         - configMapRef:
             name: profiles-config-5h9m86f79f
-        image: ghcr.io/kubeflow/dashboard/access-management:v2.0.0-rc.1
+        image: ghcr.io/kubeflow/dashboard/access-management:v2.0.0
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -5783,7 +5783,7 @@ spec:
         envFrom:
         - configMapRef:
             name: profiles-config-5h9m86f79f
-        image: ghcr.io/kubeflow/dashboard/profile-controller:v2.0.0-rc.1
+        image: ghcr.io/kubeflow/dashboard/profile-controller:v2.0.0
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -6087,5 +6087,4 @@ webhooks:
     resources:
     - pods
   sideEffects: None
-
 {{- end }}

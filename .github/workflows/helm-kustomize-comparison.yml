@@ -3,6 +3,8 @@ name: Helm vs Kustomize Comparison
 on:
   pull_request:
     paths:
+    - applications/dashboard/**
+    - scripts/synchronize-dashboard-manifests.sh
     - experimental/helm/charts/**
     - applications/hub/**
     - applications/kserve/kserve-ui/**

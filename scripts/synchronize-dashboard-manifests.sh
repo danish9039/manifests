@@ -27,14 +27,40 @@ copy_component_manifests() {
     update_readme "$MANIFESTS_DIRECTORY" "$source_text" "$destination_text"
 }
 TARGET_DIRECTORY="applications/dashboard/upstream"
+HELM_CHART_PATH="applications/dashboard/helm"
+HELM_CHART_DIRECTORY="${MANIFESTS_DIRECTORY}/${HELM_CHART_PATH}"
+HELM_PLATFORM_TEMPLATE="${HELM_CHART_DIRECTORY}/templates/platform.yaml"
+
+update_dashboard_helm_chart() {
+    local chart_yaml="${HELM_CHART_DIRECTORY}/Chart.yaml"
+    local temporary_platform_template
+
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i "" "s|^appVersion:.*|appVersion: ${COMMIT}|" "$chart_yaml"
+    else
+        sed -i "s|^appVersion:.*|appVersion: ${COMMIT}|" "$chart_yaml"
+    fi
+
+    temporary_platform_template="$(mktemp)"
+    {
+        printf '{{- if eq .Values.scenario "platform" }}\n'
+        (cd "$MANIFESTS_DIRECTORY" && kustomize build "applications/dashboard/overlays/istio")
+        printf '{{- end }}\n'
+    } > "$temporary_platform_template"
+    mv "$temporary_platform_template" "$HELM_PLATFORM_TEMPLATE"
+}
+
 copy_component_manifests "components/poddefaults-webhooks/manifests/kustomize" \
     "${TARGET_DIRECTORY}/poddefaults-webhooks"
 copy_component_manifests "components/centraldashboard/manifests/kustomize" \
     "${TARGET_DIRECTORY}/centraldashboard"
 copy_component_manifests "components/profile-controller/manifests/kustomize" \
     "${TARGET_DIRECTORY}/profile-controller"
+update_dashboard_helm_chart
 commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" \
-  "applications/dashboard/upstream" \
+  "${TARGET_DIRECTORY}" \
+  "${HELM_CHART_PATH}/Chart.yaml" \
+  "${HELM_CHART_PATH}/templates/platform.yaml" \
   "${SCRIPT_DIRECTORY}/synchronize-dashboard-manifests.sh" \
   "README.md"
 echo "Synchronization completed successfully."

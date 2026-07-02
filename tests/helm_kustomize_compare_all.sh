@@ -18,7 +18,7 @@ declare -A COMPONENT_SCENARIOS=(
     ["dex"]="oauth2-proxy"
     ["oauth2-proxy"]="m2m-dex-and-kind"
     ["istio"]="crds base oauth2-proxy gke cluster-local-gateway kubeflow-istio-resources platform-full"
-    ["kubeflow-dashboard"]="centraldashboard-base centraldashboard-istio centraldashboard-kserve poddefaults-cert-manager profile-kubeflow-pss platform"
+    ["kubeflow-dashboard"]="platform"
 )
 
 prepare_component() {
@@ -102,13 +102,14 @@ elif [[ "$COMPONENT" == "help" ]] || [[ "$COMPONENT" == "--help" ]] || [[ "$COMP
     echo "  dex                    Test Dex scenarios"
     echo "  oauth2-proxy           Test oauth2-proxy wrapper scenarios"
     echo "  istio                  Test Istio wrapper scenarios"
-    echo "  kubeflow-dashboard     Test Kubeflow Dashboard scenarios"
+    echo "  kubeflow-dashboard     Test Kubeflow Dashboard platform scenario"
     echo ""
     echo "Examples:"
     echo "  $0                     # Test all components"
     echo "  $0 katib               # Test only Katib"
     echo "  $0 hub                 # Test only Hub / Model Registry"
     echo "  $0 dex                 # Test only Dex"
+    echo "  $0 kubeflow-dashboard  # Test only Kubeflow Dashboard platform"
     exit 0
 
 elif [[ "${COMPONENT_SCENARIOS[$COMPONENT]:-}" ]]; then

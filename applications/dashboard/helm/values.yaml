@@ -1,0 +1,5 @@
+# Default values for the Kubeflow Dashboard chart.
+
+# -- Rendered Kustomize parity scenario.
+# Supported value: platform
+scenario: platform
