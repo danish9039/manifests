@@ -104,7 +104,7 @@ elif [[ "$COMPONENT" == "help" ]] || [[ "$COMPONENT" == "--help" ]] || [[ "$COMP
     echo "  oauth2-proxy           Test oauth2-proxy wrapper scenarios"
     echo "  istio                  Test Istio wrapper scenarios"
     echo "  kubeflow-dashboard     Test Kubeflow Dashboard platform scenario"
-    echo "  kubeflow-notebooks     Test Kubeflow Notebooks scenarios"
+    echo "  kubeflow-notebooks     Test Kubeflow Notebooks platform scenario"
     echo ""
     echo "Examples:"
     echo "  $0                     # Test all components"

@@ -19,6 +19,8 @@ on:
     - scripts/synchronize-oauth2-proxy-manifests.sh
     - common/istio/**
     - scripts/synchronize-istio-manifests.sh
+    - applications/notebooks-v1/**
+    - scripts/synchronize-notebooks-v1-manifests.sh
     - tests/kustomize_install.sh
     - tests/helm_kustomize_compare.py
     - tests/test_helm_kustomize_compare.py

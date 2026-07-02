@@ -10,9 +10,9 @@ Install the platform foundation and wrapper charts first. Store Helm release
 metadata in `kubeflow-system`; Notebooks v1 workloads still run in `kubeflow`.
 
 ```bash
-helm install kubeflow-notebooks ./experimental/helm/charts/kubeflow-notebooks \
+helm install kubeflow-notebooks ./applications/notebooks-v1/helm \
   --namespace kubeflow-system \
-  --values ./experimental/helm/charts/kubeflow-notebooks/ci/values-platform.yaml \
+  --values ./applications/notebooks-v1/helm/ci/values-platform.yaml \
   --wait
 ```
 
@@ -34,7 +34,7 @@ this chart a long-term supported install surface.
 ## Comparison
 
 ```bash
-helm lint experimental/helm/charts/kubeflow-notebooks
+helm lint applications/notebooks-v1/helm
 ./tests/helm_kustomize_compare.sh kubeflow-notebooks platform
 ./tests/helm_kustomize_compare_all.sh kubeflow-notebooks
 ```

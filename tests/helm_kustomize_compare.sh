@@ -284,7 +284,7 @@ case "$COMPONENT" in
         ;;
 
     "kubeflow-notebooks")
-        CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/kubeflow-notebooks"
+        CHART_DIRECTORY="$ROOT_DIRECTORY/applications/notebooks-v1/helm"
         MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/applications/notebooks-v1"
 
         declare -A KUSTOMIZE_PATHS=(
