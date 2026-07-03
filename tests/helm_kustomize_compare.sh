@@ -114,7 +114,7 @@ case "$COMPONENT" in
         
     "kserve-models-web-application")
         CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/kserve-models-web-app"
-        MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/applications/kserve/models-web-app"
+        MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/applications/kserve/models-web-app/upstream"
         
         declare -A KUSTOMIZE_PATHS=(
             ["base"]="$MANIFESTS_DIRECTORY/base"

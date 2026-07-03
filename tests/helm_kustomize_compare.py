@@ -6,7 +6,6 @@ import json
 from typing import Dict, List, Tuple, Any
 import re
 
-
 CERT_MANAGER_KUBEFLOW_RESOURCES = {
     ("ClusterIssuer", "kubeflow-self-signing-issuer"),
     ("NetworkPolicy", "cert-manager-webhook"),
@@ -226,6 +225,7 @@ def should_compare_manifest(manifest: Dict, component: str, scenario: str) -> bo
         return False
 
     return True
+
 
 def get_resource_key(manifest: Dict, component: str = "katib") -> str:
     """Generate a unique key for the resource."""
