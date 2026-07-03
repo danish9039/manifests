@@ -197,6 +197,7 @@ def normalize_manifest(manifest: Dict, component: str = "katib") -> Dict:
 
     return remove_empty_values(normalized)
 
+
 def preserve_cert_manager_kubeflow_labels(original: Dict, normalized: Dict) -> None:
     """Keep labels that are intentionally added by cert-manager's Kubeflow overlay."""
     kind = original.get("kind", "")
@@ -232,6 +233,7 @@ def should_compare_manifest(manifest: Dict, component: str, scenario: str) -> bo
         return kind == "Namespace"
 
     return True
+
 
 def get_resource_key(manifest: Dict, component: str = "katib") -> str:
     """Generate a unique key for the resource."""
