@@ -103,6 +103,25 @@ patches:
             seccompProfile:
               type: RuntimeDefault
 
+# Make the KServe storage initializer init container restricted-PSS compatible
+- patch: |
+    apiVersion: serving.kserve.io/v1alpha1
+    kind: ClusterStorageContainer
+    metadata:
+      name: default
+      namespace: kubeflow
+    spec:
+      container:
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          runAsNonRoot: true
+          runAsUser: 1000
+          seccompProfile:
+            type: RuntimeDefault
+
 # Delete ALL insecure LLMInferenceServiceConfig resources
 # IPC_LOCK, SYS_RAWIO, NET_RAW capabilities, runAsNonRoot: false
 # Ref: https://github.com/kubeflow/community-distribution/issues/3290
