@@ -8,9 +8,9 @@ keywords:
 - notebooks
 - jupyter
 - tensorboard
-home: https://github.com/kubeflow/manifests
+home: https://github.com/kubeflow/community-distribution
 sources:
-- https://github.com/kubeflow/manifests/tree/master/applications/notebooks-v1
+- https://github.com/kubeflow/community-distribution/tree/master/applications/notebooks-v1
 - https://github.com/kubeflow/notebooks
 annotations:
   category: Notebooks
