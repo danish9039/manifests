@@ -11,10 +11,10 @@ keywords:
 - kubeflow
 - oauth2-proxy
 
-home: https://github.com/kubeflow/manifests
+home: https://github.com/kubeflow/community-distribution
 
 sources:
-- https://github.com/kubeflow/manifests/tree/master/common/oauth2-proxy
+- https://github.com/kubeflow/community-distribution/tree/master/common/oauth2-proxy
 - https://github.com/oauth2-proxy/oauth2-proxy
 
 annotations:
