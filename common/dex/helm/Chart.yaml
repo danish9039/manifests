@@ -11,10 +11,10 @@ keywords:
 - kubeflow
 - dex
 
-home: https://github.com/kubeflow/manifests
+home: https://github.com/kubeflow/community-distribution
 
 sources:
-- https://github.com/kubeflow/manifests/tree/master/common/dex
+- https://github.com/kubeflow/community-distribution/tree/master/common/dex
 - https://github.com/dexidp/dex
 
 annotations:
