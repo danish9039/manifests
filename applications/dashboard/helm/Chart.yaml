@@ -8,9 +8,9 @@ keywords:
 - dashboard
 - profiles
 - poddefaults
-home: https://github.com/kubeflow/manifests
+home: https://github.com/kubeflow/community-distribution
 sources:
-- https://github.com/kubeflow/manifests/tree/master/applications/dashboard
+- https://github.com/kubeflow/community-distribution/tree/master/applications/dashboard
 - https://github.com/kubeflow/dashboard
 annotations:
   category: Dashboard
