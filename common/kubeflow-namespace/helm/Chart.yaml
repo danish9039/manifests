@@ -6,17 +6,15 @@ description: A Helm chart for Kubeflow platform namespaces and namespace network
 
 version: 0.1.0
 
-appVersion: 1.11.0
-
 keywords:
 - kubeflow
 - namespaces
 - network-policy
 
-home: https://github.com/kubeflow/manifests
+home: https://github.com/kubeflow/community-distribution
 
 sources:
-- https://github.com/kubeflow/manifests
+- https://github.com/kubeflow/community-distribution/tree/master/common/kubeflow-namespace
 
 annotations:
   category: Machine Learning
