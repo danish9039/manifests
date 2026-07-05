@@ -10,7 +10,7 @@ keywords:
   - service-mesh
 home: https://www.kubeflow.org/
 sources:
-  - https://github.com/kubeflow/manifests
+  - https://github.com/kubeflow/community-distribution/tree/master/common/istio
   - https://github.com/istio/istio
 maintainers:
   - name: Kubeflow Manifests WG
