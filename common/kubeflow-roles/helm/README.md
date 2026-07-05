@@ -14,7 +14,7 @@ It creates the aggregate `ClusterRole` resources used by Kubeflow platform compo
 Install after `kubeflow-namespaces`, with release metadata stored in `kubeflow-system`:
 
 ```bash
-helm install kubeflow-platform ./experimental/helm/charts/kubeflow-platform --namespace kubeflow-system
+helm install kubeflow-platform ./common/kubeflow-roles/helm --namespace kubeflow-system
 ```
 
 Validate parity with:

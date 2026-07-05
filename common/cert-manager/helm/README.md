@@ -23,8 +23,8 @@ This wrapper stores its Helm release metadata in the `cert-manager` workload nam
 The cert-manager workload namespace is fixed to `cert-manager` to match the Kustomize baseline and `kubeflow-namespaces` foundation chart. It is not configurable.
 
 ```bash
-helm install kubeflow-namespaces ./experimental/helm/charts/kubeflow-namespaces --namespace default
-helm install kubeflow-platform ./experimental/helm/charts/kubeflow-platform --namespace kubeflow-system
+helm install kubeflow-namespaces ./common/kubeflow-namespace/helm --namespace default
+helm install kubeflow-platform ./common/kubeflow-roles/helm --namespace kubeflow-system
 
 helm dep build ./common/cert-manager/helm
 helm install cert-manager ./common/cert-manager/helm --namespace cert-manager --wait

@@ -155,7 +155,7 @@ case "$COMPONENT" in
         ;;
 
     "kubeflow-namespaces")
-        CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/kubeflow-namespaces"
+        CHART_DIRECTORY="$ROOT_DIRECTORY/common/kubeflow-namespace/helm"
         MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/common/kubeflow-namespace"
         PLATFORM_NAMESPACE_KUSTOMIZE_PATHS=(
             "$MANIFESTS_DIRECTORY/base"
@@ -183,7 +183,7 @@ case "$COMPONENT" in
         ;;
 
     "kubeflow-platform")
-        CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/kubeflow-platform"
+        CHART_DIRECTORY="$ROOT_DIRECTORY/common/kubeflow-roles/helm"
         MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/common/kubeflow-roles"
 
         declare -A KUSTOMIZE_PATHS=(

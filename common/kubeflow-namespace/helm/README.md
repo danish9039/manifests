@@ -32,7 +32,7 @@ Example smoke check:
 kind create cluster
 kubectl create namespace cert-manager
 
-helm install kubeflow-namespaces ./experimental/helm/charts/kubeflow-namespaces --namespace default
+helm install kubeflow-namespaces ./common/kubeflow-namespace/helm --namespace default
 
 kubectl get namespace cert-manager
 helm get notes kubeflow-namespaces --namespace default
@@ -43,7 +43,7 @@ The notes should report `cert-manager` as `skipped-unmanaged`. If the skipped na
 Install as the bootstrap chart from `default`, because this chart creates `kubeflow-system`:
 
 ```bash
-helm install kubeflow-namespaces ./experimental/helm/charts/kubeflow-namespaces --namespace default
+helm install kubeflow-namespaces ./common/kubeflow-namespace/helm --namespace default
 ```
 
 Validate parity with:
