@@ -74,9 +74,7 @@ resources:
 - ../applications/dashboard/overlays/istio
 # Notebooks v1
 - ../applications/notebooks-v1/overlays/istio
-# Training Operator (v1)
-# - ../applications/training-operator/upstream/overlays/kubeflow
-# Trainer (Training Operator v2)
+# Trainer
 - ../applications/trainer/overlays
 # User namespace
 - ../common/user-namespace/base

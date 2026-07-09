@@ -16,7 +16,6 @@ path_to_synchronization_script = {
     "applications/pipeline/upstream": "scripts/synchronize-pipelines-manifests.sh",
     "applications/spark/spark-operator": "scripts/synchronize-spark-operator-manifests.sh",
     "applications/trainer/upstream": "scripts/synchronize-trainer-manifests.sh",
-    "applications/training-operator/upstream": "scripts/synchronize-training-operator-manifests.sh",
     "applications/workspaces/upstream": "scripts/synchronize-kubeflow-workspaces-manifests.sh",
     "common/cert-manager": "scripts/synchronize-cert-manager-manifests.sh",
     "common/dex": "scripts/synchronize-dex-manifests.sh",

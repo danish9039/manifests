@@ -37,7 +37,6 @@ working_group_directories = {
     ],
     "trainer": [
         "../applications/trainer/overlays",
-        "../applications/training-operator/upstream/overlays",
     ],
     "manifests": [
         "../common/cert-manager/overlays/kubeflow",

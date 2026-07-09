@@ -60,7 +60,6 @@ This repository periodically synchronizes all official Kubeflow components from 
 
 | Component | Local Manifests Path | Upstream Revision | CPU (millicores) | Memory (Mi) | PVC Storage (GB) |
 | - | - | - | - | - | - |
-| Training Operator | applications/training-operator/upstream | [v1.9.2](https://github.com/kubeflow/training-operator/tree/v1.9.2/manifests) | 3m | 25Mi | 0GB |
 | Trainer | applications/trainer/upstream | [v2.2.1](https://github.com/kubeflow/trainer/tree/v2.2.1/manifests) | 8m | 143Mi | 0GB |
 | Kubeflow Notebooks | applications/notebooks-v1/upstream/ | [v1.11.0](https://github.com/kubeflow/notebooks/tree/v1.11.0/) | 43m | 806Mi | 0GB |
 | Kubeflow Dashboard | applications/dashboard/upstream/ | [v2.0.0](https://github.com/kubeflow/dashboard/tree/v2.0.0/) | 10m | 302Mi | 0GB |
@@ -75,7 +74,7 @@ This repository periodically synchronizes all official Kubeflow components from 
 | Cert Manager | common/cert-manager | [1.20.2](https://github.com/cert-manager/cert-manager/releases/tag/v1.20.2) | 3m | 128Mi | 0GB |
 | Dex | common/dex | [2.45.1](https://github.com/dexidp/dex/releases/tag/v2.45.1) | 3m | 27Mi | 0GB |
 | OAuth2-Proxy | common/oauth2-proxy | [7.15.2](https://github.com/oauth2-proxy/oauth2-proxy/releases/tag/v7.15.2) | 3m | 27Mi | 0GB |
-| **Total** | | | **4380m** | **12341Mi** | **65GB** |
+| **Total** | | | **4377m** | **12316Mi** | **65GB** |
 
 
 ## Installation
@@ -406,7 +405,7 @@ This installs the Notebook Controller, Jupyter Web Application, PVC Viewer Contr
 
 This feature is still in development.
 
-#### Trainer (training operator v2)
+#### Trainer
 
 ```sh
 ./tests/trainer_install.sh

@@ -120,9 +120,9 @@ data:
                 "text": "Kubeflow Notebooks Documentation"
             },
             {
-                "desc": "Documentation for Kubeflow Training Operator",
+                "desc": "Documentation for Kubeflow Trainer",
                 "link": "https://www.kubeflow.org/docs/components/training/",
-                "text": "Kubeflow Training Operator Documentation"
+                "text": "Kubeflow Trainer Documentation"
             },
             {
                 "desc": "Documentation for Katib",

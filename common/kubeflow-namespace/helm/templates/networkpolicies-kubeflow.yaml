@@ -421,25 +421,6 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: training-operator-webhook
-  namespace: kubeflow
-spec:
-  ingress:
-  - ports:
-    - port: 9443
-      protocol: TCP
-  podSelector:
-    matchExpressions:
-    - key: control-plane
-      operator: In
-      values:
-      - kubeflow-training-operator
-  policyTypes:
-  - Ingress
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
   name: volumes-web-app
   namespace: kubeflow
 spec:

@@ -22,5 +22,4 @@ resources:
 - pvcviewer-webhook.yaml
 - spark-operator-webhook.yaml
 - tensorboards-web-app.yaml
-- training-operator-webhook.yaml
 - volumes-web-app.yaml

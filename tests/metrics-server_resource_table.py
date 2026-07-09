@@ -19,7 +19,6 @@ except ImportError:
 
 # Component categorization rules - centralized mapping
 COMPONENT_RULES = {
-    "Training Operator": {"keywords": ["training-operator", "training"]},
     "Trainer": {
         "keywords": ["trainer", "kubeflow-trainer", "jobset-controller-manager"]
     },
@@ -69,7 +68,6 @@ COMPONENT_RULES = {
 }
 
 COMPONENT_ORDER = [
-    "Training Operator",
     "Trainer",
     "Notebook Controller",
     "PVC Viewer Controller",
