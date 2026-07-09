@@ -15,6 +15,10 @@ if [[ -z "$COMPONENT" ]]; then
     exit 1
 fi
 
+if [[ "$COMPONENT" == "kserve-models-web-application" && $# -lt 2 ]]; then
+    SCENARIO="kubeflow"
+fi
+
 # Component-specific configurations
 case "$COMPONENT" in
     "katib")
@@ -113,20 +117,17 @@ case "$COMPONENT" in
         ;;
     "kserve-models-web-application")
         CHART_DIRECTORY="$ROOT_DIRECTORY/experimental/helm/charts/kserve-ui"
-        MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/applications/kserve/kserve-ui/upstream"
+        MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/applications/kserve/kserve-ui"
 
         declare -A KUSTOMIZE_PATHS=(
-            ["base"]="$MANIFESTS_DIRECTORY/base"
-            ["kubeflow"]="$MANIFESTS_DIRECTORY/overlays/kubeflow"
+            ["kubeflow"]="$MANIFESTS_DIRECTORY"
         )
 
         declare -A HELM_VALUES=(
-            ["base"]="$CHART_DIRECTORY/ci/base-values.yaml"
             ["kubeflow"]="$CHART_DIRECTORY/ci/kubeflow-values.yaml"
         )
 
         declare -A NAMESPACES=(
-            ["base"]="kserve"
             ["kubeflow"]="kubeflow"
         )
         ;;
