@@ -4,19 +4,24 @@
 set -euo pipefail
 
 COMPONENT=${1:-""}
-SCENARIO=${2:-"base"}
+SCENARIO=${2:-""}
 SCRIPT_DIRECTORY="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ROOT_DIRECTORY="$(dirname "$SCRIPT_DIRECTORY")"
 
 if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
-    echo "Usage: $0 <component> <scenario>"
+    echo "Usage: $0 <component> [scenario]"
     echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform"
+    echo "The scenario defaults to 'base', except KServe UI defaults to 'kubeflow'."
     exit 1
 fi
 
-if [[ "$COMPONENT" == "kserve-models-web-application" && $# -lt 2 ]]; then
-    SCENARIO="kubeflow"
+if [[ -z "$SCENARIO" ]]; then
+    if [[ "$COMPONENT" == "kserve-models-web-application" ]]; then
+        SCENARIO="kubeflow"
+    else
+        SCENARIO="base"
+    fi
 fi
 
 # Component-specific configurations
