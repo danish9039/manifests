@@ -12,7 +12,7 @@ if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
     echo "Usage: $0 <component> [scenario]"
     echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy"
-    echo "The scenario defaults to 'base', except KServe Models Web Application defaults to 'kubeflow' and Dex defaults to 'oauth2-proxy'."
+    echo "The scenario is optional. Defaults: KServe Models Web Application uses 'kubeflow', Dex uses 'oauth2-proxy', OAuth2-proxy uses 'm2m-dex-only', and other components use 'base'."
     exit 1
 fi
 
@@ -239,15 +239,20 @@ case "$COMPONENT" in
 esac
 
 if [[ -z "$SCENARIO" ]]; then
-    if [[ "$COMPONENT" == "kserve-models-web-application" ]]; then
-        SCENARIO="kubeflow"
-    elif [[ "$COMPONENT" == "dex" ]]; then
-        SCENARIO="oauth2-proxy"
-    elif [[ "$COMPONENT" == "oauth2-proxy" ]]; then
-        SCENARIO="m2m-dex-only"
-    else
-        SCENARIO="base"
-    fi
+    case "$COMPONENT" in
+        "kserve-models-web-application")
+            SCENARIO="kubeflow"
+            ;;
+        "dex")
+            SCENARIO="oauth2-proxy"
+            ;;
+        "oauth2-proxy")
+            SCENARIO="m2m-dex-only"
+            ;;
+        *)
+            SCENARIO="base"
+            ;;
+    esac
 fi
 
 if [[ ! "${KUSTOMIZE_PATHS[$SCENARIO]:-}" ]]; then
@@ -302,7 +307,7 @@ while IFS= read -r path; do
     path_index=$((path_index + 1))
 done <<< "$KUSTOMIZE_PATH"
 
-# Generate Helm manifests (different approach for KServe UI)
+# Generate Helm manifests (different approach for KServe Models Web Application)
 cd "$ROOT_DIRECTORY"
 if [[ "$COMPONENT" == "kserve-models-web-application" ]]; then
     # KServe uses chart-local CI values files, but still templates from the repository root.
