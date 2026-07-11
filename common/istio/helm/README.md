@@ -12,8 +12,8 @@ foundation commands below assume the foundation chart PR is present in the
 checkout or has already merged.
 
 ```bash
-helm install kubeflow-namespaces ./experimental/helm/charts/kubeflow-namespaces --namespace default
-helm install kubeflow-platform ./experimental/helm/charts/kubeflow-platform --namespace kubeflow-system
+helm install kubeflow-namespaces ./common/kubeflow-namespace/helm --namespace default
+helm install kubeflow-platform ./common/kubeflow-roles/helm --namespace kubeflow-system
 
 helm install istio ./common/istio/helm \
   --namespace istio-system \
