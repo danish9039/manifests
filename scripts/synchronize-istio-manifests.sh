@@ -14,6 +14,7 @@ ISTIO_DIRECTORY=$MANIFESTS_DIRECTORY/common/${COMPONENT_NAME}
 HELM_MANIFESTS_DIRECTORY="$ISTIO_DIRECTORY/helm/manifests"
 create_branch "$BRANCH_NAME"
 mkdir -p "$SOURCE_DIRECTORY"
+mkdir -p "$HELM_MANIFESTS_DIRECTORY"
 cd "$SOURCE_DIRECTORY"
 if [ ! -d "istio-${COMMIT}" ]; then
     wget "https://github.com/${REPOSITORY_NAME}/releases/download/${COMMIT}/istio-${COMMIT}-linux-amd64.tar.gz"
@@ -71,8 +72,8 @@ render_helm_manifest "$ISTIO_DIRECTORY/kubeflow-istio-resources/base" \
   printf "# Refresh with scripts/synchronize-istio-manifests.sh for Istio %s.\n" "$COMMIT"
   kustomize build "$ISTIO_DIRECTORY/istio-namespace/base" | sed '1,/^---$/d'
 } > "$HELM_MANIFESTS_DIRECTORY/networkpolicies.yaml"
-# Keep generated Istio and Helm YAML clean for git diff --check.
-find "$ISTIO_DIRECTORY" -name "*.yaml" -exec sed -i \
+# Keep generated Helm YAML clean for git diff --check.
+find "$HELM_MANIFESTS_DIRECTORY" -name "*.yaml" -exec sed -i \
   -e 's/[[:space:]]\+$//' \
   -e '${/^$/d;}' {} +
 SOURCE_TEXT="\[.*\](https://github.com/${REPOSITORY_NAME}/releases/tag/.*)"
