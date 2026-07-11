@@ -26,7 +26,7 @@ copy_component_manifests() {
     local destination_text="\[${COMMIT}\](https://github.com/${REPOSITORY_NAME}/tree/${COMMIT}/)"
     update_readme "$MANIFESTS_DIRECTORY" "$source_text" "$destination_text"
 }
-TARGET_DIRECTORY="applications/notebooks-v1/upstream/"
+TARGET_DIRECTORY="applications/notebooks-v1/upstream"
 HELM_CHART_PATH="applications/notebooks-v1/helm"
 HELM_CHART_DIRECTORY="${MANIFESTS_DIRECTORY}/${HELM_CHART_PATH}"
 HELM_PLATFORM_TEMPLATE="${HELM_CHART_DIRECTORY}/templates/platform.yaml"
@@ -41,7 +41,7 @@ update_notebooks_helm_chart() {
         sed -i "s|^appVersion:.*|appVersion: ${COMMIT}|" "$chart_yaml"
     fi
 
-    temporary_platform_template="$(mktemp)"
+    temporary_platform_template="$(mktemp "${HELM_PLATFORM_TEMPLATE}.tmp.XXXXXX")"
     {
         printf '{{- if eq .Values.scenario "platform" }}\n'
         (cd "$MANIFESTS_DIRECTORY" && kustomize build "applications/notebooks-v1/overlays/istio")
@@ -51,17 +51,17 @@ update_notebooks_helm_chart() {
 }
 
 copy_component_manifests "components/crud-web-apps/jupyter/manifests" \
-    "${TARGET_DIRECTORY}/jupyter-web-app/"
+    "${TARGET_DIRECTORY}/jupyter-web-app"
 copy_component_manifests "components/crud-web-apps/volumes/manifests" \
-    "${TARGET_DIRECTORY}/volumes-web-app/"
+    "${TARGET_DIRECTORY}/volumes-web-app"
 copy_component_manifests "components/crud-web-apps/tensorboards/manifests" \
-    "${TARGET_DIRECTORY}/tensorboards-web-app/"
+    "${TARGET_DIRECTORY}/tensorboards-web-app"
 copy_component_manifests "components/notebook-controller/config" \
-    "${TARGET_DIRECTORY}/notebook-controller/"
+    "${TARGET_DIRECTORY}/notebook-controller"
 copy_component_manifests "components/tensorboard-controller/config" \
     "${TARGET_DIRECTORY}/tensorboard-controller"
 copy_component_manifests "components/pvcviewer-controller/config" \
-    "${TARGET_DIRECTORY}/pvcviewer-controller/"
+    "${TARGET_DIRECTORY}/pvcviewer-controller"
 
 update_notebooks_helm_chart
 
