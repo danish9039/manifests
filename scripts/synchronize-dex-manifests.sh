@@ -26,6 +26,7 @@ sed -i "s|ghcr.io/dexidp/dex:v[0-9.]*|ghcr.io/dexidp/dex:${COMMIT}|g" \
   "$CHART_DIRECTORY/values.yaml"
 
 mkdir -p "$UPSTREAM_DIRECTORY"
+mkdir -p "$CHART_DIRECTORY/crds"
 cp \
   "$SOURCE_DIRECTORY/$REPOSITORY_DIRECTORY/scripts/manifests/crds/authcodes.yaml" \
   "$UPSTREAM_DIRECTORY/crds.yaml"

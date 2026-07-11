@@ -12,16 +12,8 @@ if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
     echo "Usage: $0 <component> [scenario]"
     echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex"
-    echo "The scenario defaults to 'base', except KServe UI defaults to 'kubeflow'."
+    echo "The scenario defaults to 'base', except KServe Models Web Application defaults to 'kubeflow' and Dex defaults to 'oauth2-proxy'."
     exit 1
-fi
-
-if [[ -z "$SCENARIO" ]]; then
-    if [[ "$COMPONENT" == "kserve-models-web-application" ]]; then
-        SCENARIO="kubeflow"
-    else
-        SCENARIO="base"
-    fi
 fi
 
 # Component-specific configurations
@@ -230,7 +222,9 @@ case "$COMPONENT" in
 esac
 
 if [[ -z "$SCENARIO" ]]; then
-    if [[ "$COMPONENT" == "dex" ]]; then
+    if [[ "$COMPONENT" == "kserve-models-web-application" ]]; then
+        SCENARIO="kubeflow"
+    elif [[ "$COMPONENT" == "dex" ]]; then
         SCENARIO="oauth2-proxy"
     else
         SCENARIO="base"
