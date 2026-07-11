@@ -1,0 +1,3 @@
+{{- if ne .Release.Namespace "auth" }}
+{{- fail "Dex wrapper chart must be installed into the auth namespace" }}
+{{- end }}
