@@ -6,8 +6,10 @@ The first slice is intentionally static so rendered output stays aligned with
 
 ## Install
 
-Install the platform foundation and wrapper charts first. Store Helm release
-metadata in `kubeflow-system`; Dashboard workloads still run in `kubeflow`.
+Install the platform prerequisites first: `kubeflow-namespaces`,
+`kubeflow-platform`, `cert-manager`, `istio`, `oauth2-proxy`, and `dex`. Store
+Helm release metadata in `kubeflow-system`; Dashboard workloads still run in
+`kubeflow`.
 
 ```bash
 helm install kubeflow-dashboard ./applications/dashboard/helm \
