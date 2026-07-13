@@ -49,8 +49,8 @@ resources:
 # For details, see [Istio CNI Prerequisites](https://istio.io/latest/docs/setup/additional-setup/cni/#prerequisites)
 # Oauth2-proxy
 # NOTE: only uncomment ONE of the following overlays, depending on your cluster type
-- ../common/oauth2-proxy/overlays/m2m-dex-only       # for all clusters
-# - ../common/oauth2-proxy/overlays/m2m-dex-and-kind  # for KIND clusters (allows K8S JWTs for gateway auth)
+# - ../common/oauth2-proxy/overlays/m2m-dex-only       # for all clusters
+- ../common/oauth2-proxy/overlays/m2m-dex-and-kind  # for KIND clusters (allows K8S JWTs for gateway auth)
 # - ../common/oauth2-proxy/overlays/m2m-dex-and-eks   # for EKS clusters (NOTE: requires you to configure issuer, see overlay)
 # Dex
 - ../common/dex/overlays/oauth2-proxy
