@@ -4,6 +4,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.4
+    helm.sh/resource-policy: keep
   labels:
     app: poddefaults
     app.kubernetes.io/component: poddefaults
@@ -4575,6 +4576,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.4
+    helm.sh/resource-policy: keep
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: profile-controller

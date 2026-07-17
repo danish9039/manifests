@@ -25,6 +25,13 @@ DEX_POD_TEMPLATE_CHECKSUM_KEYS = {
     "checksum/passwords",
 }
 
+EXPECTED_HELM_CRD_RESOURCE_POLICIES = {
+    "kubeflow-dashboard": {
+        "poddefaults.kubeflow.org",
+        "profiles.kubeflow.org",
+    },
+}
+
 
 def load_manifests(file_path: str) -> List[Dict]:
     """Load YAML manifests from file."""
@@ -48,6 +55,41 @@ def load_manifests(file_path: str) -> List[Dict]:
                     continue
 
     return docs
+
+
+def validate_helm_crd_resource_policies(
+    helm_manifests: List[Dict], component: str
+) -> bool:
+    """Validate component-specific CRD retention policies before normalization."""
+    expected_crds = EXPECTED_HELM_CRD_RESOURCE_POLICIES.get(component)
+    if expected_crds is None:
+        return True
+
+    retained_crds = {
+        manifest.get("metadata", {}).get("name", "")
+        for manifest in helm_manifests
+        if manifest.get("kind") == "CustomResourceDefinition"
+        and manifest.get("metadata", {})
+        .get("annotations", {})
+        .get("helm.sh/resource-policy")
+        == "keep"
+    }
+
+    missing_crds = expected_crds - retained_crds
+    unexpected_crds = retained_crds - expected_crds
+
+    if missing_crds:
+        print(
+            "Helm CRDs missing helm.sh/resource-policy=keep: "
+            + ", ".join(sorted(missing_crds))
+        )
+    if unexpected_crds:
+        print(
+            "Unexpected Helm CRDs with helm.sh/resource-policy=keep: "
+            + ", ".join(sorted(unexpected_crds))
+        )
+
+    return not missing_crds and not unexpected_crds
 
 
 def clean_helm_metadata(obj: Any, component: str = "katib") -> Any:
@@ -378,6 +420,9 @@ def compare_manifests(
     """Compare Kustomize and Helm manifests."""
     kustomize_manifests = load_manifests(kustomize_file)
     helm_manifests = load_manifests(helm_file)
+
+    if not validate_helm_crd_resource_policies(helm_manifests, component):
+        return False
 
     kustomize_resources = {}
     helm_resources = {}

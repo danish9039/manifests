@@ -24,9 +24,10 @@ The current platform Dashboard Kustomize overlay includes Central Dashboard,
 PodDefaults webhook, and Profile Controller/KFAM. This chart keeps that grouping
 for parity.
 
-The `profiles.kubeflow.org` and `poddefaults.kubeflow.org` CRDs are rendered
-from templates in this first parity slice. Treat CRD lifecycle as a maintenance
-caveat before making this chart a long-term supported install surface.
+Helm retains the `profiles.kubeflow.org` and `poddefaults.kubeflow.org` CRDs on
+uninstall so deleting a release does not delete their custom resources. Schema
+changes must be synchronized into the generated template and applied through a
+chart upgrade.
 
 ## Kustomize Mapping
 
