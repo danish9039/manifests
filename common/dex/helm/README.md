@@ -10,16 +10,22 @@ Install foundation, cert-manager, Istio, and oauth2-proxy first. The
 `kubeflow-namespaces` foundation chart creates `Namespace/auth`; this chart
 stores Helm release metadata in that same workload namespace.
 
-## Namespace names
-
-Namespace names are fixed to match the Kustomize baseline and `kubeflow-namespaces` foundation chart. Dex workloads use `auth`, Istio gateway references use `kubeflow` and `istio-system`, and oauth2-proxy references use `oauth2-proxy`. These names are not configurable.
+Create `dex-values.yaml` with a unique OAuth client secret in
+`oidcClient.secret` and a bcrypt password hash in `staticPassword.hash`. Set the
+static user fields and optional Istio or NetworkPolicy toggles for the target
+environment. Use the same OAuth client secret for Dex and oauth2-proxy so the
+OIDC client credentials match.
 
 ```bash
 helm install dex ./common/dex/helm \
   --namespace auth \
-  --values ./common/dex/helm/ci/values-oauth2-proxy.yaml \
+  --values ./dex-values.yaml \
   --wait
 ```
+
+## Namespace names
+
+Namespace names are fixed to match the Kustomize baseline and `kubeflow-namespaces` foundation chart. Dex workloads use `auth`, Istio gateway references use `kubeflow` and `istio-system`, and oauth2-proxy references use `oauth2-proxy`. These names are not configurable.
 
 ## Caveats
 

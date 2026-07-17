@@ -28,7 +28,7 @@ class DexRolloutChecksumTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.helm_plugins.cleanup()
 
-    def render_checksums(self, *values):
+    def render_manifests(self, *values):
         command = [
             HELM_BINARY,
             "template",
@@ -49,9 +49,10 @@ class DexRolloutChecksumTest(unittest.TestCase):
             text=True,
             env=environment,
         )
-        manifests = [
-            manifest for manifest in yaml.safe_load_all(result.stdout) if manifest
-        ]
+        return [manifest for manifest in yaml.safe_load_all(result.stdout) if manifest]
+
+    def render_checksums(self, *values):
+        manifests = self.render_manifests(*values)
         deployment = next(
             manifest
             for manifest in manifests
@@ -59,6 +60,34 @@ class DexRolloutChecksumTest(unittest.TestCase):
             and manifest.get("metadata", {}).get("name") == "dex"
         )
         return deployment["spec"]["template"]["metadata"].get("annotations", {})
+
+    def render_dex_config(self, *values):
+        manifests = self.render_manifests(*values)
+        config_map = next(
+            manifest
+            for manifest in manifests
+            if manifest.get("kind") == "ConfigMap"
+            and manifest.get("metadata", {}).get("name") == "dex"
+        )
+        return yaml.safe_load(config_map["data"]["config.yaml"])
+
+    def test_static_username_preserves_string_overrides(self):
+        config = self.render_dex_config("config.staticUsername=null")
+
+        self.assertEqual(config["staticPasswords"][0]["username"], "null")
+
+    def test_installation_uses_user_values_instead_of_ci_fixture(self):
+        readme = (CHART_DIRECTORY / "README.md").read_text()
+        installation_section = readme.split("## Installation", 1)[1].split(
+            "## Namespace names",
+            1,
+        )[0]
+
+        self.assertNotIn("/ci/", installation_section)
+        self.assertIn("--values ./dex-values.yaml", installation_section)
+        self.assertIn("`oidcClient.secret`", installation_section)
+        self.assertIn("`staticPassword.hash`", installation_section)
+        self.assertIn("same OAuth client secret", installation_section)
 
     def test_checksums_are_stable_and_change_only_for_their_startup_input(self):
         baseline = self.render_checksums()

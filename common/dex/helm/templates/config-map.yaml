@@ -18,7 +18,7 @@ data:
     staticPasswords:
     - email: {{ .Values.config.staticUserEmail }}
       hashFromEnv: DEX_USER_PASSWORD
-      username: {{ .Values.config.staticUsername }}
+      username: {{ .Values.config.staticUsername | quote }}
       userID: {{ .Values.config.staticUserID | quote }}
     staticClients:
     # https://github.com/dexidp/dex/pull/1664

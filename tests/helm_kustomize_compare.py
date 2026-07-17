@@ -148,6 +148,7 @@ def normalize_manifest(manifest: Dict, component: str = "katib") -> Dict:
 
     if component == "dex":
         remove_dex_pod_template_checksums(normalized)
+        normalize_dex_config_map(normalized)
 
     if component == "cert-manager":
         preserve_cert_manager_kubeflow_labels(manifest, normalized)
@@ -227,6 +228,21 @@ def remove_dex_pod_template_checksums(manifest: Dict) -> None:
         for key, value in annotations.items()
         if key not in DEX_POD_TEMPLATE_CHECKSUM_KEYS
     }
+
+
+def normalize_dex_config_map(manifest: Dict) -> None:
+    """Compare the embedded Dex configuration by YAML value, not quote style."""
+    metadata = manifest.get("metadata", {})
+    if (
+        manifest.get("kind") != "ConfigMap"
+        or metadata.get("name") != "dex"
+        or metadata.get("namespace") != "auth"
+    ):
+        return
+
+    config_yaml = manifest.get("data", {}).get("config.yaml")
+    if isinstance(config_yaml, str):
+        manifest["data"]["config.yaml"] = yaml.safe_load(config_yaml)
 
 
 def preserve_cert_manager_kubeflow_labels(original: Dict, normalized: Dict) -> None:
