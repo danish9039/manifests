@@ -24,8 +24,8 @@ Controller, and Tensorboards Web App. This chart keeps that grouping for parity.
 
 The `notebooks.kubeflow.org`, `pvcviewers.kubeflow.org`, and
 `tensorboards.tensorboard.kubeflow.org` CRDs are rendered from templates in this
-first parity slice. Treat CRD lifecycle as a maintenance caveat before making
-this chart a long-term supported install surface.
+first parity slice. Helm retains these CRDs on uninstall. CRD schema upgrades
+still require explicit maintenance as part of chart upgrades.
 
 ## Kustomize Mapping
 

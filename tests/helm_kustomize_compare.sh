@@ -321,6 +321,9 @@ if [[ -z "$SCENARIO" ]]; then
         "kubeflow-dashboard")
             SCENARIO="platform"
             ;;
+        "kubeflow-notebooks")
+            SCENARIO="platform"
+            ;;
         *)
             SCENARIO="base"
             ;;

@@ -33,21 +33,12 @@ HELM_PLATFORM_TEMPLATE="${HELM_CHART_DIRECTORY}/templates/platform.yaml"
 
 update_notebooks_helm_chart() {
     local chart_yaml="${HELM_CHART_DIRECTORY}/Chart.yaml"
-    local temporary_platform_template
 
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i "" "s|^appVersion:.*|appVersion: ${COMMIT}|" "$chart_yaml"
-    else
-        sed -i "s|^appVersion:.*|appVersion: ${COMMIT}|" "$chart_yaml"
-    fi
-
-    temporary_platform_template="$(mktemp "${HELM_PLATFORM_TEMPLATE}.tmp.XXXXXX")"
-    {
-        printf '{{- if eq .Values.scenario "platform" }}\n'
-        (cd "$MANIFESTS_DIRECTORY" && kustomize build "applications/notebooks-v1/overlays/istio")
-        printf '{{- end }}\n'
-    } > "$temporary_platform_template"
-    mv "$temporary_platform_template" "$HELM_PLATFORM_TEMPLATE"
+    update_helm_chart_application_version "$chart_yaml" "$COMMIT"
+    render_kustomize_helm_template "$MANIFESTS_DIRECTORY" \
+        "${HELM_CHART_PATH}/kustomize" \
+        "platform" \
+        "$HELM_PLATFORM_TEMPLATE"
 }
 
 copy_component_manifests "components/crud-web-apps/jupyter/manifests" \
@@ -68,6 +59,7 @@ update_notebooks_helm_chart
 commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests to ${COMMIT}" \
   "${TARGET_DIRECTORY}" \
   "${HELM_CHART_PATH}/Chart.yaml" \
+  "${HELM_CHART_PATH}/kustomize/kustomization.yaml" \
   "${HELM_CHART_PATH}/templates/platform.yaml" \
   "${SCRIPT_DIRECTORY}/synchronize-notebooks-v1-manifests.sh" \
   "README.md"

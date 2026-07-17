@@ -4,6 +4,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.4
+    helm.sh/resource-policy: keep
   labels:
     app: notebook-controller
     kustomize.component: notebook-controller
@@ -9594,6 +9595,7 @@ metadata:
   annotations:
     cert-manager.io/inject-ca-from: kubeflow/pvcviewer-serving-cert
     controller-gen.kubebuilder.io/version: v0.16.4
+    helm.sh/resource-policy: keep
   labels:
     app: pvcviewer
   name: pvcviewers.kubeflow.org
@@ -13043,6 +13045,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.4
+    helm.sh/resource-policy: keep
   labels:
     app: tensorboard-controller
     kustomize.component: tensorboard-controller

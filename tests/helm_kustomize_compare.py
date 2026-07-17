@@ -34,6 +34,11 @@ EXPECTED_HELM_CRD_RESOURCE_POLICIES = {
         "poddefaults.kubeflow.org",
         "profiles.kubeflow.org",
     },
+    "kubeflow-notebooks": {
+        "notebooks.kubeflow.org",
+        "pvcviewers.kubeflow.org",
+        "tensorboards.tensorboard.kubeflow.org",
+    },
 }
 
 
