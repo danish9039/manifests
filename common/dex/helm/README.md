@@ -43,6 +43,6 @@ until the default Dex + oauth2-proxy path is stable.
 ## Comparison
 
 ```bash
-helm lint common/dex/helm
+helm lint common/dex/helm --namespace auth
 ./tests/helm_kustomize_compare.sh dex oauth2-proxy
 ```
