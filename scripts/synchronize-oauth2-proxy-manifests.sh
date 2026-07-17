@@ -11,21 +11,12 @@ MANIFESTS_DIRECTORY="$(dirname "$SCRIPT_DIRECTORY")"
 DESTINATION_DIRECTORY="$MANIFESTS_DIRECTORY/common/${COMPONENT_NAME}"
 CHART_DIRECTORY="$DESTINATION_DIRECTORY/helm"
 create_branch "$BRANCH_NAME"
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    sed -i "" "s|quay.io/oauth2-proxy/oauth2-proxy:.*|quay.io/oauth2-proxy/oauth2-proxy:${COMMIT}|g" \
-        "$DESTINATION_DIRECTORY/base/deployment.yaml"
-    sed -i "" "s|^appVersion: .*|appVersion: ${COMMIT#v}|g" \
-        "$CHART_DIRECTORY/Chart.yaml"
-    sed -i "" "s|quay.io/oauth2-proxy/oauth2-proxy:.*|quay.io/oauth2-proxy/oauth2-proxy:${COMMIT}|g" \
-        "$CHART_DIRECTORY/templates/oauth2-proxy.yaml"
-else
-    sed -i "s|quay.io/oauth2-proxy/oauth2-proxy:.*|quay.io/oauth2-proxy/oauth2-proxy:${COMMIT}|g" \
-        "$DESTINATION_DIRECTORY/base/deployment.yaml"
-    sed -i "s|^appVersion: .*|appVersion: ${COMMIT#v}|g" \
-        "$CHART_DIRECTORY/Chart.yaml"
-    sed -i "s|quay.io/oauth2-proxy/oauth2-proxy:.*|quay.io/oauth2-proxy/oauth2-proxy:${COMMIT}|g" \
-        "$CHART_DIRECTORY/templates/oauth2-proxy.yaml"
-fi
+sed -i "s|quay.io/oauth2-proxy/oauth2-proxy:.*|quay.io/oauth2-proxy/oauth2-proxy:${COMMIT}|g" \
+    "$DESTINATION_DIRECTORY/base/deployment.yaml"
+sed -i "s|^appVersion: .*|appVersion: ${COMMIT#v}|g" \
+    "$CHART_DIRECTORY/Chart.yaml"
+sed -i "s|quay.io/oauth2-proxy/oauth2-proxy:.*|quay.io/oauth2-proxy/oauth2-proxy:${COMMIT}|g" \
+    "$CHART_DIRECTORY/templates/oauth2-proxy.yaml"
 SOURCE_TEXT="\[.*\](https://github.com/${REPOSITORY_NAME}/releases/tag/v.*)"
 DESTINATION_TEXT="\[${COMMIT#v}\](https://github.com/${REPOSITORY_NAME}/releases/tag/${COMMIT})"
 update_readme "$MANIFESTS_DIRECTORY" "$SOURCE_TEXT" "$DESTINATION_TEXT"
