@@ -6,56 +6,6 @@ metadata:
   namespace: auth
 ---
 apiVersion: v1
-data:
-  config.yaml: |
-    issuer: {{ .Values.config.issuer }}
-    storage:
-      type: kubernetes
-      config:
-        inCluster: true
-    web:
-      http: 0.0.0.0:5556
-    logger:
-      level: {{ .Values.config.logLevel | quote }}
-      format: text
-    oauth2:
-      skipApprovalScreen: {{ .Values.config.skipApprovalScreen }}
-    enablePasswordDB: {{ .Values.config.enablePasswordDB }}
-    staticPasswords:
-    - email: {{ .Values.config.staticUserEmail }}
-      hashFromEnv: DEX_USER_PASSWORD
-      username: {{ .Values.config.staticUsername }}
-      userID: {{ .Values.config.staticUserID | quote }}
-    staticClients:
-    # https://github.com/dexidp/dex/pull/1664
-    - idEnv: OIDC_CLIENT_ID
-      redirectURIs: [{{ .Values.config.redirectURI | quote }}]
-      name: 'Dex Login Application'
-      secretEnv: OIDC_CLIENT_SECRET
-kind: ConfigMap
-metadata:
-  name: dex
-  namespace: auth
----
-apiVersion: v1
-data:
-  OIDC_CLIENT_ID: {{ .Values.oidcClient.id | b64enc }}
-  OIDC_CLIENT_SECRET: {{ .Values.oidcClient.secret | b64enc }}
-kind: Secret
-metadata:
-  name: dex-oidc-client
-  namespace: auth
-type: Opaque
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: dex-passwords
-  namespace: auth
-stringData:
-  DEX_USER_PASSWORD: {{ .Values.staticPassword.hash }}
----
-apiVersion: v1
 kind: Service
 metadata:
   name: dex
@@ -84,6 +34,10 @@ spec:
       app: dex
   template:
     metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/config-map.yaml") . | sha256sum }}
+        checksum/oidc-client: {{ include (print $.Template.BasePath "/oidc-client-secret.yaml") . | sha256sum }}
+        checksum/passwords: {{ include (print $.Template.BasePath "/passwords-secret.yaml") . | sha256sum }}
       labels:
         app: dex
     spec:

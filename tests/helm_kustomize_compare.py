@@ -17,6 +17,12 @@ CERT_MANAGER_KUBEFLOW_LABELS = {
     "app.kubernetes.io/name",
 }
 
+DEX_POD_TEMPLATE_CHECKSUM_KEYS = {
+    "checksum/config",
+    "checksum/oidc-client",
+    "checksum/passwords",
+}
+
 
 def load_manifests(file_path: str) -> List[Dict]:
     """Load YAML manifests from file."""
@@ -140,6 +146,9 @@ def normalize_manifest(manifest: Dict, component: str = "katib") -> Dict:
     # Clean Helm-specific metadata
     normalized = clean_helm_metadata(normalized, component)
 
+    if component == "dex":
+        remove_dex_pod_template_checksums(normalized)
+
     if component == "cert-manager":
         preserve_cert_manager_kubeflow_labels(manifest, normalized)
 
@@ -196,6 +205,28 @@ def normalize_manifest(manifest: Dict, component: str = "katib") -> Dict:
             return obj
 
     return remove_empty_values(normalized)
+
+
+def remove_dex_pod_template_checksums(manifest: Dict) -> None:
+    """Ignore rollout checksums while preserving other Dex annotations."""
+    metadata = manifest.get("metadata", {})
+    if (
+        manifest.get("kind") != "Deployment"
+        or metadata.get("name") != "dex"
+        or metadata.get("namespace") != "auth"
+    ):
+        return
+
+    pod_metadata = manifest.get("spec", {}).get("template", {}).get("metadata", {})
+    annotations = pod_metadata.get("annotations")
+    if not isinstance(annotations, dict):
+        return
+
+    pod_metadata["annotations"] = {
+        key: value
+        for key, value in annotations.items()
+        if key not in DEX_POD_TEMPLATE_CHECKSUM_KEYS
+    }
 
 
 def preserve_cert_manager_kubeflow_labels(original: Dict, normalized: Dict) -> None:

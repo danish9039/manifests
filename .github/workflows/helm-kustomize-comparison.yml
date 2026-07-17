@@ -17,6 +17,8 @@ on:
     - tests/helm_kustomize_compare.py
     - tests/helm_kustomize_compare.sh
     - tests/helm_kustomize_compare_all.sh
+    - tests/test_helm_kustomize_compare.py
+    - tests/test_dex_helm_rollout_checksums.py
     - .github/workflows/helm-kustomize-comparison.yml
   workflow_dispatch:
 
@@ -51,3 +53,7 @@ jobs:
         VERBOSE: "true"
       run: |
         ./tests/helm_kustomize_compare_all.sh
+    - name: Test Helm comparison normalization
+      run: python tests/test_helm_kustomize_compare.py
+    - name: Test Dex Helm rollout checksums
+      run: python tests/test_dex_helm_rollout_checksums.py
