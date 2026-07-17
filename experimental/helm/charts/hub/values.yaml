@@ -176,7 +176,7 @@ ui:
 
   image:
     # -- UI image repository
-    repository: model-registry-ui
+    repository: ui
     # -- UI image tag
     tag: ""
     # -- UI image pull policy
