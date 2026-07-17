@@ -296,7 +296,7 @@ def get_resource_key(manifest: Dict, component: str = "katib") -> str:
     name = manifest.get("metadata", {}).get("name", "unknown")
     namespace = manifest.get("metadata", {}).get("namespace", "")
 
-    if kind in ["Secret", "ConfigMap"]:
+    if component != "oauth2-proxy" and kind in ["Secret", "ConfigMap"]:
         name = KUSTOMIZE_HASH_SUFFIX.sub("", name)
 
     # Include namespace for namespaced resources so same-name objects in

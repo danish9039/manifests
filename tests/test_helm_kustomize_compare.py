@@ -173,6 +173,39 @@ class NormalizeManifestTest(unittest.TestCase):
                 )
 
 
+class OAuth2ProxyResourceKeyTest(unittest.TestCase):
+    def test_parameter_config_map_does_not_collide_with_main_config_map(self):
+        main_config_map = {
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "oauth2-proxy",
+                "namespace": "oauth2-proxy",
+            },
+        }
+        parameters_config_map = {
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "oauth2-proxy-parameters",
+                "namespace": "oauth2-proxy",
+            },
+        }
+
+        main_key = helm_kustomize_compare.get_resource_key(
+            main_config_map,
+            "oauth2-proxy",
+        )
+        parameters_key = helm_kustomize_compare.get_resource_key(
+            parameters_config_map,
+            "oauth2-proxy",
+        )
+
+        self.assertNotEqual(main_key, parameters_key)
+        self.assertEqual(
+            parameters_key,
+            "ConfigMap/oauth2-proxy/oauth2-proxy-parameters",
+        )
+
+
 class ComparisonWorkflowTest(unittest.TestCase):
     def test_dex_checks_run_in_enforcing_job(self):
         workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
@@ -195,6 +228,19 @@ class ComparisonWorkflowTest(unittest.TestCase):
                 test_step = steps_by_name[step_name]
                 self.assertFalse(test_step.get("continue-on-error", False))
                 self.assertNotIn("if", test_step)
+
+    def test_comparison_unit_tests_run_in_enforcing_job(self):
+        workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
+        unit_test_job = workflow["jobs"]["validate-comparison-unit-tests"]
+
+        self.assertFalse(unit_test_job.get("continue-on-error", False))
+        self.assertTrue(
+            any(
+                "python -m unittest tests/test_helm_kustomize_compare.py"
+                in step.get("run", "")
+                for step in unit_test_job["steps"]
+            )
+        )
 
 
 if __name__ == "__main__":
