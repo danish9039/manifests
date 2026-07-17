@@ -12,7 +12,7 @@ if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
     echo "Usage: $0 <component> [scenario]"
     echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy"
-    echo "The scenario is optional. Defaults: KServe Models Web Application uses 'kubeflow', Dex uses 'oauth2-proxy', OAuth2-proxy uses 'm2m-dex-only', and other components use 'base'."
+    echo "The scenario is optional. Defaults: KServe Models Web Application uses 'kubeflow', Dex uses 'oauth2-proxy', OAuth2-proxy uses 'm2m-dex-and-kind', and other components use 'base'."
     exit 1
 fi
 
@@ -219,15 +219,15 @@ case "$COMPONENT" in
         MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/common/oauth2-proxy"
 
         declare -A KUSTOMIZE_PATHS=(
-            ["m2m-dex-only"]="$MANIFESTS_DIRECTORY/overlays/m2m-dex-only"
+            ["m2m-dex-and-kind"]="$MANIFESTS_DIRECTORY/overlays/m2m-dex-and-kind"
         )
 
         declare -A HELM_VALUES=(
-            ["m2m-dex-only"]="$CHART_DIRECTORY/ci/values-m2m-dex-only.yaml"
+            ["m2m-dex-and-kind"]="$CHART_DIRECTORY/ci/values-m2m-dex-and-kind.yaml"
         )
 
         declare -A NAMESPACES=(
-            ["m2m-dex-only"]="oauth2-proxy"
+            ["m2m-dex-and-kind"]="oauth2-proxy"
         )
         ;;
 
@@ -247,7 +247,7 @@ if [[ -z "$SCENARIO" ]]; then
             SCENARIO="oauth2-proxy"
             ;;
         "oauth2-proxy")
-            SCENARIO="m2m-dex-only"
+            SCENARIO="m2m-dex-and-kind"
             ;;
         *)
             SCENARIO="base"

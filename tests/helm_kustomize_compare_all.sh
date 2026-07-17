@@ -16,7 +16,7 @@ declare -A COMPONENT_SCENARIOS=(
     ["kubeflow-namespaces"]="base platform-namespaces"
     ["kubeflow-platform"]="base"
     ["dex"]="oauth2-proxy"
-    ["oauth2-proxy"]="m2m-dex-only"
+    ["oauth2-proxy"]="m2m-dex-and-kind"
 )
 
 prepare_component() {
