@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+
+import os
+import subprocess
+import tempfile
+import unittest
+
+from pathlib import Path
+
+import yaml
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+CHART_DIRECTORY = REPOSITORY_ROOT / "common/istio/helm"
+OAUTH2_PROXY_VALUES = CHART_DIRECTORY / "ci/values-oauth2-proxy.yaml"
+WORKFLOW_PATH = REPOSITORY_ROOT / ".github/workflows/helm-kustomize-comparison.yml"
+HELM_BINARY = os.environ.get("HELM_BINARY", "helm")
+
+
+class IstioHelmChartTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.helm_plugins = tempfile.TemporaryDirectory()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.helm_plugins.cleanup()
+
+    def render_chart(self, *arguments):
+        environment = os.environ.copy()
+        environment["HELM_PLUGINS"] = self.helm_plugins.name
+        return subprocess.run(
+            [
+                HELM_BINARY,
+                "template",
+                "istio",
+                str(CHART_DIRECTORY),
+                "--namespace",
+                "istio-system",
+                "--values",
+                str(OAUTH2_PROXY_VALUES),
+                *arguments,
+            ],
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
+
+    def oauth2_proxy_provider(self, rendered_chart):
+        manifests = [
+            manifest for manifest in yaml.safe_load_all(rendered_chart) if manifest
+        ]
+        istio_config_map = next(
+            manifest
+            for manifest in manifests
+            if manifest.get("kind") == "ConfigMap"
+            and manifest.get("metadata", {}).get("name") == "istio"
+            and manifest.get("metadata", {}).get("namespace") == "istio-system"
+        )
+        mesh_configuration = yaml.safe_load(istio_config_map["data"]["mesh"])
+        return next(
+            provider["envoyExtAuthzHttp"]
+            for provider in mesh_configuration["extensionProviders"]
+            if provider.get("name") == "oauth2-proxy"
+        )
+
+    def test_custom_oauth2_proxy_service_and_port_are_rendered(self):
+        result = self.render_chart(
+            "--set-string",
+            "oauth2Proxy.service=custom-auth.oauth2-proxy.svc.cluster.local",
+            "--set-string",
+            "oauth2Proxy.port=18443",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        provider = self.oauth2_proxy_provider(result.stdout)
+        self.assertEqual(
+            provider["service"],
+            "custom-auth.oauth2-proxy.svc.cluster.local",
+        )
+        self.assertEqual(provider["port"], 18443)
+
+    def test_port_range_boundaries_accept_integer_typed_values(self):
+        for port in [1, 65535]:
+            with self.subTest(port=port):
+                result = self.render_chart(
+                    "--set",
+                    f"oauth2Proxy.port={port}",
+                )
+
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(
+                    self.oauth2_proxy_provider(result.stdout)["port"],
+                    port,
+                )
+
+    def test_invalid_oauth2_proxy_ports_fail_before_rendering(self):
+        invalid_ports = ["not-a-port", "0", "65536"]
+
+        for port in invalid_ports:
+            with self.subTest(port=port):
+                result = self.render_chart(
+                    "--set-string",
+                    f"oauth2Proxy.port={port}",
+                )
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(
+                    "oauth2Proxy.port must be a decimal integer between 1 and 65535",
+                    result.stderr,
+                )
+
+    def test_readme_uses_canonical_synchronization_script_for_regeneration(self):
+        readme = (CHART_DIRECTORY / "README.md").read_text()
+        regeneration_section = readme.split("## Regenerate Static Manifests", 1)[
+            1
+        ].split("## Comparison", 1)[0]
+
+        self.assertIn("scripts/synchronize-istio-manifests.sh", regeneration_section)
+        self.assertNotIn("kustomize build", regeneration_section)
+
+
+class IstioWorkflowTest(unittest.TestCase):
+    def test_istio_unit_tests_run_in_enforcing_job(self):
+        workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
+        unit_test_job = workflow["jobs"]["validate-istio-unit-tests"]
+        test_step = next(
+            step
+            for step in unit_test_job["steps"]
+            if step.get("name") == "Test Istio Helm behavior"
+        )
+
+        self.assertFalse(unit_test_job.get("continue-on-error", False))
+        self.assertFalse(test_step.get("continue-on-error", False))
+        self.assertNotIn("if", test_step)
+        self.assertIn("python tests/test_istio_helm_chart.py", test_step["run"])
+
+
+if __name__ == "__main__":
+    unittest.main()

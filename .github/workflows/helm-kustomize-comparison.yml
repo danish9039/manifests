@@ -23,6 +23,7 @@ on:
     - tests/helm_kustomize_compare.sh
     - tests/helm_kustomize_compare_all.sh
     - tests/test_dex_helm_rollout_checksums.py
+    - tests/test_istio_helm_chart.py
     - .github/workflows/helm-kustomize-comparison.yml
   workflow_dispatch:
 
@@ -72,6 +73,25 @@ jobs:
       run: python -m pip install pyyaml
     - name: Run comparison unit tests
       run: python -m unittest tests/test_helm_kustomize_compare.py
+
+  validate-istio-unit-tests:
+    runs-on: ubuntu-latest
+    name: Test Istio Helm behavior
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      with:
+        python-version: '3.12'
+    - name: Install Python dependencies
+      run: python -m pip install pyyaml
+    - name: Install Helm
+      uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
+      with:
+        version: v4.2.2
+    - name: Test Istio Helm behavior
+      run: python tests/test_istio_helm_chart.py
 
   validate-helm-kustomize-equivalence:
     continue-on-error: true

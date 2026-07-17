@@ -72,22 +72,11 @@ intentionally deferred to later chart slices.
 Run from the repository root:
 
 ```bash
-kustomize build common/istio/istio-crds/base \
-  > common/istio/helm/manifests/crds.yaml
-kustomize build common/istio/istio-install/base \
-  > common/istio/helm/manifests/install-base.yaml
-kustomize build common/istio/istio-install/overlays/oauth2-proxy \
-  > common/istio/helm/manifests/install-oauth2-proxy.yaml
-kustomize build common/istio/istio-install/overlays/gke \
-  > common/istio/helm/manifests/install-gke.yaml
-kustomize build common/istio/cluster-local-gateway/base \
-  > common/istio/helm/manifests/cluster-local-gateway.yaml
-kustomize build common/istio/kubeflow-istio-resources/base \
-  > common/istio/helm/manifests/kubeflow-istio-resources.yaml
-kustomize build common/istio/istio-namespace/base > /tmp/istio-namespace-build.yaml
-awk 'BEGIN{doc=0} /^---$/{doc++; if (doc > 1) print "---"; next} doc>0{print}' /tmp/istio-namespace-build.yaml \
-  > common/istio/helm/manifests/networkpolicies.yaml
+KUBEFLOW_SYNCHRONIZE_NO_COMMIT=true ./scripts/synchronize-istio-manifests.sh
 ```
+
+The synchronization script regenerates the Kustomize manifests and every Helm
+static payload together, including provenance headers and formatting cleanup.
 
 ## Comparison
 
