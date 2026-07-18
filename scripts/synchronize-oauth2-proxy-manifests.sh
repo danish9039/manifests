@@ -13,8 +13,8 @@ CHART_DIRECTORY="$DESTINATION_DIRECTORY/helm"
 create_branch "$BRANCH_NAME"
 sed -i "s|quay.io/oauth2-proxy/oauth2-proxy:.*|quay.io/oauth2-proxy/oauth2-proxy:${COMMIT}|g" \
     "$DESTINATION_DIRECTORY/base/deployment.yaml"
-sed -i "s|^appVersion: .*|appVersion: ${COMMIT#v}|g" \
-    "$CHART_DIRECTORY/Chart.yaml"
+update_helm_chart_application_version \
+    "$CHART_DIRECTORY/Chart.yaml" "${COMMIT#v}"
 sed -i "s|quay.io/oauth2-proxy/oauth2-proxy:.*|quay.io/oauth2-proxy/oauth2-proxy:${COMMIT}|g" \
     "$CHART_DIRECTORY/templates/oauth2-proxy.yaml"
 SOURCE_TEXT="\[.*\](https://github.com/${REPOSITORY_NAME}/releases/tag/v.*)"
