@@ -3,11 +3,3 @@ kind: Kustomization
 
 resources:
 - ../../overlays/istio
-
-patches:
-- target:
-    kind: CustomResourceDefinition
-  patch: |-
-    - op: add
-      path: /metadata/annotations/helm.sh~1resource-policy
-      value: keep

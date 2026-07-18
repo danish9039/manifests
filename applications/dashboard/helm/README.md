@@ -1,8 +1,12 @@
 # Kubeflow Dashboard Helm Chart
 
 This chart renders the current Kubeflow Dashboard Kustomize resources with Helm.
-The first slice is intentionally static so rendered output stays aligned with
-`applications/dashboard`.
+Kustomize remains the source of truth: the synchronization script builds the
+complete platform overlay once, validates every resource against an explicit
+component classification, and writes deterministic payloads under `manifests/`.
+Small templates load those payloads without evaluating their contents as Helm
+templates. Before committing an update, the synchronization script runs Helm
+linting and the complete Helm/Kustomize parity comparison.
 
 ## Install
 
@@ -26,8 +30,17 @@ for parity.
 
 Helm retains the `profiles.kubeflow.org` and `poddefaults.kubeflow.org` CRDs on
 uninstall so deleting a release does not delete their custom resources. Schema
-changes must be synchronized into the generated template and applied through a
+changes must be synchronized into the generated payloads and applied through a
 chart upgrade.
+
+Regenerate the payloads through the component synchronization workflow:
+
+```bash
+KUBEFLOW_SYNCHRONIZE_NO_COMMIT=true \
+  ./scripts/synchronize-dashboard-manifests.sh
+```
+
+Do not edit files under `manifests/` directly.
 
 ## Kustomize Mapping
 

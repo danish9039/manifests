@@ -1,0 +1,3 @@
+{{- if eq .Values.scenario "platform" }}
+{{ include "kubeflow-dashboard.generatedPayload" (dict "root" . "path" "manifests/central-dashboard-resources.yaml") }}
+{{- end }}

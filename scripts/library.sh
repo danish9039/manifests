@@ -190,38 +190,6 @@ write_generated_file_atomically() (
   fi
 )
 
-render_kustomize_helm_template() (
-  local manifests_directory="$1"
-  local kustomize_path="$2"
-  local scenario="$3"
-  local destination_template="$4"
-  local temporary_template=""
-  local status
-
-  trap 'if [[ -n "$temporary_template" ]]; then rm -f "$temporary_template"; fi' EXIT
-  trap 'exit 130' INT
-  trap 'exit 143' TERM
-
-  cd "$manifests_directory"
-  if temporary_template="$(mktemp "${destination_template}.tmp.XXXXXX")"; then
-    :
-  else
-    return $?
-  fi
-  if kustomize build "$kustomize_path" | helm template "$scenario" -f - > "$temporary_template"; then
-    if mv "$temporary_template" "$destination_template"; then
-      temporary_template=""
-      return 0
-    else
-      status=$?
-      return "$status"
-    fi
-  else
-    status=$?
-    return "$status"
-  fi
-)
-
 # Commit changes to git repository
 commit_changes() {
   if [[ "${KUBEFLOW_SYNCHRONIZE_NO_COMMIT:-}" == "true" ]]; then

@@ -29,16 +29,18 @@ copy_component_manifests() {
 TARGET_DIRECTORY="applications/dashboard/upstream"
 HELM_CHART_PATH="applications/dashboard/helm"
 HELM_CHART_DIRECTORY="${MANIFESTS_DIRECTORY}/${HELM_CHART_PATH}"
-HELM_PLATFORM_TEMPLATE="${HELM_CHART_DIRECTORY}/templates/platform.yaml"
 
 update_dashboard_helm_chart() {
     local chart_yaml="${HELM_CHART_DIRECTORY}/Chart.yaml"
 
     update_helm_chart_application_version "$chart_yaml" "$COMMIT"
-    render_kustomize_helm_template "$MANIFESTS_DIRECTORY" \
-        "${HELM_CHART_PATH}/kustomize" \
-        "platform" \
-        "$HELM_PLATFORM_TEMPLATE"
+    python3 "${SCRIPT_DIRECTORY}/generate-dashboard-helm-manifests.py" \
+        --repository-root "$MANIFESTS_DIRECTORY"
+}
+
+validate_dashboard_helm_chart() {
+    helm lint "$HELM_CHART_DIRECTORY"
+    "${MANIFESTS_DIRECTORY}/tests/helm_kustomize_compare_all.sh" "$COMPONENT_NAME"
 }
 
 copy_component_manifests "components/poddefaults-webhooks/manifests/kustomize" \
@@ -48,11 +50,14 @@ copy_component_manifests "components/centraldashboard/manifests/kustomize" \
 copy_component_manifests "components/profile-controller/manifests/kustomize" \
     "${TARGET_DIRECTORY}/profile-controller"
 update_dashboard_helm_chart
+validate_dashboard_helm_chart
 commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" \
   "${TARGET_DIRECTORY}" \
   "${HELM_CHART_PATH}/Chart.yaml" \
   "${HELM_CHART_PATH}/kustomize/kustomization.yaml" \
-  "${HELM_CHART_PATH}/templates/platform.yaml" \
+  "${HELM_CHART_PATH}/manifests" \
+  "${HELM_CHART_PATH}/templates" \
+  "${SCRIPT_DIRECTORY}/generate-dashboard-helm-manifests.py" \
   "${SCRIPT_DIRECTORY}/synchronize-dashboard-manifests.sh" \
   "README.md"
 echo "Synchronization completed successfully."

@@ -20,7 +20,7 @@ jobs:
         python-version: "3.13"
 
     - name: Install Python dependencies
-      run: python -m pip install ruamel.yaml==0.19.1
+      run: python -m pip install pyyaml ruamel.yaml==0.19.1
 
     - name: Test Helm synchronization library
       run: python -m unittest tests/test_helm_synchronization_library.py
@@ -30,6 +30,14 @@ jobs:
       run: |
         "$GITHUB_WORKSPACE/tests/kustomize_install.sh"
         echo "/tmp/usr/local/bin" >> "$GITHUB_PATH"
+
+    - name: Install Helm
+      uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
+      with:
+        version: v4.2.2
+
+    - name: Test Helm synchronization tooling
+      run: python -m unittest tests/test_generate_dashboard_helm_manifests.py
 
     - name: Run upstream synchronization scripts for changed files
       run: |
