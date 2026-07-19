@@ -28,9 +28,9 @@ DESTINATION_TEXT="\[${COMMIT}\](https://github.com/${REPOSITORY_NAME}/tree/${COM
 create_branch "$BRANCH_NAME"
 clone_and_checkout "$SOURCE_DIRECTORY" "$REPOSITORY_URL" "$REPOSITORY_DIRECTORY" "$COMMIT"
 copy_manifests "${SOURCE_DIRECTORY}/${REPOSITORY_DIRECTORY}/${SOURCE_MANIFESTS_PATH}" "${MANIFESTS_DIRECTORY}/${DESTINATION_MANIFESTS_PATH}"
-sed -i "s|^  imageTag: v[0-9.]*|  imageTag: ${COMMIT}|" "${HELM_CHART_DIRECTORY}/values.yaml"
+sed -i "s|^  imageTag: .*|  imageTag: ${COMMIT}|" "${HELM_CHART_DIRECTORY}/values.yaml"
 for helm_ci_values_file in "${HELM_CI_VALUES_FILES[@]}"; do
-  sed -i "s|tag: \"v[0-9.]*\"|tag: \"${COMMIT}\"|" "$helm_ci_values_file"
+  sed -i "s|^    tag: \"v[^\"]*\"$|    tag: \"${COMMIT}\"|" "$helm_ci_values_file"
 done
 update_readme "$MANIFESTS_DIRECTORY" "$SOURCE_TEXT" "$DESTINATION_TEXT"
 commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" "$MANIFESTS_DIRECTORY"
