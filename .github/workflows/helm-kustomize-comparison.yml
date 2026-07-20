@@ -43,10 +43,16 @@ jobs:
       uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
       with:
         version: v4.2.2
+    - name: Install Kustomize
+      run: ./tests/kustomize_install.sh
     - name: Test Helm comparison normalization
       run: python tests/test_helm_kustomize_compare.py
     - name: Test Dex Helm behavior
       run: python tests/test_dex_helm_rollout_checksums.py
+    - name: Compare Dex Helm and Kustomize manifests
+      env:
+        VERBOSE: "true"
+      run: ./tests/helm_kustomize_compare_all.sh dex
 
   validate-helm-kustomize-equivalence:
     continue-on-error: true

@@ -174,18 +174,22 @@ class NormalizeManifestTest(unittest.TestCase):
 
 
 class ComparisonWorkflowTest(unittest.TestCase):
-    def test_dex_unit_tests_run_in_enforcing_job(self):
+    def test_dex_checks_run_in_enforcing_job(self):
         workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
         unit_test_job = workflow["jobs"]["validate-dex-unit-tests"]
         steps_by_name = {step["name"]: step for step in unit_test_job["steps"]}
         run_commands = "\n".join(step.get("run", "") for step in unit_test_job["steps"])
 
         self.assertFalse(unit_test_job.get("continue-on-error", False))
+        self.assertIn("./tests/kustomize_install.sh", run_commands)
         self.assertIn("python tests/test_helm_kustomize_compare.py", run_commands)
         self.assertIn("python tests/test_dex_helm_rollout_checksums.py", run_commands)
+        self.assertIn("./tests/helm_kustomize_compare_all.sh dex", run_commands)
         for step_name in [
+            "Install Kustomize",
             "Test Helm comparison normalization",
             "Test Dex Helm behavior",
+            "Compare Dex Helm and Kustomize manifests",
         ]:
             with self.subTest(step_name=step_name):
                 test_step = steps_by_name[step_name]
