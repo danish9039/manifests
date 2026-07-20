@@ -17,6 +17,12 @@ CERT_MANAGER_KUBEFLOW_LABELS = {
     "app.kubernetes.io/name",
 }
 
+DEX_POD_TEMPLATE_CHECKSUM_KEYS = {
+    "checksum/config",
+    "checksum/oidc-client",
+    "checksum/passwords",
+}
+
 
 def load_manifests(file_path: str) -> List[Dict]:
     """Load YAML manifests from file."""
@@ -140,6 +146,10 @@ def normalize_manifest(manifest: Dict, component: str = "katib") -> Dict:
     # Clean Helm-specific metadata
     normalized = clean_helm_metadata(normalized, component)
 
+    if component == "dex":
+        remove_dex_pod_template_checksums(normalized)
+        normalize_dex_config_map(normalized)
+
     if component == "cert-manager":
         preserve_cert_manager_kubeflow_labels(manifest, normalized)
 
@@ -198,6 +208,43 @@ def normalize_manifest(manifest: Dict, component: str = "katib") -> Dict:
     return remove_empty_values(normalized)
 
 
+def remove_dex_pod_template_checksums(manifest: Dict) -> None:
+    """Ignore rollout checksums while preserving other Dex annotations."""
+    metadata = manifest.get("metadata", {})
+    if (
+        manifest.get("kind") != "Deployment"
+        or metadata.get("name") != "dex"
+        or metadata.get("namespace") != "auth"
+    ):
+        return
+
+    pod_metadata = manifest.get("spec", {}).get("template", {}).get("metadata", {})
+    annotations = pod_metadata.get("annotations")
+    if not isinstance(annotations, dict):
+        return
+
+    pod_metadata["annotations"] = {
+        key: value
+        for key, value in annotations.items()
+        if key not in DEX_POD_TEMPLATE_CHECKSUM_KEYS
+    }
+
+
+def normalize_dex_config_map(manifest: Dict) -> None:
+    """Compare the embedded Dex configuration by YAML value, not quote style."""
+    metadata = manifest.get("metadata", {})
+    if (
+        manifest.get("kind") != "ConfigMap"
+        or metadata.get("name") != "dex"
+        or metadata.get("namespace") != "auth"
+    ):
+        return
+
+    config_yaml = manifest.get("data", {}).get("config.yaml")
+    if isinstance(config_yaml, str):
+        manifest["data"]["config.yaml"] = yaml.safe_load(config_yaml)
+
+
 def preserve_cert_manager_kubeflow_labels(original: Dict, normalized: Dict) -> None:
     """Keep labels that are intentionally added by cert-manager's Kubeflow overlay."""
     kind = original.get("kind", "")
@@ -223,7 +270,7 @@ def should_compare_manifest(manifest: Dict, component: str, scenario: str) -> bo
     """Select the resource subset owned by a comparison scenario."""
     kind = manifest.get("kind", "")
 
-    if component == "cert-manager" and manifest.get("kind") == "Namespace":
+    if component in ["cert-manager", "dex"] and kind == "Namespace":
         return False
 
     if component == "kubeflow-namespaces" and scenario == "base":
@@ -244,8 +291,9 @@ def get_resource_key(manifest: Dict, component: str = "katib") -> str:
     if kind in ["Secret", "ConfigMap"]:
         name = re.sub(r"-[a-z0-9]{10}$", "", name)
 
-    # Include namespace in key for components with same-named namespaced resources.
-    if component in ["katib", "cert-manager", "kubeflow-namespaces"] and namespace:
+    # Include namespace for namespaced resources so same-name objects in
+    # different namespaces cannot overwrite each other in the comparison map.
+    if namespace:
         return f"{kind}/{namespace}/{name}"
     else:
         return f"{kind}/{name}"
@@ -296,6 +344,8 @@ def get_expected_helm_extras(component: str, scenario: str) -> set:
     elif component == "hub":
         return set()  # No extra resources in Helm for Model Registry
     elif component == "kserve-models-web-application":
+        return set()
+    elif component == "dex":
         return set()
     else:
         return set()
@@ -377,7 +427,7 @@ if __name__ == "__main__":
             "Usage: python compare.py <kustomize_file> <helm_file> <component> <scenario> [namespace] [--verbose]"
         )
         print(
-            "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform"
+            "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex"
         )
         sys.exit(1)
 
@@ -396,10 +446,11 @@ if __name__ == "__main__":
         "cert-manager",
         "kubeflow-namespaces",
         "kubeflow-platform",
+        "dex",
     ]:
         print(f"ERROR: Unknown component: {component}")
         print(
-            "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform"
+            "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex"
         )
         sys.exit(1)
 

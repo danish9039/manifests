@@ -11,17 +11,9 @@ ROOT_DIRECTORY="$(dirname "$SCRIPT_DIRECTORY")"
 if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
     echo "Usage: $0 <component> [scenario]"
-    echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform"
-    echo "The scenario defaults to 'base', except KServe UI defaults to 'kubeflow'."
+    echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex"
+    echo "The scenario defaults to 'base', except KServe Models Web Application defaults to 'kubeflow' and Dex defaults to 'oauth2-proxy'."
     exit 1
-fi
-
-if [[ -z "$SCENARIO" ]]; then
-    if [[ "$COMPONENT" == "kserve-models-web-application" ]]; then
-        SCENARIO="kubeflow"
-    else
-        SCENARIO="base"
-    fi
 fi
 
 # Component-specific configurations
@@ -205,12 +197,39 @@ case "$COMPONENT" in
         )
         ;;
 
+    "dex")
+        CHART_DIRECTORY="$ROOT_DIRECTORY/common/dex/helm"
+        MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/common/dex"
+
+        declare -A KUSTOMIZE_PATHS=(
+            ["oauth2-proxy"]="$MANIFESTS_DIRECTORY/overlays/oauth2-proxy"
+        )
+
+        declare -A HELM_VALUES=(
+            ["oauth2-proxy"]="$CHART_DIRECTORY/ci/values-oauth2-proxy.yaml"
+        )
+
+        declare -A NAMESPACES=(
+            ["oauth2-proxy"]="auth"
+        )
+        ;;
+
     *)
         echo "ERROR: Unknown component: $COMPONENT"
-        echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform"
+        echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex"
         exit 1
         ;;
 esac
+
+if [[ -z "$SCENARIO" ]]; then
+    if [[ "$COMPONENT" == "kserve-models-web-application" ]]; then
+        SCENARIO="kubeflow"
+    elif [[ "$COMPONENT" == "dex" ]]; then
+        SCENARIO="oauth2-proxy"
+    else
+        SCENARIO="base"
+    fi
+fi
 
 if [[ ! "${KUSTOMIZE_PATHS[$SCENARIO]:-}" ]]; then
     echo "ERROR: Unknown scenario '$SCENARIO' for component '$COMPONENT'"
@@ -290,6 +309,18 @@ elif [[ "$COMPONENT" == "kubeflow-namespaces" || "$COMPONENT" == "kubeflow-platf
     helm template "$COMPONENT" "$CHART_DIRECTORY" \
         --namespace "$NAMESPACE" \
         --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
+elif [[ "$COMPONENT" == "dex" ]]; then
+    cd "$CHART_DIRECTORY"
+    if [ -n "$HELM_VALUES_ARGUMENTS" ]; then
+        helm template dex . \
+            --namespace "$NAMESPACE" \
+            --include-crds \
+            --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
+    else
+        helm template dex . \
+            --namespace "$NAMESPACE" \
+            --include-crds > "$HELM_OUTPUT"
+    fi
 else
     cd "$CHART_DIRECTORY"
     if [[ "$COMPONENT" == "katib" ]]; then
@@ -317,7 +348,5 @@ python3 "$SCRIPT_DIRECTORY/helm_kustomize_compare.py" \
 COMPARISON_RESULT=$?
 
 rm -f "$KUSTOMIZE_OUTPUT" "$HELM_OUTPUT"
-
-
 
 exit $COMPARISON_RESULT

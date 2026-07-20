@@ -1,0 +1,93 @@
+{{- if .Values.dex.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dex
+  namespace: auth
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dex
+  namespace: auth
+spec:
+  ports:
+  - name: dex
+    port: 5556
+    protocol: TCP
+    targetPort: 5556
+  selector:
+    app: dex
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: dex
+  name: dex
+  namespace: auth
+spec:
+  replicas: {{ .Values.dex.replicas }}
+  selector:
+    matchLabels:
+      app: dex
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/config-map.yaml") . | sha256sum }}
+        checksum/oidc-client: {{ include (print $.Template.BasePath "/oidc-client-secret.yaml") . | sha256sum }}
+        checksum/passwords: {{ include (print $.Template.BasePath "/passwords-secret.yaml") . | sha256sum }}
+      labels:
+        app: dex
+    spec:
+      containers:
+      - command:
+        - dex
+        - serve
+        - /etc/dex/cfg/config.yaml
+        env:
+        - name: KUBERNETES_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        envFrom:
+        - secretRef:
+            name: dex-oidc-client
+        - secretRef:
+            name: dex-passwords
+        image: {{ .Values.dex.image }}
+        name: dex
+        ports:
+        - containerPort: 5556
+          name: http
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /dex/healthz
+            port: 5556
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsGroup: 1001
+          runAsNonRoot: true
+          runAsUser: 1001
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - mountPath: /etc/dex/cfg
+          name: config
+      serviceAccountName: dex
+      volumes:
+      - configMap:
+          items:
+          - key: config.yaml
+            path: config.yaml
+          name: dex
+        name: config
+{{- end }}
