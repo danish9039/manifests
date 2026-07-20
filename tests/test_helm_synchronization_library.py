@@ -61,9 +61,9 @@ class HelmSynchronizationLibraryTest(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(chart_text, expected_chart)
 
-    def test_invalid_refs_are_rejected_without_modifying_chart(self):
+    def test_invalid_references_are_rejected_without_modifying_chart(self):
         original_chart = "apiVersion: v2\nappVersion: v1.0.0\n"
-        invalid_refs = [
+        invalid_references = [
             "main",
             "123456",
             "a" * 41,
@@ -72,7 +72,7 @@ class HelmSynchronizationLibraryTest(unittest.TestCase):
             "v1.2.3\nname: injected",
         ]
 
-        for application_version in invalid_refs:
+        for application_version in invalid_references:
             with self.subTest(application_version=application_version):
                 result, chart_text = self.update_application_version(
                     application_version,
