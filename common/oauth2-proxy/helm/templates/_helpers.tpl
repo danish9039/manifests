@@ -6,7 +6,7 @@ Render a JWT rule for Istio RequestAuthentication.
   fromHeaders:
   - name: Authorization
     prefix: "Bearer "
-  issuer: {{ .issuer }}
+  issuer: {{ required "An issuer is required for every machine-to-machine JWT rule" .issuer }}
 {{- if .jwksUri }}
   jwksUri: {{ .jwksUri }}
 {{- end }}

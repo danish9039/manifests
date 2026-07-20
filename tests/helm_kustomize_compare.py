@@ -216,6 +216,7 @@ def normalize_manifest(
 
     return remove_empty_values(normalized)
 
+
 def remove_dex_pod_template_checksums(manifest: Dict) -> None:
     """Ignore rollout checksums while preserving other Dex annotations."""
     metadata = manifest.get("metadata", {})

@@ -34,7 +34,7 @@ m2m:
   # -- Render machine-to-machine RequestAuthentication.
   enabled: false
   # -- Primary JWT issuer.
-  issuer: PATCH_ME
+  issuer: ""
   # -- Optional JWKS URI for the primary JWT issuer.
   jwksUri: ""
   # -- Additional JWT rules.

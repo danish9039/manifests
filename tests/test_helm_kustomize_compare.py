@@ -205,6 +205,74 @@ class OAuth2ProxyResourceKeyTest(unittest.TestCase):
             "ConfigMap/oauth2-proxy/oauth2-proxy-parameters",
         )
 
+    def test_source_aware_normalization_matches_hashed_kustomize_config_map(self):
+        kustomize_config_map = {
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "oauth2-proxy-parameters-2m7f4h6k8b",
+                "namespace": "oauth2-proxy",
+            },
+        }
+        helm_config_map = {
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "oauth2-proxy-parameters",
+                "namespace": "oauth2-proxy",
+            },
+        }
+
+        normalized_kustomize_config_map = helm_kustomize_compare.normalize_manifest(
+            kustomize_config_map,
+            "oauth2-proxy",
+            normalize_kustomize_names=True,
+        )
+        normalized_helm_config_map = helm_kustomize_compare.normalize_manifest(
+            helm_config_map,
+            "oauth2-proxy",
+            normalize_kustomize_names=False,
+        )
+
+        self.assertEqual(
+            normalized_kustomize_config_map,
+            normalized_helm_config_map,
+        )
+        self.assertEqual(
+            helm_kustomize_compare.get_resource_key(
+                normalized_kustomize_config_map,
+                "oauth2-proxy",
+            ),
+            "ConfigMap/oauth2-proxy/oauth2-proxy-parameters",
+        )
+
+    def test_kustomize_volume_secret_reference_hash_is_removed(self):
+        deployment = {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "volumes": [
+                            {
+                                "name": "oauth2-proxy-config",
+                                "secret": {
+                                    "secretName": "oauth2-proxy-4c7m9f2k5d",
+                                },
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        normalized_deployment = helm_kustomize_compare.normalize_kustomize_refs(
+            deployment
+        )
+
+        self.assertEqual(
+            normalized_deployment["spec"]["template"]["spec"]["volumes"][0]["secret"][
+                "secretName"
+            ],
+            "oauth2-proxy",
+        )
+
 
 class ComparisonWorkflowTest(unittest.TestCase):
     def test_dex_checks_run_in_enforcing_job(self):

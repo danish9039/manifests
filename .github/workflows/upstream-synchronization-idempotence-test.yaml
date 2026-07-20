@@ -23,7 +23,7 @@ jobs:
       run: python -m pip install ruamel.yaml==0.19.1
 
     - name: Test Helm synchronization library
-      run: python -m unittest tests/test_helm_sync_library.py
+      run: python -m unittest tests/test_helm_synchronization_library.py
 
     - name: Run upstream synchronization scripts for changed files
       run: |
