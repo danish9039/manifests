@@ -90,8 +90,14 @@ jobs:
       uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
       with:
         version: v4.2.2
+    - name: Install Kustomize
+      run: ./tests/kustomize_install.sh
     - name: Test Istio Helm behavior
       run: python tests/test_istio_helm_chart.py
+    - name: Compare Istio Helm and Kustomize manifests
+      env:
+        VERBOSE: "true"
+      run: ./tests/helm_kustomize_compare_all.sh istio
 
   validate-helm-kustomize-equivalence:
     continue-on-error: true
