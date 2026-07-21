@@ -184,6 +184,10 @@ class IstioHelmChartTest(unittest.TestCase):
             synchronization_script,
         )
         self.assertIn("write_generated_file_atomically", synchronization_script)
+        self.assertIn(
+            '! -path "$ISTIO_DIRECTORY/helm/Chart.yaml"',
+            synchronization_script,
+        )
         self.assertNotIn('sed -i "s|^appVersion:', synchronization_script)
         self.assertNotIn(
             '> "$HELM_MANIFESTS_DIRECTORY/networkpolicies.yaml"',
