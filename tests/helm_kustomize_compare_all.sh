@@ -16,6 +16,7 @@ declare -A COMPONENT_SCENARIOS=(
     ["kubeflow-namespaces"]="base platform-namespaces"
     ["kubeflow-platform"]="base"
     ["dex"]="oauth2-proxy"
+    ["oauth2-proxy"]="m2m-dex-and-kind"
 )
 
 prepare_component() {
@@ -30,20 +31,20 @@ prepare_component() {
 test_component() {
     local component=$1
     local scenario_names="${COMPONENT_SCENARIOS[$component]}"
-    
+
     if [[ -z "$scenario_names" ]]; then
         echo "ERROR: Unknown component: $component"
         return 1
     fi
-    
+
     local scenarios=()
     read -r -a scenarios <<< "$scenario_names"
-    
+
     declare -a passed_scenarios=()
     declare -a failed_scenarios=()
 
     prepare_component "$component"
-    
+
     for scenario in "${scenarios[@]}"; do
         if CERT_MANAGER_DEPENDENCIES_READY=true "$SCRIPT_DIRECTORY/helm_kustomize_compare.sh" "$component" "$scenario"; then
             passed_scenarios+=("$scenario")
@@ -52,20 +53,20 @@ test_component() {
             failed_scenarios+=("$scenario")
         fi
     done
-    
+
     if [ ${#failed_scenarios[@]} -gt 0 ]; then
         return 1
     fi
-    
+
     return 0
 }
 
 if [[ "$COMPONENT" == "all" ]]; then
-    
+
     declare -a passed_components=()
     declare -a failed_components=()
-    
-    for component in katib hub kserve-models-web-application cert-manager kubeflow-namespaces kubeflow-platform dex; do
+
+    for component in katib hub kserve-models-web-application cert-manager kubeflow-namespaces kubeflow-platform dex oauth2-proxy; do
         if test_component "$component"; then
             passed_components+=("$component")
         else
@@ -73,7 +74,7 @@ if [[ "$COMPONENT" == "all" ]]; then
             failed_components+=("$component")
         fi
     done
-    
+
     if [ ${#failed_components[@]} -gt 0 ]; then
         echo "FAILED: Some components have differences between Helm and Kustomize manifests."
         exit 1
@@ -81,7 +82,7 @@ if [[ "$COMPONENT" == "all" ]]; then
         echo "SUCCESS: All components passed! Helm and Kustomize manifests are equivalent."
         exit 0
     fi
-    
+
 elif [[ "$COMPONENT" == "help" ]] || [[ "$COMPONENT" == "--help" ]] || [[ "$COMPONENT" == "-h" ]]; then
     echo "Usage: $0 [component]"
     echo ""
@@ -92,11 +93,12 @@ elif [[ "$COMPONENT" == "help" ]] || [[ "$COMPONENT" == "--help" ]] || [[ "$COMP
     echo "  all                    Test all components"
     echo "  katib                  Test Katib scenarios"
     echo "  hub                    Test Hub / Model Registry scenarios"
-    echo "  kserve-models-web-application  Test KServe UI scenarios"
+    echo "  kserve-models-web-application  Test KServe Models Web Application scenarios"
     echo "  cert-manager           Test cert-manager wrapper scenarios"
     echo "  kubeflow-namespaces    Test Kubeflow namespace foundation chart"
     echo "  kubeflow-platform      Test Kubeflow platform foundation chart"
     echo "  dex                    Test Dex scenarios"
+    echo "  oauth2-proxy           Test oauth2-proxy wrapper scenarios"
     echo ""
     echo "Examples:"
     echo "  $0                     # Test all components"
@@ -104,7 +106,7 @@ elif [[ "$COMPONENT" == "help" ]] || [[ "$COMPONENT" == "--help" ]] || [[ "$COMP
     echo "  $0 hub                 # Test only Hub / Model Registry"
     echo "  $0 dex                 # Test only Dex"
     exit 0
-    
+
 elif [[ "${COMPONENT_SCENARIOS[$COMPONENT]:-}" ]]; then
     # Test specific component
     if test_component "$COMPONENT"; then
@@ -114,10 +116,10 @@ elif [[ "${COMPONENT_SCENARIOS[$COMPONENT]:-}" ]]; then
         echo "FAILED: Some scenarios failed for $COMPONENT."
         exit 1
     fi
-    
+
 else
     echo "ERROR: Unknown component: $COMPONENT"
-    echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, all"
+    echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy, all"
     echo "Use '$0 help' for more information."
     exit 1
-fi 
+fi

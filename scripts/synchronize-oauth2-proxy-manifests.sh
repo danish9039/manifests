@@ -7,18 +7,21 @@ COMPONENT_NAME="oauth2-proxy"
 REPOSITORY_NAME="oauth2-proxy/oauth2-proxy"
 COMMIT="v7.15.2"
 BRANCH_NAME=${BRANCH_NAME:=synchronize-${COMPONENT_NAME}-manifests-${COMMIT?}}
-MANIFESTS_DIRECTORY=$(dirname $SCRIPT_DIRECTORY)
-DESTINATION_DIRECTORY=$MANIFESTS_DIRECTORY/common/${COMPONENT_NAME}
+MANIFESTS_DIRECTORY="$(dirname "$SCRIPT_DIRECTORY")"
+DESTINATION_DIRECTORY="$MANIFESTS_DIRECTORY/common/${COMPONENT_NAME}"
+CHART_DIRECTORY="$DESTINATION_DIRECTORY/helm"
 create_branch "$BRANCH_NAME"
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    sed -i "" "s|quay.io/oauth2-proxy/oauth2-proxy:.*|quay.io/oauth2-proxy/oauth2-proxy:${COMMIT}|g" \
-        $DESTINATION_DIRECTORY/base/deployment.yaml
-else
-    sed -i "s|quay.io/oauth2-proxy/oauth2-proxy:.*|quay.io/oauth2-proxy/oauth2-proxy:${COMMIT}|g" \
-        $DESTINATION_DIRECTORY/base/deployment.yaml
-fi
+sed -i "s|quay.io/oauth2-proxy/oauth2-proxy:.*|quay.io/oauth2-proxy/oauth2-proxy:${COMMIT}|g" \
+    "$DESTINATION_DIRECTORY/base/deployment.yaml"
+update_helm_chart_application_version \
+    "$CHART_DIRECTORY/Chart.yaml" "${COMMIT#v}"
+sed -i "s|quay.io/oauth2-proxy/oauth2-proxy:.*|quay.io/oauth2-proxy/oauth2-proxy:${COMMIT}|g" \
+    "$CHART_DIRECTORY/templates/oauth2-proxy.yaml"
 SOURCE_TEXT="\[.*\](https://github.com/${REPOSITORY_NAME}/releases/tag/v.*)"
 DESTINATION_TEXT="\[${COMMIT#v}\](https://github.com/${REPOSITORY_NAME}/releases/tag/${COMMIT})"
 update_readme "$MANIFESTS_DIRECTORY" "$SOURCE_TEXT" "$DESTINATION_TEXT"
-commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" "$MANIFESTS_DIRECTORY"
+commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" \
+    "README.md" \
+    "scripts/synchronize-oauth2-proxy-manifests.sh" \
+    "common/${COMPONENT_NAME}"
 echo "Synchronization completed successfully."

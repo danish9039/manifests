@@ -77,6 +77,67 @@ update_readme() {
   fi
 }
 
+update_helm_chart_application_version() (
+  local chart_yaml="$1"
+  local application_version="$2"
+  local application_version_field_count
+  local commit_identifier_pattern='^[0-9a-fA-F]{7,40}$'
+  local escaped_application_version
+  local semantic_version_pattern='^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*)|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.((0|[1-9][0-9]*)|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+  local status
+  local temporary_chart=""
+
+  trap 'if [[ -n "$temporary_chart" ]]; then rm -f "$temporary_chart"; fi' EXIT
+
+  if [[ ! "$application_version" =~ $semantic_version_pattern \
+    && ! "$application_version" =~ $commit_identifier_pattern ]]; then
+    return 1
+  fi
+
+  if [[ "$application_version" == *$'\n'* || "$application_version" == *$'\r'* ]]; then
+    return 1
+  fi
+
+  if application_version_field_count="$(awk '/^appVersion:/{count++} END {print count + 0}' "$chart_yaml")"; then
+    if [[ "$application_version_field_count" -ne 1 ]]; then
+      return 1
+    fi
+  else
+    return $?
+  fi
+
+  if escaped_application_version="$(printf '%s' "$application_version" | sed 's/[\\&|]/\\&/g')"; then
+    :
+  else
+    return $?
+  fi
+
+  if temporary_chart="$(mktemp "${chart_yaml}.tmp.XXXXXX")"; then
+    :
+  else
+    return $?
+  fi
+  if ! cp -p "$chart_yaml" "$temporary_chart"; then
+    return 1
+  fi
+
+  if ! sed -i "s|^appVersion:.*|appVersion: \"${escaped_application_version}\"|" "$temporary_chart"; then
+    return 1
+  fi
+
+  if ! grep -Fqx -- "appVersion: \"${application_version}\"" "$temporary_chart"; then
+    return 1
+  fi
+
+  if mv "$temporary_chart" "$chart_yaml"; then
+    temporary_chart=""
+    return 0
+  else
+    status=$?
+    return "$status"
+  fi
+)
+
 # Commit changes to git repository
 commit_changes() {
   if [[ "${KUBEFLOW_SYNCHRONIZE_NO_COMMIT:-}" == "true" ]]; then
