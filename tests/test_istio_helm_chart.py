@@ -13,6 +13,9 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CHART_DIRECTORY = REPOSITORY_ROOT / "common/istio/helm"
 OAUTH2_PROXY_VALUES = CHART_DIRECTORY / "ci/values-oauth2-proxy.yaml"
 WORKFLOW_PATH = REPOSITORY_ROOT / ".github/workflows/helm-kustomize-comparison.yml"
+SYNCHRONIZATION_SCRIPT = (
+    REPOSITORY_ROOT / "scripts/synchronize-istio-manifests.sh"
+)
 HELM_BINARY = os.environ.get("HELM_BINARY", "helm")
 
 
@@ -117,6 +120,21 @@ class IstioHelmChartTest(unittest.TestCase):
 
         self.assertIn("scripts/synchronize-istio-manifests.sh", regeneration_section)
         self.assertNotIn("kustomize build", regeneration_section)
+
+    def test_synchronization_uses_shared_atomic_helpers(self):
+        synchronization_script = SYNCHRONIZATION_SCRIPT.read_text()
+
+        self.assertIn(
+            'update_helm_chart_application_version \\\n  '
+            '"$ISTIO_DIRECTORY/helm/Chart.yaml" "$COMMIT"',
+            synchronization_script,
+        )
+        self.assertIn("write_generated_file_atomically", synchronization_script)
+        self.assertNotIn('sed -i "s|^appVersion:', synchronization_script)
+        self.assertNotIn(
+            '> "$HELM_MANIFESTS_DIRECTORY/networkpolicies.yaml"',
+            synchronization_script,
+        )
 
 
 class IstioWorkflowTest(unittest.TestCase):

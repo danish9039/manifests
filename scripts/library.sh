@@ -138,6 +138,58 @@ update_helm_chart_application_version() (
   fi
 )
 
+write_generated_file_atomically() (
+  local destination_file="$1"
+  shift
+  local destination_directory
+  local status
+  local temporary_file=""
+
+  trap 'if [[ -n "$temporary_file" ]]; then rm -f "$temporary_file"; fi' EXIT
+
+  if [[ "$#" -eq 0 ]]; then
+    return 1
+  fi
+
+  if destination_directory="$(dirname "$destination_file")"; then
+    :
+  else
+    return $?
+  fi
+  if [[ ! -d "$destination_directory" ]]; then
+    return 1
+  fi
+
+  if temporary_file="$(mktemp "${destination_file}.tmp.XXXXXX")"; then
+    :
+  else
+    return $?
+  fi
+
+  if [[ -e "$destination_file" ]]; then
+    if ! cp -p "$destination_file" "$temporary_file"; then
+      return 1
+    fi
+  elif ! chmod 0644 "$temporary_file"; then
+    return 1
+  fi
+
+  if "$@" > "$temporary_file"; then
+    :
+  else
+    status=$?
+    return "$status"
+  fi
+
+  if mv "$temporary_file" "$destination_file"; then
+    temporary_file=""
+    return 0
+  else
+    status=$?
+    return "$status"
+  fi
+)
+
 # Commit changes to git repository
 commit_changes() {
   if [[ "${KUBEFLOW_SYNCHRONIZE_NO_COMMIT:-}" == "true" ]]; then
