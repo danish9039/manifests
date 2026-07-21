@@ -13,9 +13,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CHART_DIRECTORY = REPOSITORY_ROOT / "common/istio/helm"
 OAUTH2_PROXY_VALUES = CHART_DIRECTORY / "ci/values-oauth2-proxy.yaml"
 WORKFLOW_PATH = REPOSITORY_ROOT / ".github/workflows/helm-kustomize-comparison.yml"
-SYNCHRONIZATION_SCRIPT = (
-    REPOSITORY_ROOT / "scripts/synchronize-istio-manifests.sh"
-)
+SYNCHRONIZATION_SCRIPT = REPOSITORY_ROOT / "scripts/synchronize-istio-manifests.sh"
 HELM_BINARY = os.environ.get("HELM_BINARY", "helm")
 
 
@@ -181,7 +179,7 @@ class IstioHelmChartTest(unittest.TestCase):
         synchronization_script = SYNCHRONIZATION_SCRIPT.read_text()
 
         self.assertIn(
-            'update_helm_chart_application_version \\\n  '
+            "update_helm_chart_application_version \\\n  "
             '"$ISTIO_DIRECTORY/helm/Chart.yaml" "$COMMIT"',
             synchronization_script,
         )
