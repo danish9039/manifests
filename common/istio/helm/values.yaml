@@ -20,7 +20,7 @@ install:
   enabled: false
 
 oauth2Proxy:
-  # -- oauth2-proxy extension provider service host.
+  # -- DNS-1123 service name for the oauth2-proxy extension provider.
   service: oauth2-proxy.oauth2-proxy.svc.cluster.local
   # -- oauth2-proxy extension provider service port.
   port: 80

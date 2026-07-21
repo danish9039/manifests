@@ -82,6 +82,53 @@ class IstioHelmChartTest(unittest.TestCase):
         )
         self.assertEqual(provider["port"], 18443)
 
+    def test_supported_oauth2_proxy_service_names_are_rendered(self):
+        supported_service_names = [
+            "oauth2-proxy",
+            "oauth2-proxy.oauth2-proxy",
+            "oauth2-proxy.oauth2-proxy.svc.cluster.local",
+        ]
+
+        for service_name in supported_service_names:
+            with self.subTest(service_name=service_name):
+                result = self.render_chart(
+                    "--set-string",
+                    f"oauth2Proxy.service={service_name}",
+                )
+
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(
+                    self.oauth2_proxy_provider(result.stdout)["service"],
+                    service_name,
+                )
+
+    def test_invalid_oauth2_proxy_service_names_fail_before_rendering(self):
+        invalid_service_names = [
+            "",
+            "bad: value",
+            "OAuth2-proxy",
+            "oauth2_proxy",
+            ".oauth2-proxy",
+            "oauth2-proxy.",
+            "-oauth2-proxy",
+            "oauth2-proxy-",
+            "a" * 64,
+            "a" * 254,
+        ]
+
+        for service_name in invalid_service_names:
+            with self.subTest(service_name=service_name):
+                result = self.render_chart(
+                    "--set-string",
+                    f"oauth2Proxy.service={service_name}",
+                )
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(
+                    "oauth2Proxy.service must be a valid DNS-1123 service name",
+                    result.stderr,
+                )
+
     def test_port_range_boundaries_accept_integer_typed_values(self):
         for port in [1, 65535]:
             with self.subTest(port=port):
@@ -111,6 +158,15 @@ class IstioHelmChartTest(unittest.TestCase):
                     "oauth2Proxy.port must be a decimal integer between 1 and 65535",
                     result.stderr,
                 )
+
+    def test_unsupported_profile_fails_before_rendering(self):
+        result = self.render_chart("--set-string", "profile=unsupported")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            'unsupported istio profile "unsupported"',
+            result.stderr,
+        )
 
     def test_readme_uses_canonical_synchronization_script_for_regeneration(self):
         readme = (CHART_DIRECTORY / "README.md").read_text()
@@ -151,6 +207,23 @@ class IstioWorkflowTest(unittest.TestCase):
         self.assertFalse(test_step.get("continue-on-error", False))
         self.assertNotIn("if", test_step)
         self.assertIn("python tests/test_istio_helm_chart.py", test_step["run"])
+
+    def test_istio_comparison_runs_in_enforcing_job(self):
+        workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
+        unit_test_job = workflow["jobs"]["validate-istio-unit-tests"]
+        comparison_step = next(
+            step
+            for step in unit_test_job["steps"]
+            if step.get("name") == "Compare Istio Helm and Kustomize manifests"
+        )
+
+        self.assertFalse(unit_test_job.get("continue-on-error", False))
+        self.assertFalse(comparison_step.get("continue-on-error", False))
+        self.assertNotIn("if", comparison_step)
+        self.assertIn(
+            "./tests/helm_kustomize_compare_all.sh istio",
+            comparison_step["run"],
+        )
 
 
 if __name__ == "__main__":
