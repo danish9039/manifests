@@ -2,7 +2,6 @@ import importlib.util
 import unittest
 from pathlib import Path
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SELECTOR_PATH = REPOSITORY_ROOT / "tests/resynchronize-upstream-changes.py"
 MODULE_SPEC = importlib.util.spec_from_file_location(
@@ -15,11 +14,11 @@ MODULE_SPEC.loader.exec_module(RESYNCHRONIZE_UPSTREAM_CHANGES)
 
 class ResynchronizeUpstreamChangesTest(unittest.TestCase):
     def test_notebooks_paths_select_only_notebooks_synchronization(self):
-        expected_scripts = {
-            Path("scripts/synchronize-notebooks-v1-manifests.sh")
-        }
+        expected_scripts = {Path("scripts/synchronize-notebooks-v1-manifests.sh")}
         positive_paths = [
-            Path("applications/notebooks-v1/upstream/jupyter-web-app/base/kustomization.yaml"),
+            Path(
+                "applications/notebooks-v1/upstream/jupyter-web-app/base/kustomization.yaml"
+            ),
             Path("applications/notebooks-v1/helm/Chart.yaml"),
             Path("applications/notebooks-v1/helm/kustomize/kustomization.yaml"),
             Path("applications/notebooks-v1/helm/templates/platform.yaml"),
