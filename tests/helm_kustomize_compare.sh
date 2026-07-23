@@ -11,7 +11,7 @@ ROOT_DIRECTORY="$(dirname "$SCRIPT_DIRECTORY")"
 if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
     echo "Usage: $0 <component> [scenario]"
-    echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy"
+    echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy, istio"
     echo "The scenario is optional. Defaults: KServe Models Web Application uses 'kubeflow', Dex uses 'oauth2-proxy', OAuth2-proxy uses 'm2m-dex-and-kind', and other components use 'base'."
     exit 1
 fi
@@ -231,9 +231,44 @@ case "$COMPONENT" in
         )
         ;;
 
+    "istio")
+        CHART_DIRECTORY="$ROOT_DIRECTORY/common/istio/helm"
+        MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/common/istio"
+
+        declare -A KUSTOMIZE_PATHS=(
+            ["crds"]="$MANIFESTS_DIRECTORY/istio-crds/base"
+            ["base"]="$MANIFESTS_DIRECTORY/istio-crds/base"$'\n'"$MANIFESTS_DIRECTORY/istio-namespace/base"$'\n'"$MANIFESTS_DIRECTORY/istio-install/base"
+            ["oauth2-proxy"]="$MANIFESTS_DIRECTORY/istio-crds/base"$'\n'"$MANIFESTS_DIRECTORY/istio-namespace/base"$'\n'"$MANIFESTS_DIRECTORY/istio-install/overlays/oauth2-proxy"
+            ["gke"]="$MANIFESTS_DIRECTORY/istio-crds/base"$'\n'"$MANIFESTS_DIRECTORY/istio-namespace/base"$'\n'"$MANIFESTS_DIRECTORY/istio-install/overlays/gke"
+            ["cluster-local-gateway"]="$MANIFESTS_DIRECTORY/cluster-local-gateway/base"
+            ["kubeflow-istio-resources"]="$MANIFESTS_DIRECTORY/kubeflow-istio-resources/base"
+            ["platform-full"]="$MANIFESTS_DIRECTORY/istio-crds/base"$'\n'"$MANIFESTS_DIRECTORY/istio-namespace/base"$'\n'"$MANIFESTS_DIRECTORY/istio-install/overlays/oauth2-proxy"$'\n'"$MANIFESTS_DIRECTORY/cluster-local-gateway/base"$'\n'"$MANIFESTS_DIRECTORY/kubeflow-istio-resources/base"
+        )
+
+        declare -A HELM_VALUES=(
+            ["crds"]="$CHART_DIRECTORY/ci/values-crds.yaml"
+            ["base"]="$CHART_DIRECTORY/ci/values-base.yaml"
+            ["oauth2-proxy"]="$CHART_DIRECTORY/ci/values-oauth2-proxy.yaml"
+            ["gke"]="$CHART_DIRECTORY/ci/values-gke.yaml"
+            ["cluster-local-gateway"]="$CHART_DIRECTORY/ci/values-cluster-local-gateway.yaml"
+            ["kubeflow-istio-resources"]="$CHART_DIRECTORY/ci/values-kubeflow-istio-resources.yaml"
+            ["platform-full"]="$CHART_DIRECTORY/ci/values-platform-full.yaml"
+        )
+
+        declare -A NAMESPACES=(
+            ["crds"]="istio-system"
+            ["base"]="istio-system"
+            ["oauth2-proxy"]="istio-system"
+            ["gke"]="istio-system"
+            ["cluster-local-gateway"]="istio-system"
+            ["kubeflow-istio-resources"]="istio-system"
+            ["platform-full"]="istio-system"
+        )
+        ;;
+
     *)
         echo "ERROR: Unknown component: $COMPONENT"
-        echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy"
+        echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy, istio"
         exit 1
         ;;
 esac
@@ -354,6 +389,11 @@ else
             --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
     elif [[ "$COMPONENT" == "oauth2-proxy" ]]; then
         helm template oauth2-proxy . \
+            --namespace "$NAMESPACE" \
+            --include-crds \
+            --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
+    elif [[ "$COMPONENT" == "istio" ]]; then
+        helm template istio . \
             --namespace "$NAMESPACE" \
             --include-crds \
             --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"

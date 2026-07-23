@@ -274,6 +274,23 @@ class OAuth2ProxyResourceKeyTest(unittest.TestCase):
         )
 
 
+class IstioManifestSelectionTest(unittest.TestCase):
+    def test_foundation_owned_istio_system_namespace_is_excluded(self):
+        namespace = {
+            "apiVersion": "v1",
+            "kind": "Namespace",
+            "metadata": {"name": "istio-system"},
+        }
+
+        self.assertFalse(
+            helm_kustomize_compare.should_compare_manifest(
+                namespace,
+                component="istio",
+                scenario="base",
+            )
+        )
+
+
 class ComparisonWorkflowTest(unittest.TestCase):
     def test_dex_checks_run_in_enforcing_job(self):
         workflow = yaml.safe_load(WORKFLOW_PATH.read_text())

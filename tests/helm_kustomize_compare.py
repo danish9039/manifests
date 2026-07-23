@@ -288,6 +288,9 @@ def should_compare_manifest(manifest: Dict, component: str, scenario: str) -> bo
     if component == "kubeflow-namespaces" and scenario == "platform-namespaces":
         return kind == "Namespace"
 
+    if component == "istio" and kind == "Namespace":
+        return manifest.get("metadata", {}).get("name", "") != "istio-system"
+
     return True
 
 
@@ -442,7 +445,7 @@ if __name__ == "__main__":
             "Usage: python compare.py <kustomize_file> <helm_file> <component> <scenario> [namespace] [--verbose]"
         )
         print(
-            "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy"
+            "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy, istio"
         )
         sys.exit(1)
 
@@ -463,10 +466,11 @@ if __name__ == "__main__":
         "kubeflow-platform",
         "dex",
         "oauth2-proxy",
+        "istio",
     ]:
         print(f"ERROR: Unknown component: {component}")
         print(
-            "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy"
+            "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy, istio"
         )
         sys.exit(1)
 

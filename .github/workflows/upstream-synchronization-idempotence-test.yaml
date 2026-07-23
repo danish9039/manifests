@@ -25,6 +25,12 @@ jobs:
     - name: Test Helm synchronization library
       run: python -m unittest tests/test_helm_synchronization_library.py
 
+    - name: Install Kustomize
+      working-directory: /tmp
+      run: |
+        "$GITHUB_WORKSPACE/tests/kustomize_install.sh"
+        echo "/tmp/usr/local/bin" >> "$GITHUB_PATH"
+
     - name: Run upstream synchronization scripts for changed files
       run: |
         mapfile -t changed_files < <(git diff --name-only "origin/${{ github.base_ref }}...HEAD")

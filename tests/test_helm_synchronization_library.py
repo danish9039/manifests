@@ -93,6 +93,59 @@ class HelmSynchronizationLibraryTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(chart_text, original_chart)
 
+    def run_atomic_writer(self, producer_body, original_content="original\n"):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output_path = Path(temporary_directory) / "generated.yaml"
+            output_path.write_text(original_content)
+            output_path.chmod(0o640)
+            result = subprocess.run(
+                [
+                    "bash",
+                    "-c",
+                    (
+                        'source "$1"; '
+                        "produce_output() { "
+                        f"{producer_body}"
+                        "; }; "
+                        'write_generated_file_atomically "$2" produce_output'
+                    ),
+                    "bash",
+                    str(LIBRARY_PATH),
+                    str(output_path),
+                ],
+                capture_output=True,
+                text=True,
+            )
+            temporary_files = list(
+                Path(temporary_directory).glob("generated.yaml.tmp.*")
+            )
+            return (
+                result,
+                output_path.read_text(),
+                output_path.stat().st_mode & 0o777,
+                temporary_files,
+            )
+
+    def test_atomic_writer_replaces_file_after_successful_generation(self):
+        result, output, mode, temporary_files = self.run_atomic_writer(
+            "printf 'updated\\n'"
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(output, "updated\n")
+        self.assertEqual(mode, 0o640)
+        self.assertEqual(temporary_files, [])
+
+    def test_atomic_writer_preserves_file_when_generation_fails(self):
+        result, output, mode, temporary_files = self.run_atomic_writer(
+            "printf 'partial\\n'; return 42"
+        )
+
+        self.assertEqual(result.returncode, 42)
+        self.assertEqual(output, "original\n")
+        self.assertEqual(mode, 0o640)
+        self.assertEqual(temporary_files, [])
+
 
 if __name__ == "__main__":
     unittest.main()
