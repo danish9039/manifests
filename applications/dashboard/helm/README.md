@@ -28,14 +28,15 @@ The current platform Dashboard Kustomize overlay includes Central Dashboard,
 PodDefaults webhook, and Profile Controller/KFAM. This chart keeps that grouping
 for parity.
 
-Helm retains the `profiles.kubeflow.org` and `poddefaults.kubeflow.org` CRDs on
-uninstall so deleting a release does not delete their custom resources. Schema
-changes must be synchronized into the generated payloads and applied through a
-chart upgrade.
+Helm retains the `profiles.kubeflow.org` and `poddefaults.kubeflow.org` custom
+resource definitions on uninstall so deleting a release does not delete their
+custom resources. Schema changes must be synchronized into the generated
+payloads and applied through a chart upgrade.
 
 Regenerate the payloads through the component synchronization workflow:
 
 ```bash
+python3 -m pip install "ruamel.yaml==0.19.1"
 KUBEFLOW_SYNCHRONIZE_NO_COMMIT=true \
   ./scripts/synchronize-dashboard-manifests.sh
 ```
