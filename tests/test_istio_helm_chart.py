@@ -196,6 +196,21 @@ class IstioHelmChartTest(unittest.TestCase):
 
 
 class IstioWorkflowTest(unittest.TestCase):
+    def test_istio_job_persists_the_pinned_kustomize_directory(self):
+        workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
+        unit_test_job = workflow["jobs"]["validate-istio-unit-tests"]
+        installation_step = next(
+            step
+            for step in unit_test_job["steps"]
+            if step.get("name") == "Install Kustomize"
+        )
+
+        self.assertIn("./tests/kustomize_install.sh", installation_step["run"])
+        self.assertIn(
+            'echo "/tmp/usr/local/bin" >> "$GITHUB_PATH"',
+            installation_step["run"],
+        )
+
     def test_istio_unit_tests_run_in_enforcing_job(self):
         workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
         unit_test_job = workflow["jobs"]["validate-istio-unit-tests"]

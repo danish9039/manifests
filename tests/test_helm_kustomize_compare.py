@@ -275,7 +275,7 @@ class OAuth2ProxyResourceKeyTest(unittest.TestCase):
 
 
 class IstioManifestSelectionTest(unittest.TestCase):
-    def test_foundation_owned_istio_system_namespace_is_excluded(self):
+    def test_only_kustomize_excludes_foundation_owned_istio_system_namespace(self):
         namespace = {
             "apiVersion": "v1",
             "kind": "Namespace",
@@ -287,6 +287,15 @@ class IstioManifestSelectionTest(unittest.TestCase):
                 namespace,
                 component="istio",
                 scenario="base",
+                is_kustomize_manifest=True,
+            )
+        )
+        self.assertTrue(
+            helm_kustomize_compare.should_compare_manifest(
+                namespace,
+                component="istio",
+                scenario="base",
+                is_kustomize_manifest=False,
             )
         )
 

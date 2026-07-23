@@ -275,7 +275,12 @@ def preserve_cert_manager_kubeflow_labels(original: Dict, normalized: Dict) -> N
         )
 
 
-def should_compare_manifest(manifest: Dict, component: str, scenario: str) -> bool:
+def should_compare_manifest(
+    manifest: Dict,
+    component: str,
+    scenario: str,
+    is_kustomize_manifest: bool = True,
+) -> bool:
     """Select the resource subset owned by a comparison scenario."""
     kind = manifest.get("kind", "")
 
@@ -288,7 +293,7 @@ def should_compare_manifest(manifest: Dict, component: str, scenario: str) -> bo
     if component == "kubeflow-namespaces" and scenario == "platform-namespaces":
         return kind == "Namespace"
 
-    if component == "istio" and kind == "Namespace":
+    if component == "istio" and kind == "Namespace" and is_kustomize_manifest:
         return manifest.get("metadata", {}).get("name", "") != "istio-system"
 
     return True
@@ -378,7 +383,9 @@ def compare_manifests(
     helm_resources = {}
 
     for manifest in kustomize_manifests:
-        if not should_compare_manifest(manifest, component, scenario):
+        if not should_compare_manifest(
+            manifest, component, scenario, is_kustomize_manifest=True
+        ):
             continue
         normalized = normalize_manifest(
             manifest, component, normalize_kustomize_names=True
@@ -387,7 +394,9 @@ def compare_manifests(
         kustomize_resources[key] = normalized
 
     for manifest in helm_manifests:
-        if not should_compare_manifest(manifest, component, scenario):
+        if not should_compare_manifest(
+            manifest, component, scenario, is_kustomize_manifest=False
+        ):
             continue
         normalized = normalize_manifest(
             manifest,

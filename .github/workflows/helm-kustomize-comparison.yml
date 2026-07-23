@@ -91,7 +91,9 @@ jobs:
       with:
         version: v4.2.2
     - name: Install Kustomize
-      run: ./tests/kustomize_install.sh
+      run: |
+        ./tests/kustomize_install.sh
+        echo "/tmp/usr/local/bin" >> "$GITHUB_PATH"
     - name: Test Istio Helm behavior
       run: python tests/test_istio_helm_chart.py
     - name: Compare Istio Helm and Kustomize manifests

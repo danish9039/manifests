@@ -10,6 +10,12 @@ LIBRARY_PATH = REPOSITORY_ROOT / "scripts/library.sh"
 
 
 class HelmSynchronizationLibraryTest(unittest.TestCase):
+    def test_helpers_use_explicit_temporary_file_suffixes(self):
+        library_text = LIBRARY_PATH.read_text()
+
+        self.assertNotIn(".tmp.XXXXXX", library_text)
+        self.assertIn(".temporary.XXXXXX", library_text)
+
     def update_application_version(self, application_version, chart_text=None):
         if chart_text is None:
             chart_text = "apiVersion: v2\nappVersion: v1.0.0\n"
@@ -117,7 +123,7 @@ class HelmSynchronizationLibraryTest(unittest.TestCase):
                 text=True,
             )
             temporary_files = list(
-                Path(temporary_directory).glob("generated.yaml.tmp.*")
+                Path(temporary_directory).glob("generated.yaml.temporary.*")
             )
             return (
                 result,
