@@ -202,7 +202,7 @@ render_kustomize_helm_template() (
   trap 'exit 130' INT
   trap 'exit 143' TERM
 
-  if temporary_template="$(mktemp "${destination_template}.tmp.XXXXXX")"; then
+  if temporary_template="$(mktemp "${destination_template}.temporary.XXXXXX")"; then
     :
   else
     return $?
