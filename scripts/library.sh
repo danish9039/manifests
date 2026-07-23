@@ -112,7 +112,7 @@ update_helm_chart_application_version() (
     return $?
   fi
 
-  if temporary_chart="$(mktemp "${chart_yaml}.tmp.XXXXXX")"; then
+  if temporary_chart="$(mktemp "${chart_yaml}.temporary.XXXXXX")"; then
     :
   else
     return $?
@@ -160,7 +160,7 @@ write_generated_file_atomically() (
     return 1
   fi
 
-  if temporary_file="$(mktemp "${destination_file}.tmp.XXXXXX")"; then
+  if temporary_file="$(mktemp "${destination_file}.temporary.XXXXXX")"; then
     :
   else
     return $?
