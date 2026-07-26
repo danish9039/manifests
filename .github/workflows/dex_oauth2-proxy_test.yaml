@@ -71,3 +71,15 @@ jobs:
         python3 tests/dex_login_test.py
 
         echo "Dex login test completed successfully."
+
+    - name: Collect Logs on Failure
+      if: failure() || cancelled()
+      run: |
+        ./tests/collect_cluster_diagnostics.sh kubeflow istio-system cert-manager auth kubeflow-user-example-com
+
+    - name: Upload Diagnostic Logs
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: dex-oauth2-proxy-test-logs
+        path: logs/

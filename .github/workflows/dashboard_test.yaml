@@ -36,3 +36,15 @@ jobs:
 
     - name: Install Dashboard
       run: ./tests/dashboard_install.sh
+
+    - name: Collect Logs on Failure
+      if: failure() || cancelled()
+      run: |
+        ./tests/collect_cluster_diagnostics.sh kubeflow istio-system cert-manager
+
+    - name: Upload Diagnostic Logs
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: dashboard-test-logs
+        path: logs/
