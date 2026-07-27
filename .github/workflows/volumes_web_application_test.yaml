@@ -75,6 +75,10 @@ jobs:
 
     - name: Collect Logs on Failure
       if: failure()
+      # kubectl does not time out requests by default, so an API server
+      # that accepts a request and stops responding would hold this step
+      # until the job limit and the upload below would never run.
+      timeout-minutes: 5
       run: |
         mkdir -p logs
         kubectl get all --all-namespaces > logs/resources.txt
