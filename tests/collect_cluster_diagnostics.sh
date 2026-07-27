@@ -19,6 +19,40 @@ INFRASTRUCTURE_NAMESPACES=("kube-system" "local-path-storage")
 
 mkdir -p "$OUTPUT_DIRECTORY"
 
+# Sampling mode records a time series instead of a single snapshot. A snapshot
+# taken once the job has finished shows a settled cluster, so it cannot show how
+# close to its limit the runner came while the workloads were starting. Start
+# this in the background before the step under investigation.
+if [ "${1:-}" = "sample" ]; then
+    shift
+    SAMPLE_INTERVAL_SECONDS="${1:-10}"
+    SAMPLE_FILE="$OUTPUT_DIRECTORY/pressure-samples.tsv"
+
+    printf 'timestamp\tload_average\tmemory_available_megabytes\tnot_ready_pods\tunbound_claims\tnode_pressure\n' \
+        >"$SAMPLE_FILE"
+
+    while true; do
+        load_average=$(awk '{print $1}' /proc/loadavg 2>/dev/null || echo "-")
+        memory_available=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo 2>/dev/null || echo "-")
+
+        not_ready_pods=$(kubectl get pods --all-namespaces --no-headers 2>/dev/null |
+            awk '{split($3,ready,"/"); if (ready[1] != ready[2]) count++} END {print count+0}')
+        unbound_claims=$(kubectl get persistentvolumeclaims --all-namespaces --no-headers 2>/dev/null |
+            awk '$3 != "Bound" {count++} END {print count+0}')
+
+        node_pressure=$(kubectl get nodes \
+            -o jsonpath='{range .items[*]}{range .status.conditions[?(@.status=="True")]}{.type} {end}{end}' \
+            2>/dev/null | tr ' ' '\n' | grep -E 'Pressure' | sort -u | tr '\n' ',' | sed 's/,$//')
+
+        printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+            "$(date -u +%H:%M:%S)" "$load_average" "${memory_available:--}" \
+            "${not_ready_pods:--}" "${unbound_claims:--}" "${node_pressure:-none}" \
+            >>"$SAMPLE_FILE"
+
+        sleep "$SAMPLE_INTERVAL_SECONDS"
+    done
+fi
+
 # Cluster-wide inventory.
 kubectl get all --all-namespaces >"$OUTPUT_DIRECTORY/resources.txt" 2>&1 || true
 kubectl get events --all-namespaces --sort-by=.metadata.creationTimestamp \

@@ -51,6 +51,11 @@ jobs:
     - name: Install KF Multi Tenancy
       run: ./tests/multi_tenancy_install.sh
 
+    - name: Start diagnostics sampler
+      run: |
+        nohup ./tests/collect_cluster_diagnostics.sh sample 10 >/dev/null 2>&1 &
+        echo "Sampling runner and cluster pressure every 10 seconds."
+
     - name: Install KF Pipelines
       run: ./tests/pipelines_install.sh
 
@@ -72,8 +77,8 @@ jobs:
     - name: Apply Pod Security Standards restricted levels
       run: ./tests/PSS_enable.sh
 
-    - name: Collect Logs on Failure
-      if: failure() || cancelled()
+    - name: Collect Logs
+      if: always()
       run: |
         ./tests/collect_cluster_diagnostics.sh kubeflow kubeflow-workspaces kubeflow-user-example-com istio-system cert-manager auth
         kubectl get workspace test -n kubeflow-user-example-com -o yaml > logs/workspace-test.yaml 2>&1 || true
@@ -85,4 +90,3 @@ jobs:
       with:
         name: workspaces-pipeline-run-test-logs
         path: logs/
-# flake probe attempt 2
