@@ -78,15 +78,23 @@ jobs:
       run: ./tests/PSS_enable.sh
 
     - name: Collect Logs on Failure
-      if: failure() || cancelled()
+      if: failure()
       run: |
-        ./tests/collect_cluster_diagnostics.sh kubeflow istio-system cert-manager auth kubeflow-user-example-com
+        mkdir -p logs
+        kubectl get all --all-namespaces > logs/resources.txt
+        kubectl get events --all-namespaces --sort-by=.metadata.creationTimestamp > logs/events.txt
         kubectl get experiments.kubeflow.org -n "${KF_PROFILE}" -o yaml > logs/katib-experiments.yaml 2>&1 || true
         kubectl get trials.kubeflow.org -n "${KF_PROFILE}" -o yaml > logs/katib-trials.yaml 2>&1 || true
+        for namespace in kubeflow istio-system cert-manager auth kubeflow-user-example-com; do
+            kubectl describe pods -n $namespace > logs/$namespace-pods.txt
+            for pod in $(kubectl get pods -n $namespace -o jsonpath='{.items[*].metadata.name}'); do
+                kubectl logs -n $namespace $pod --tail=100 > logs/$namespace-$pod.txt 2>&1 || true
+            done
+        done
 
     - name: Upload Diagnostic Logs
       if: always()
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
-        name: katib-test-logs
+        name: kubeflow-test-logs
         path: logs/

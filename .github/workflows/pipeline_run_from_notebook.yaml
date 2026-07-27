@@ -82,14 +82,22 @@ jobs:
       run: ./tests/PSS_enable.sh
 
     - name: Collect Logs on Failure
-      if: failure() || cancelled()
+      if: failure()
       run: |
-        ./tests/collect_cluster_diagnostics.sh kubeflow kubeflow-user-example-com istio-system cert-manager auth
+        mkdir -p logs
+        kubectl get all --all-namespaces > logs/resources.txt
+        kubectl get events --all-namespaces --sort-by=.metadata.creationTimestamp > logs/events.txt
         kubectl get notebook test -n kubeflow-user-example-com -o yaml > logs/notebook-test.yaml 2>&1 || true
+        for namespace in kubeflow kubeflow-user-example-com istio-system cert-manager auth; do
+            kubectl describe pods -n $namespace > logs/$namespace-pods.txt
+            for pod in $(kubectl get pods -n $namespace -o jsonpath='{.items[*].metadata.name}'); do
+                kubectl logs -n $namespace $pod --tail=100 > logs/$namespace-$pod.txt 2>&1 || true
+            done
+        done
 
     - name: Upload Diagnostic Logs
       if: always()
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
-        name: pipeline-run-from-notebook-logs
+        name: kubeflow-test-logs
         path: logs/
