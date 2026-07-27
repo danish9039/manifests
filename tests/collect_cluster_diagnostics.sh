@@ -17,32 +17,50 @@ set -uo pipefail
 OUTPUT_DIRECTORY="${OUTPUT_DIRECTORY:-logs}"
 INFRASTRUCTURE_NAMESPACES=("kube-system" "local-path-storage")
 
+# kubectl defaults --request-timeout to 0, which means no deadline at all. A
+# degraded API server that accepts a request and then stops responding would
+# hang this step until the job limit, and the artifact upload that follows would
+# never run. That is precisely the failure this collection exists to capture, so
+# every request is bounded, every call has an outer deadline, and the collection
+# as a whole stops once the budget is spent.
+REQUEST_TIMEOUT="${REQUEST_TIMEOUT:-15s}"
+CALL_TIMEOUT_SECONDS="${CALL_TIMEOUT_SECONDS:-30}"
+COLLECTION_BUDGET_SECONDS="${COLLECTION_BUDGET_SECONDS:-240}"
+
+run_kubectl() {
+    timeout "$CALL_TIMEOUT_SECONDS" kubectl --request-timeout="$REQUEST_TIMEOUT" "$@"
+}
+
+budget_spent() {
+    [ "$SECONDS" -ge "$COLLECTION_BUDGET_SECONDS" ]
+}
+
 mkdir -p "$OUTPUT_DIRECTORY"
 
 # Cluster-wide inventory.
-kubectl get all --all-namespaces >"$OUTPUT_DIRECTORY/resources.txt" 2>&1 || true
-kubectl get events --all-namespaces --sort-by=.metadata.creationTimestamp \
+run_kubectl get all --all-namespaces >"$OUTPUT_DIRECTORY/resources.txt" 2>&1 || true
+run_kubectl get events --all-namespaces --sort-by=.metadata.creationTimestamp \
     >"$OUTPUT_DIRECTORY/events.txt" 2>&1 || true
 
 # Pod restart counts and placement. A pod that was ready earlier and is not
 # ready now shows up here as a restart, which a describe of the current state
 # alone does not reveal.
-kubectl get pods --all-namespaces -o wide \
+run_kubectl get pods --all-namespaces -o wide \
     >"$OUTPUT_DIRECTORY/pods-wide.txt" 2>&1 || true
 
 # Node capacity and pressure conditions. MemoryPressure, DiskPressure and
 # PIDPressure distinguish a genuinely stalled workload from a runner that ran
 # out of capacity and started evicting healthy pods.
-kubectl describe nodes >"$OUTPUT_DIRECTORY/nodes-describe.txt" 2>&1 || true
-kubectl get nodes -o wide >"$OUTPUT_DIRECTORY/nodes-wide.txt" 2>&1 || true
+run_kubectl describe nodes >"$OUTPUT_DIRECTORY/nodes-describe.txt" 2>&1 || true
+run_kubectl get nodes -o wide >"$OUTPUT_DIRECTORY/nodes-wide.txt" 2>&1 || true
 
 # Storage. An unbound claim blocks every workload that mounts it, so the
 # claims and volumes explain cascading readiness timeouts.
-kubectl get persistentvolumeclaims --all-namespaces \
+run_kubectl get persistentvolumeclaims --all-namespaces \
     >"$OUTPUT_DIRECTORY/persistentvolumeclaims.txt" 2>&1 || true
-kubectl get persistentvolumes >"$OUTPUT_DIRECTORY/persistentvolumes.txt" 2>&1 || true
+run_kubectl get persistentvolumes >"$OUTPUT_DIRECTORY/persistentvolumes.txt" 2>&1 || true
 
-# Runner host capacity, which no kubectl command reports.
+# Runner host capacity, which no run_kubectl command reports.
 {
     echo "### uptime and load average"
     uptime
@@ -58,15 +76,18 @@ kubectl get persistentvolumes >"$OUTPUT_DIRECTORY/persistentvolumes.txt" 2>&1 ||
 } >"$OUTPUT_DIRECTORY/runner-host.txt" 2>&1 || true
 
 for namespace in "${INFRASTRUCTURE_NAMESPACES[@]}" "$@"; do
-    kubectl get namespace "$namespace" >/dev/null 2>&1 || continue
+    budget_spent && break
+    run_kubectl get namespace "$namespace" >/dev/null 2>&1 || continue
 
-    kubectl describe pods -n "$namespace" \
+    run_kubectl describe pods -n "$namespace" \
         >"$OUTPUT_DIRECTORY/$namespace-pods.txt" 2>&1 || true
 
-    for pod_name in $(kubectl get pods -n "$namespace" \
+    for pod_name in $(run_kubectl get pods -n "$namespace" \
         -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
 
-        kubectl logs -n "$namespace" "$pod_name" --all-containers --tail=100 \
+        budget_spent && break
+
+        run_kubectl logs -n "$namespace" "$pod_name" --all-containers --tail=100 \
             >"$OUTPUT_DIRECTORY/$namespace-$pod_name.txt" 2>&1 || true
 
         # A restarted container only explains itself through the log of the
@@ -74,12 +95,12 @@ for namespace in "${INFRASTRUCTURE_NAMESPACES[@]}" "$@"; do
         # call for every container fails as soon as a single container has no
         # prior instance, which is the usual case when the application restarts
         # while its sidecar stays up.
-        for container_name in $(kubectl get pod -n "$namespace" "$pod_name" \
+        for container_name in $(run_kubectl get pod -n "$namespace" "$pod_name" \
             -o jsonpath='{.status.containerStatuses[?(@.restartCount>0)].name}' \
             2>/dev/null); do
 
             previous_log="$OUTPUT_DIRECTORY/$namespace-$pod_name-$container_name-previous.txt"
-            kubectl logs -n "$namespace" "$pod_name" -c "$container_name" \
+            run_kubectl logs -n "$namespace" "$pod_name" -c "$container_name" \
                 --previous --tail=100 >"$previous_log" 2>&1 ||
                 rm -f "$previous_log"
         done
