@@ -9,6 +9,7 @@ from pathlib import Path
 
 path_to_synchronization_script = {
     "applications/dashboard/upstream": "scripts/synchronize-dashboard-manifests.sh",
+    "applications/dashboard/overlays/istio": "scripts/synchronize-dashboard-manifests.sh",
     "applications/dashboard/helm/Chart.yaml": "scripts/synchronize-dashboard-manifests.sh",
     "applications/dashboard/helm/kustomize": "scripts/synchronize-dashboard-manifests.sh",
     "applications/dashboard/helm/manifests": "scripts/synchronize-dashboard-manifests.sh",

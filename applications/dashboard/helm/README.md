@@ -36,7 +36,7 @@ payloads and applied through a chart upgrade.
 Regenerate the payloads through the component synchronization workflow:
 
 ```bash
-python3 -m pip install "ruamel.yaml==0.19.1"
+python3 -m pip install pyyaml "ruamel.yaml==0.19.1"
 KUBEFLOW_SYNCHRONIZE_NO_COMMIT=true \
   ./scripts/synchronize-dashboard-manifests.sh
 ```
