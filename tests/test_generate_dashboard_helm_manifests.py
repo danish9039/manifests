@@ -17,6 +17,12 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 GENERATOR_PATH = REPOSITORY_ROOT / "scripts/generate-dashboard-helm-manifests.py"
 CHART_PATH = REPOSITORY_ROOT / "applications/dashboard/helm"
 
+CRDS_PAYLOAD = "platform-crds.yaml"
+RESOURCES_PAYLOAD = "platform-resources.yaml"
+LINKS_DOCUMENT = "documents/dashboard-links.json"
+SETTINGS_DOCUMENT = "documents/dashboard-settings.json"
+NAMESPACE_LABELS_DOCUMENT = "documents/profile-namespace-labels.yaml"
+
 
 def load_generator_module():
     spec = importlib.util.spec_from_file_location(
@@ -36,55 +42,73 @@ class DashboardHelmManifestGeneratorTest(unittest.TestCase):
     def resource(
         self,
         name,
-        application_name=None,
         kind="ConfigMap",
         api_version="v1",
         namespace="kubeflow",
+        data=None,
     ):
         metadata = {"name": name}
         if namespace is not None:
             metadata["namespace"] = namespace
-        if application_name is not None:
-            metadata["labels"] = {
-                "app.kubernetes.io/name": application_name,
-            }
-        return {
+        resource = {
             "apiVersion": api_version,
             "kind": kind,
             "metadata": metadata,
         }
+        if data is not None:
+            resource["data"] = data
+        return resource
+
+    def hand_written_resources(self):
+        """The resources the chart renders from hand-written templates."""
+        return [
+            self.resource("dashboard", kind="Deployment", api_version="apps/v1"),
+            self.resource(
+                "poddefaults-webhook-deployment",
+                kind="Deployment",
+                api_version="apps/v1",
+            ),
+            self.resource(
+                "profiles-deployment", kind="Deployment", api_version="apps/v1"
+            ),
+            self.resource(
+                "dashboard-config",
+                data={"links": '{"menuLinks": []}', "settings": "{}"},
+            ),
+            self.resource("dashboard-parameters-deadbeef12", data={"A": "b"}),
+            self.resource("profiles-config-deadbeef12", data={"ADMIN": ""}),
+            self.resource(
+                "profiles-namespace-labels-data-deadbeef12",
+                data={"namespace-labels.yaml": "key: value"},
+            ),
+        ]
 
     def complete_resource_set(self):
-        return [
-            self.resource("dashboard", "centraldashboard"),
+        return self.hand_written_resources() + [
             self.resource(
                 "poddefaults.kubeflow.org",
-                "poddefaults-webhook",
                 kind="CustomResourceDefinition",
                 api_version="apiextensions.k8s.io/v1",
                 namespace=None,
             ),
-            self.resource("poddefaults-webhook-service", "poddefaults-webhook"),
             self.resource(
                 "profiles.kubeflow.org",
-                "profile-controller",
                 kind="CustomResourceDefinition",
                 api_version="apiextensions.k8s.io/v1",
                 namespace=None,
             ),
-            self.resource("profiles-deployment", "profile-controller"),
+            self.resource("poddefaults-webhook-service"),
         ]
 
     def test_resource_identity_contains_api_kind_namespace_and_name(self):
-        resource = self.resource("dashboard", "centraldashboard")
+        resource = self.resource("dashboard-config")
 
         identity = self.generator.resource_identity(resource)
 
-        self.assertEqual(identity, ("v1", "ConfigMap", "kubeflow", "dashboard"))
+        self.assertEqual(identity, ("v1", "ConfigMap", "kubeflow", "dashboard-config"))
 
     def test_missing_identity_fields_fail(self):
-        valid_resource = self.resource("dashboard", "centraldashboard")
-        invalid_resources = []
+        valid_resource = self.resource("dashboard-config")
         for field_path in [
             ("apiVersion",),
             ("kind",),
@@ -96,87 +120,27 @@ class DashboardHelmManifestGeneratorTest(unittest.TestCase):
                 del resource[field_path[0]]
             else:
                 del resource[field_path[0]][field_path[1]]
-            invalid_resources.append(resource)
-
-        for resource in invalid_resources:
-            with self.subTest(resource=resource):
+            with self.subTest(field_path=field_path):
                 with self.assertRaisesRegex(ValueError, "identity"):
                     self.generator.resource_identity(resource)
 
     def test_duplicate_resource_identities_fail(self):
-        resource = self.resource("dashboard", "centraldashboard")
+        resources = self.complete_resource_set()
+        resources.append(copy.deepcopy(resources[-1]))
 
         with self.assertRaisesRegex(ValueError, "duplicate resource identity"):
-            self.generator.generate_payload_contents(
-                [resource, copy.deepcopy(resource)]
-            )
+            self.generator.generate_payload_contents(resources)
 
     def test_duplicate_resource_across_api_versions_fails(self):
-        stable_resource = self.resource(
-            "dashboard",
-            "centraldashboard",
-            kind="Deployment",
-            api_version="apps/v1",
-        )
-        beta_resource = copy.deepcopy(stable_resource)
+        resources = self.complete_resource_set()
+        beta_resource = copy.deepcopy(resources[0])
         beta_resource["apiVersion"] = "apps/v1beta1"
+        resources.append(beta_resource)
 
         with self.assertRaisesRegex(ValueError, "duplicate resource identity"):
-            self.generator.generate_payload_contents([stable_resource, beta_resource])
+            self.generator.generate_payload_contents(resources)
 
-    def test_crd_retention_is_added_without_mutating_input(self):
-        resources = self.complete_resource_set()
-        original_resources = copy.deepcopy(resources)
-
-        payloads = self.generator.generate_payload_contents(resources)
-        poddefaults_crd = next(
-            self.yaml.load_all(payloads["poddefaults-webhook-crds.yaml"])
-        )
-
-        self.assertEqual(
-            poddefaults_crd["metadata"]["annotations"]["helm.sh/resource-policy"],
-            "keep",
-        )
-        self.assertEqual(resources, original_resources)
-
-    def test_non_crd_resources_are_not_changed(self):
-        resources = self.complete_resource_set()
-        original_dashboard = copy.deepcopy(resources[0])
-
-        payloads = self.generator.generate_payload_contents(resources)
-        rendered_dashboard = next(
-            self.yaml.load_all(payloads["central-dashboard-resources.yaml"])
-        )
-
-        self.assertEqual(rendered_dashboard, original_dashboard)
-
-    def test_upstream_block_scalar_style_is_preserved(self):
-        rendered_yaml = (
-            "apiVersion: v1\n"
-            "kind: ConfigMap\n"
-            "metadata:\n"
-            "  name: dashboard\n"
-            "  namespace: kubeflow\n"
-            "  labels:\n"
-            "    app.kubernetes.io/name: centraldashboard\n"
-            "data:\n"
-            "  links: |-\n"
-            "    {\n"
-            '      "menuLinks": []\n'
-            "    }\n"
-        )
-        dashboard_resource = self.generator.parse_resources(rendered_yaml)[0]
-        resources = self.complete_resource_set()
-        resources[0] = dashboard_resource
-
-        payloads = self.generator.generate_payload_contents(resources)
-
-        self.assertIn(
-            "  links: |-\n    {\n",
-            payloads["central-dashboard-resources.yaml"],
-        )
-
-    def test_every_resource_matches_exactly_one_component(self):
+    def test_payloads_are_split_only_by_custom_resource_definition(self):
         payloads = self.generator.generate_payload_contents(
             self.complete_resource_set()
         )
@@ -184,69 +148,134 @@ class DashboardHelmManifestGeneratorTest(unittest.TestCase):
         self.assertEqual(
             set(payloads),
             {
-                "central-dashboard-resources.yaml",
-                "poddefaults-webhook-crds.yaml",
-                "poddefaults-webhook-resources.yaml",
-                "profile-controller-crds.yaml",
-                "profile-controller-resources.yaml",
+                CRDS_PAYLOAD,
+                RESOURCES_PAYLOAD,
+                LINKS_DOCUMENT,
+                SETTINGS_DOCUMENT,
+                NAMESPACE_LABELS_DOCUMENT,
             },
         )
 
-    def test_unmatched_resource_fails(self):
-        resource = self.resource("unknown-resource")
+    def test_hand_written_resources_are_excluded_from_payloads(self):
+        payloads = self.generator.generate_payload_contents(
+            self.complete_resource_set()
+        )
+        rendered = payloads[CRDS_PAYLOAD] + payloads[RESOURCES_PAYLOAD]
 
-        with self.assertRaisesRegex(ValueError, "does not match any component"):
-            self.generator.generate_payload_contents([resource])
+        for resource in self.hand_written_resources():
+            with self.subTest(name=resource["metadata"]["name"]):
+                self.assertNotIn(
+                    f"name: {resource['metadata']['name']}",
+                    rendered,
+                )
 
-    def test_resource_matching_multiple_components_fails(self):
-        resource = self.resource(
-            "profiles-config-deadbeef12",
-            application_name="centraldashboard",
+    def test_orphaned_hand_written_resource_fails(self):
+        resources = [
+            resource
+            for resource in self.complete_resource_set()
+            if resource["metadata"]["name"] != "dashboard-config"
+        ]
+
+        with self.assertRaisesRegex(ValueError, "orphaned"):
+            self.generator.generate_payload_contents(resources)
+
+    def test_generated_name_prefix_requires_a_valid_kustomize_hash(self):
+        resources = self.complete_resource_set()
+        for resource in resources:
+            if resource["metadata"]["name"].startswith("profiles-config-"):
+                resource["metadata"]["name"] = "profiles-config-not-a-hash"
+
+        with self.assertRaisesRegex(ValueError, "orphaned"):
+            self.generator.generate_payload_contents(resources)
+
+    def test_crd_retention_is_added_without_mutating_input(self):
+        resources = self.complete_resource_set()
+        original_resources = copy.deepcopy(resources)
+
+        payloads = self.generator.generate_payload_contents(resources)
+        first_crd = next(self.yaml.load_all(payloads[CRDS_PAYLOAD]))
+
+        self.assertEqual(
+            first_crd["metadata"]["annotations"]["helm.sh/resource-policy"],
+            "keep",
+        )
+        self.assertEqual(resources, original_resources)
+
+    def test_non_crd_resources_are_not_changed(self):
+        resources = self.complete_resource_set()
+        expected = copy.deepcopy(resources[-1])
+
+        payloads = self.generator.generate_payload_contents(resources)
+        rendered = list(self.yaml.load_all(payloads[RESOURCES_PAYLOAD]))
+
+        self.assertIn(expected, rendered)
+
+    def test_upstream_block_scalar_style_is_preserved(self):
+        rendered_yaml = (
+            "apiVersion: v1\n"
+            "kind: ConfigMap\n"
+            "metadata:\n"
+            "  name: poddefaults-webhook-service\n"
+            "  namespace: kubeflow\n"
+            "data:\n"
+            "  links: |-\n"
+            "    {\n"
+            '      "menuLinks": []\n'
+            "    }\n"
+        )
+        parsed = self.generator.parse_resources(rendered_yaml)[0]
+        resources = self.complete_resource_set()
+        resources[-1] = parsed
+
+        payloads = self.generator.generate_payload_contents(resources)
+
+        self.assertIn("  links: |-\n    {\n", payloads[RESOURCES_PAYLOAD])
+
+    def test_documents_are_extracted_verbatim_with_a_trailing_newline(self):
+        payloads = self.generator.generate_payload_contents(
+            self.complete_resource_set()
         )
 
-        with self.assertRaisesRegex(ValueError, "matches multiple components"):
-            self.generator.generate_payload_contents([resource])
+        self.assertEqual(payloads[LINKS_DOCUMENT], '{"menuLinks": []}\n')
+        self.assertEqual(payloads[SETTINGS_DOCUMENT], "{}\n")
+        self.assertEqual(payloads[NAMESPACE_LABELS_DOCUMENT], "key: value\n")
 
-    def test_generated_name_prefix_fallback_is_classified(self):
-        resource = self.resource("profiles-config-deadbeef12")
-
-        component = self.generator.classify_resource(resource)
-
-        self.assertEqual(component, "profile-controller")
-
-    def test_generated_name_prefix_fallback_requires_expected_scope(self):
-        resource = self.resource(
-            "profiles-config-deadbeef12",
-            namespace="unrelated-namespace",
+    def test_documents_carry_no_generated_header(self):
+        payloads = self.generator.generate_payload_contents(
+            self.complete_resource_set()
         )
 
-        with self.assertRaisesRegex(ValueError, "does not match any component"):
-            self.generator.classify_resource(resource)
+        for document in [LINKS_DOCUMENT, SETTINGS_DOCUMENT]:
+            with self.subTest(document=document):
+                self.assertFalse(payloads[document].startswith("#"))
 
-    def test_generated_name_prefix_fallback_rejects_invalid_hash(self):
-        resource = self.resource("profiles-config-not-a-kustomize-hash")
+    def test_missing_document_data_key_fails(self):
+        resources = self.complete_resource_set()
+        for resource in resources:
+            if resource["metadata"]["name"] == "dashboard-config":
+                del resource["data"]["links"]
 
-        with self.assertRaisesRegex(ValueError, "does not match any component"):
-            self.generator.classify_resource(resource)
+        with self.assertRaisesRegex(ValueError, "missing data key"):
+            self.generator.generate_payload_contents(resources)
 
-    def test_generated_name_prefix_does_not_override_unknown_label(self):
-        resource = self.resource(
-            "profiles-config-deadbeef12",
-            application_name="unknown-component",
-        )
+    def test_empty_document_data_key_fails(self):
+        resources = self.complete_resource_set()
+        for resource in resources:
+            if resource["metadata"]["name"] == "dashboard-config":
+                resource["data"]["links"] = "  "
 
-        with self.assertRaisesRegex(ValueError, "unknown application label"):
-            self.generator.classify_resource(resource)
+        with self.assertRaisesRegex(ValueError, "empty"):
+            self.generator.generate_payload_contents(resources)
 
     def test_payload_headers_identify_source_and_regeneration_command(self):
         payloads = self.generator.generate_payload_contents(
             self.complete_resource_set()
         )
 
-        for payload in payloads.values():
-            with self.subTest(payload=payload[:100]):
+        for payload_name in [CRDS_PAYLOAD, RESOURCES_PAYLOAD]:
+            with self.subTest(payload=payload_name):
                 self.assertTrue(
-                    payload.startswith(
+                    payloads[payload_name].startswith(
                         "# Code generated by "
                         "scripts/generate-dashboard-helm-manifests.py. DO NOT EDIT.\n"
                         "# Source: kustomize build "
@@ -295,7 +324,7 @@ class DashboardHelmManifestGeneratorTest(unittest.TestCase):
 
             self.generator.write_payloads_atomically(
                 output_directory,
-                {"current.yaml": "current\n"},
+                {"current.yaml": "current\n", "documents/nested.json": "{}\n"},
             )
 
             self.assertFalse((output_directory / "stale.yaml").exists())
@@ -303,6 +332,21 @@ class DashboardHelmManifestGeneratorTest(unittest.TestCase):
                 (output_directory / "current.yaml").read_text(),
                 "current\n",
             )
+            self.assertEqual(
+                (output_directory / "documents/nested.json").read_text(),
+                "{}\n",
+            )
+
+    def test_payload_filename_must_not_escape_the_output_directory(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output_directory = Path(temporary_directory) / "manifests"
+
+            for filename in ["../escape.yaml", "a/b/c.yaml", "/absolute.yaml"]:
+                with self.subTest(filename=filename):
+                    with self.assertRaises(ValueError):
+                        self.generator.write_payloads_atomically(
+                            output_directory, {filename: "content\n"}
+                        )
 
     def test_generation_is_byte_for_byte_deterministic(self):
         resources = self.complete_resource_set()
@@ -347,7 +391,7 @@ class DashboardHelmManifestGeneratorTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             chart_directory = Path(temporary_directory) / "chart"
             shutil.copytree(CHART_PATH, chart_directory)
-            payload = chart_directory / "manifests/central-dashboard-resources.yaml"
+            payload = chart_directory / "manifests" / RESOURCES_PAYLOAD
             with payload.open("a") as stream:
                 stream.write(
                     "---\n"
@@ -360,7 +404,14 @@ class DashboardHelmManifestGeneratorTest(unittest.TestCase):
                 )
 
             result = subprocess.run(
-                ["helm", "template", "kubeflow-dashboard", str(chart_directory)],
+                [
+                    "helm",
+                    "template",
+                    "kubeflow-dashboard",
+                    str(chart_directory),
+                    "--namespace",
+                    "kubeflow",
+                ],
                 capture_output=True,
                 text=True,
             )
@@ -374,9 +425,7 @@ class DashboardHelmManifestGeneratorTest(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as temporary_directory:
                     chart_directory = Path(temporary_directory) / "chart"
                     shutil.copytree(CHART_PATH, chart_directory)
-                    payload = (
-                        chart_directory / "manifests/central-dashboard-resources.yaml"
-                    )
+                    payload = chart_directory / "manifests" / RESOURCES_PAYLOAD
                     if payload_state == "missing":
                         payload.unlink()
                     elif payload_state == "empty":
@@ -392,6 +441,8 @@ class DashboardHelmManifestGeneratorTest(unittest.TestCase):
                             "template",
                             "kubeflow-dashboard",
                             str(chart_directory),
+                            "--namespace",
+                            "kubeflow",
                         ],
                         capture_output=True,
                         text=True,
@@ -400,13 +451,35 @@ class DashboardHelmManifestGeneratorTest(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn("missing or empty", result.stderr)
 
-    def test_packaged_chart_contains_every_generated_payload(self):
-        expected_payloads = {
-            "kubeflow-dashboard/manifests/central-dashboard-resources.yaml",
-            "kubeflow-dashboard/manifests/poddefaults-webhook-crds.yaml",
-            "kubeflow-dashboard/manifests/poddefaults-webhook-resources.yaml",
-            "kubeflow-dashboard/manifests/profile-controller-crds.yaml",
-            "kubeflow-dashboard/manifests/profile-controller-resources.yaml",
+    def test_missing_document_fails_helm_render(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            chart_directory = Path(temporary_directory) / "chart"
+            shutil.copytree(CHART_PATH, chart_directory)
+            (chart_directory / "manifests" / LINKS_DOCUMENT).unlink()
+
+            result = subprocess.run(
+                [
+                    "helm",
+                    "template",
+                    "kubeflow-dashboard",
+                    str(chart_directory),
+                    "--namespace",
+                    "kubeflow",
+                ],
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("missing or empty", result.stderr)
+
+    def test_packaged_chart_contains_every_generated_file(self):
+        expected_files = {
+            f"kubeflow-dashboard/manifests/{CRDS_PAYLOAD}",
+            f"kubeflow-dashboard/manifests/{RESOURCES_PAYLOAD}",
+            f"kubeflow-dashboard/manifests/{LINKS_DOCUMENT}",
+            f"kubeflow-dashboard/manifests/{SETTINGS_DOCUMENT}",
+            f"kubeflow-dashboard/manifests/{NAMESPACE_LABELS_DOCUMENT}",
         }
         with tempfile.TemporaryDirectory() as temporary_directory:
             result = subprocess.run(
@@ -425,7 +498,7 @@ class DashboardHelmManifestGeneratorTest(unittest.TestCase):
             package = next(Path(temporary_directory).glob("*.tgz"))
             with tarfile.open(package, "r:gz") as archive:
                 packaged_files = set(archive.getnames())
-            self.assertTrue(expected_payloads.issubset(packaged_files))
+            self.assertTrue(expected_files.issubset(packaged_files))
 
 
 if __name__ == "__main__":

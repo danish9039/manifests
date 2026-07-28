@@ -25,6 +25,10 @@ DEX_POD_TEMPLATE_CHECKSUM_KEYS = {
     "checksum/passwords",
 }
 
+DASHBOARD_POD_TEMPLATE_CHECKSUM_KEYS = {
+    "checksum/config",
+}
+
 EXPECTED_HELM_CRD_RESOURCE_POLICIES = {
     "kubeflow-dashboard": {
         "poddefaults.kubeflow.org",
@@ -196,6 +200,9 @@ def normalize_manifest(
         remove_dex_pod_template_checksums(normalized)
         normalize_dex_config_map(normalized)
 
+    if component == "kubeflow-dashboard":
+        remove_dashboard_pod_template_checksums(normalized)
+
     if component == "cert-manager":
         preserve_cert_manager_kubeflow_labels(manifest, normalized)
 
@@ -281,6 +288,32 @@ def remove_dex_pod_template_checksums(manifest: Dict) -> None:
     }
 
 
+def remove_dashboard_pod_template_checksums(manifest: Dict) -> None:
+    """Ignore rollout checksums while preserving other Dashboard annotations.
+
+    The chart names its ConfigMaps without the Kustomize content-hash suffix, so
+    it triggers a rollout with a checksum annotation instead. Kustomize achieves
+    the same effect through the hashed name and renders no annotation.
+    """
+    metadata = manifest.get("metadata", {})
+    if manifest.get("kind") != "Deployment" or metadata.get("name") not in {
+        "dashboard",
+        "profiles-deployment",
+    }:
+        return
+
+    pod_metadata = manifest.get("spec", {}).get("template", {}).get("metadata", {})
+    annotations = pod_metadata.get("annotations")
+    if not isinstance(annotations, dict):
+        return
+
+    pod_metadata["annotations"] = {
+        key: value
+        for key, value in annotations.items()
+        if key not in DASHBOARD_POD_TEMPLATE_CHECKSUM_KEYS
+    }
+
+
 def normalize_dex_config_map(manifest: Dict) -> None:
     """Compare the embedded Dex configuration by YAML value, not quote style."""
     metadata = manifest.get("metadata", {})
@@ -347,8 +380,10 @@ def get_resource_key(manifest: Dict, component: str = "katib") -> str:
     name = manifest.get("metadata", {}).get("name", "unknown")
     namespace = manifest.get("metadata", {}).get("namespace", "")
 
-    if component != "oauth2-proxy" and kind in ["Secret", "ConfigMap"]:
-        name = KUSTOMIZE_HASH_SUFFIX.sub("", name)
+    # The name has already been normalized by normalize_manifest. Stripping the
+    # hash suffix a second time here would also remove a legitimate final name
+    # segment of exactly ten lowercase alphanumeric characters, for example
+    # "dashboard-parameters", and would do so on only one of the two sides.
 
     # Include namespace for namespaced resources so same-name objects in
     # different namespaces cannot overwrite each other in the comparison map.
@@ -410,12 +445,23 @@ def get_expected_helm_extras(component: str, scenario: str) -> set:
         return set()
 
 
+def helm_uses_kustomize_generated_names(component: str) -> bool:
+    """Whether the chart reproduces Kustomize's content-hashed resource names.
+
+    Charts that name their ConfigMaps and Secrets without the hash suffix must
+    not have that suffix stripped from their side of the comparison, otherwise a
+    legitimate final name segment can be removed from one side only.
+    """
+    return component not in ("oauth2-proxy", "kubeflow-dashboard")
+
+
 def compare_manifests(
     kustomize_file: str,
     helm_file: str,
     component: str,
     scenario: str,
     namespace: str = "",
+    verbose: bool = False,
 ) -> bool:
     """Compare Kustomize and Helm manifests."""
     kustomize_manifests = load_manifests(kustomize_file)
@@ -446,7 +492,7 @@ def compare_manifests(
         normalized = normalize_manifest(
             manifest,
             component,
-            normalize_kustomize_names=(component != "oauth2-proxy"),
+            normalize_kustomize_names=helm_uses_kustomize_generated_names(component),
         )
         key = get_resource_key(normalized, component)
         helm_resources[key] = normalized
@@ -466,11 +512,17 @@ def compare_manifests(
 
     if only_in_kustomize:
         print(f"Resources only in Kustomize: {len(only_in_kustomize)}")
+        if verbose:
+            for key in sorted(only_in_kustomize):
+                print(f"  {key}")
         success = False
         differences_found.extend(only_in_kustomize)
 
     if unexpected_helm_extras:
         print(f"Unexpected resources only in Helm: {len(unexpected_helm_extras)}")
+        if verbose:
+            for key in sorted(unexpected_helm_extras):
+                print(f"  {key}")
         success = False
         differences_found.extend(unexpected_helm_extras)
 
@@ -483,6 +535,9 @@ def compare_manifests(
 
         if differences:
             print(f"Differences in {key}: {len(differences)} fields")
+            if verbose:
+                for difference in differences:
+                    print(f"  {difference}")
             differences_found.append(key)
             success = False
 
@@ -529,7 +584,9 @@ if __name__ == "__main__":
         )
         sys.exit(1)
 
+    verbose = "--verbose" in sys.argv[1:]
+
     success = compare_manifests(
-        kustomize_file, helm_file, component, scenario, namespace
+        kustomize_file, helm_file, component, scenario, namespace, verbose
     )
     sys.exit(0 if success else 1)

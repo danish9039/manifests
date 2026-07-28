@@ -279,7 +279,7 @@ case "$COMPONENT" in
         )
 
         declare -A NAMESPACES=(
-            ["platform"]="kubeflow-system"
+            ["platform"]="kubeflow"
         )
         ;;
 
