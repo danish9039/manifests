@@ -39,7 +39,8 @@ update_dashboard_helm_chart() {
 }
 
 validate_dashboard_helm_chart() {
-    helm lint "$HELM_CHART_DIRECTORY"
+    # The chart refuses any namespace but kubeflow, so the linter needs it too.
+    helm lint "$HELM_CHART_DIRECTORY" --namespace kubeflow
     "${MANIFESTS_DIRECTORY}/tests/helm_kustomize_compare_all.sh" "$COMPONENT_NAME"
 }
 
@@ -56,7 +57,6 @@ commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from 
   "${HELM_CHART_PATH}/Chart.yaml" \
   "${HELM_CHART_PATH}/kustomize/kustomization.yaml" \
   "${HELM_CHART_PATH}/manifests" \
-  "${HELM_CHART_PATH}/templates" \
   "${SCRIPT_DIRECTORY}/generate-dashboard-helm-manifests.py" \
   "${SCRIPT_DIRECTORY}/synchronize-dashboard-manifests.sh" \
   "README.md"

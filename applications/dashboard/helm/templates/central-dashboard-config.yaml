@@ -1,0 +1,29 @@
+{{- if eq .Values.scenario "platform" }}
+{{- $parameters := dict
+  "COLLECT_METRICS" (.Values.centralDashboard.collectMetrics | toString)
+  "REGISTRATION_FLOW" (.Values.centralDashboard.registrationFlow | toString)
+  "USERID_HEADER" (.Values.identity.userIdHeader | toString)
+  "USERID_PREFIX" (.Values.identity.userIdPrefix | toString) }}
+{{- $configuration := dict
+  "links" (include "kubeflow-dashboard.document" (dict "root" . "path" "manifests/documents/dashboard-links.json" "value" .Values.centralDashboard.links))
+  "settings" (include "kubeflow-dashboard.document" (dict "root" . "path" "manifests/documents/dashboard-settings.json" "value" .Values.centralDashboard.settings)) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    {{- include "kubeflow-dashboard.centralDashboard.labels" . | nindent 4 }}
+  name: dashboard-parameters
+  namespace: {{ .Release.Namespace }}
+data:
+  {{- toYaml $parameters | nindent 2 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    {{- include "kubeflow-dashboard.centralDashboard.labels" . | nindent 4 }}
+  name: dashboard-config
+  namespace: {{ .Release.Namespace }}
+data:
+  {{- toYaml $configuration | nindent 2 }}
+{{- end }}
