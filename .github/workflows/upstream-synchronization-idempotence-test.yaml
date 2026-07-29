@@ -20,6 +20,8 @@ jobs:
         python-version: "3.13"
 
     - name: Install Python dependencies
+      # PyYAML is required because the synchronization scripts now run the
+      # Helm/Kustomize parity comparison before committing.
       run: python -m pip install pyyaml ruamel.yaml==0.19.1
 
     - name: Test Helm synchronization library
@@ -27,6 +29,11 @@ jobs:
 
     - name: Test resynchronization selection
       run: python -m unittest tests/test_resynchronize_upstream_changes.py
+
+    - name: Install Helm
+      uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
+      with:
+        version: v4.2.2
 
     - name: Install Kustomize
       working-directory: /tmp
