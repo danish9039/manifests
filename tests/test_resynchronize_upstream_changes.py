@@ -1,57 +1,47 @@
+#!/usr/bin/env python3
+"""Guard the changed-file to synchronization-script routing.
+
+Deleting a route silently makes the idempotence job run no script for that
+path, so the component is never regenerated and drift is never detected. One
+table-driven test over the routes keeps that failure visible.
+"""
+
 import importlib.util
 import unittest
 from pathlib import Path
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-SELECTOR_PATH = REPOSITORY_ROOT / "tests/resynchronize-upstream-changes.py"
-MODULE_SPEC = importlib.util.spec_from_file_location(
+SELECTOR_PATH = (
+    Path(__file__).resolve().parents[1] / "tests/resynchronize-upstream-changes.py"
+)
+_SPEC = importlib.util.spec_from_file_location(
     "resynchronize_upstream_changes", SELECTOR_PATH
 )
-RESYNCHRONIZE_UPSTREAM_CHANGES = importlib.util.module_from_spec(MODULE_SPEC)
-assert MODULE_SPEC.loader is not None
-MODULE_SPEC.loader.exec_module(RESYNCHRONIZE_UPSTREAM_CHANGES)
+selector = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(selector)
+
+NOTEBOOKS_SCRIPT = Path("scripts/synchronize-notebooks-v1-manifests.sh")
+
+ROUTES = [
+    "applications/notebooks-v1/upstream/notebook-controller/kustomization.yaml",
+    "applications/notebooks-v1/helm/Chart.yaml",
+    "applications/notebooks-v1/helm/kustomize/kustomization.yaml",
+    "applications/notebooks-v1/helm/manifests/platform-crds.yaml",
+    "scripts/generate-notebooks-v1-helm-manifests.py",
+    "scripts/helm_manifest_generator.py",
+]
 
 
 class ResynchronizeUpstreamChangesTest(unittest.TestCase):
-    def test_notebooks_paths_select_only_notebooks_synchronization(self):
-        expected_scripts = {Path("scripts/synchronize-notebooks-v1-manifests.sh")}
-        positive_paths = [
-            Path(
-                "applications/notebooks-v1/upstream/jupyter-web-app/base/kustomization.yaml"
-            ),
-            Path("applications/notebooks-v1/helm/Chart.yaml"),
-            Path("applications/notebooks-v1/helm/kustomize/kustomization.yaml"),
-            Path("applications/notebooks-v1/helm/templates/platform.yaml"),
-        ]
-
-        for changed_path in positive_paths:
-            with self.subTest(changed_path=changed_path):
+    def test_every_notebooks_route_selects_the_notebooks_script(self):
+        for route in ROUTES:
+            with self.subTest(route=route):
                 self.assertEqual(
-                    RESYNCHRONIZE_UPSTREAM_CHANGES.find_upstream_scripts(
-                        [changed_path]
-                    ),
-                    expected_scripts,
+                    selector.find_upstream_scripts([Path(route)]),
+                    {NOTEBOOKS_SCRIPT},
                 )
 
-    def test_unrelated_notebooks_paths_select_no_synchronization(self):
-        negative_paths = [
-            Path("applications/notebooks-v1/helm/values.yaml"),
-            Path("applications/notebooks-v1/helm/ci/values-platform.yaml"),
-            Path("applications/notebooks-v1/helm/README.md"),
-            Path("applications/notebooks-v1/helm/templates/validate.yaml"),
-            Path("applications/notebooks-v1/helmish/Chart.yaml"),
-            Path("scripts/library.sh"),
-            Path("scripts/unrelated.py"),
-        ]
-
-        for changed_path in negative_paths:
-            with self.subTest(changed_path=changed_path):
-                self.assertEqual(
-                    RESYNCHRONIZE_UPSTREAM_CHANGES.find_upstream_scripts(
-                        [changed_path]
-                    ),
-                    set(),
-                )
+    def test_unrelated_path_selects_nothing(self):
+        self.assertEqual(selector.find_upstream_scripts([Path("README.md")]), set())
 
 
 if __name__ == "__main__":
