@@ -28,6 +28,7 @@ path_to_synchronization_script = {
     "common/knative": "scripts/synchronize-knative-manifests.sh",
     "common/oauth2-proxy": "scripts/synchronize-oauth2-proxy-manifests.sh",
     "scripts/generate-dashboard-helm-manifests.py": "scripts/synchronize-dashboard-manifests.sh",
+    "scripts/helm_manifest_generator.py": "scripts/synchronize-dashboard-manifests.sh",
 }
 
 # convert the strings above into actual path objects for easier handling later

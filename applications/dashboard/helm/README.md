@@ -18,10 +18,12 @@ Helm linting and the Helm/Kustomize parity comparison.
 Install the platform prerequisites first: `kubeflow-namespaces`,
 `kubeflow-platform`, `cert-manager`, `istio`, `oauth2-proxy`, and `dex`.
 
-The chart owns the `kubeflow` namespace and refuses to install anywhere else.
-Every resource it renders declares `namespace: kubeflow`, so a release installed
-elsewhere would store its metadata in one namespace while modifying another, and
-`helm uninstall` would then delete resources it does not appear to own.
+The chart requires its release namespace to be `kubeflow` and refuses to install
+anywhere else. It does not create or own that namespace - the
+`kubeflow-namespaces` foundation chart does. Every resource this chart renders
+declares `namespace: kubeflow`, so a release installed elsewhere would store its
+metadata in one namespace while modifying another, and `helm uninstall` would
+then delete resources it does not appear to own.
 
 ```bash
 helm install kubeflow-dashboard ./applications/dashboard/helm \
@@ -52,6 +54,13 @@ equals the value rendered by `applications/dashboard/overlays/istio`.
 | `profileController.admin` | empty | Cluster administrator granted access to every Profile. |
 | `profileController.workloadIdentity` | empty | Google Cloud workload identity for Profile service accounts. |
 | `profileController.namespaceLabels` | inherited | Labels applied to every Profile namespace, as YAML. |
+| `customResourceDefinitions.enabled` | `true` | Render the PodDefault and Profile custom resource definitions. |
+
+The three document values - `links`, `settings` and `namespaceLabels` - are
+**strings** containing a whole document. Passing a map or list is rejected,
+because Helm would otherwise write Go's own formatting of that value and the
+application could not parse it. Leave a document empty to inherit the upstream
+default byte for byte, or supply the replacement as a quoted block scalar.
 
 `identity.userIdHeader` and `identity.userIdPrefix` are consumed by both the
 Central Dashboard and the Profile Controller. They are declared once and rendered
@@ -77,6 +86,8 @@ The platform Dashboard Kustomize overlay includes Central Dashboard, the
 PodDefaults webhook, and Profile Controller with KFAM. This chart keeps that
 grouping for parity.
 
+### Custom resource definition lifecycle
+
 The `profiles.kubeflow.org` and `poddefaults.kubeflow.org` custom resource
 definitions are rendered from `templates/` and carry
 `helm.sh/resource-policy: keep`. This deviates from Helm's documented
@@ -86,6 +97,18 @@ schemas at their first installed version. Rendering them as templates keeps the
 schemas upgradeable, while the retention policy stops `helm uninstall` from
 deleting every Profile and PodDefault in the cluster.
 
+Because they are templates rather than `crds/` content, Helm's `--skip-crds`
+option has no effect on them. Use `customResourceDefinitions.enabled=false` when
+an administrator or another release already owns both definitions.
+
+| Operation | Behaviour |
+| --- | --- |
+| `helm install` | Creates both definitions unless `customResourceDefinitions.enabled=false`. |
+| `helm upgrade` | Applies schema changes from the new chart version. |
+| `helm uninstall` | **Retains** both definitions and every Profile and PodDefault. Namespaced Dashboard resources are removed. |
+| reinstall | Succeeds against the retained definitions and adopts them into the new release. |
+| manual cleanup | `kubectl delete crd profiles.kubeflow.org poddefaults.kubeflow.org` — this deletes every Profile and PodDefault in the cluster. |
+
 Regenerate the payloads through the component synchronization workflow:
 
 ```bash
@@ -94,8 +117,14 @@ KUBEFLOW_SYNCHRONIZE_NO_COMMIT=true \
   ./scripts/synchronize-dashboard-manifests.sh
 ```
 
-Do not edit files under `manifests/` directly. Review a generated payload change
-by regenerating it and confirming `git diff` is empty, not by reading the diff.
+Do not edit files under `manifests/` directly.
+
+Review a generated payload change in two steps, because they prove different
+things. First read the change by resource identity and upstream source boundary:
+which resources appeared, disappeared or changed, and does each change belong to
+the upstream release. Then regenerate and confirm `git diff` is empty. The replay
+proves only that the generator is deterministic; it cannot tell you whether a new
+upstream release introduced an unintended webhook, permission or policy change.
 
 ## Kustomize Mapping
 
