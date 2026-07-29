@@ -109,10 +109,23 @@ resolve_istiod() {
   echo "resolved istiod pod=$ISTIOD_POD node=$ISTIOD_NODE cgroup=$ISTIOD_CGROUP_PATH"
 }
 
+
 istiod_cpu_seconds() {
-  kubectl get --raw \
-    "/api/v1/namespaces/istio-system/pods/${ISTIOD_POD}:15014/proxy/metrics" 2>/dev/null |
-    awk '/^process_cpu_seconds_total /{print $2; exit}'
+  local body
+  # The diagnostic goes straight to the log file, because this function runs
+  # inside a command substitution and anything on standard output would end up
+  # in the sample row.
+  # The request timeout must precede --raw, because --raw consumes the next
+  # argument as its value.
+  if ! body=$(kubectl get --request-timeout=4s --raw \
+    "/api/v1/namespaces/istio-system/pods/${ISTIOD_POD}:15014/proxy/metrics" 2>&1); then
+    if [ ! -f "$OUT_DIR/.proxy-diagnosed" ]; then
+      : >"$OUT_DIR/.proxy-diagnosed"
+      echo "istiod metrics proxy failed: ${body:0:400}" >>"$PROBE_LOG"
+    fi
+    return 0
+  fi
+  printf '%s\n' "$body" | awk '/^process_cpu_seconds_total /{print $2; exit}'
 }
 
 istiod_cgroup_usec() {
@@ -126,7 +139,7 @@ istiod_cgroup_usec() {
 # cluster, not only the probe, plus the priority and fairness queue depth.
 scrape_apiserver_metrics() {
   local raw="$OUT_DIR/apiserver-metrics-$(date +%s).txt"
-  if ! kubectl get --raw /metrics >"$raw" 2>/dev/null; then
+  if ! kubectl get --request-timeout=15s --raw /metrics >"$raw" 2>/dev/null; then
     rm -f "$raw"
     return 1
   fi
@@ -150,6 +163,7 @@ echo "elapsed_s,iso_time,inject_ms,inject_rc,readyz_ms,readyz_rc,ping_ms,ping_rc
 
 START_MS=$(now_ms)
 prev_cpu_seconds=""
+prev_cpu_ms=""
 prev_cgroup_usec=""
 prev_busy=""
 prev_total=""
@@ -178,28 +192,43 @@ while :; do
   read -r control_ms control_rc < <(timed kubectl create -n default \
     --dry-run=server --request-timeout=25s -f "$POD_MANIFEST")
 
-  [ -n "$ISTIOD_POD" ] || resolve_istiod >/dev/null
-
-  cpu_seconds=$(istiod_cpu_seconds)
+  # Everything above runs on every sample. Everything below is either cheap
+  # or deliberately rationed, so that the loop keeps an honest cadence and
+  # perturbs the cluster as little as possible.
   cgroup_usec=$(istiod_cgroup_usec)
   read -r busy total < <(read_proc_stat)
   loadavg1=$(awk '{print $1; exit}' /proc/loadavg)
 
-  istiod_restarts=$(kubectl get pod -n istio-system -l app=istiod \
-    -o jsonpath='{.items[0].status.containerStatuses[0].restartCount}' 2>/dev/null)
-  pods_not_running=$(kubectl get pods --all-namespaces \
-    --field-selector=status.phase!=Running,status.phase!=Succeeded \
-    --no-headers 2>/dev/null | wc -l)
+  cpu_seconds=""
+  istiod_restarts=""
+  pods_not_running=""
+  if [ $((iteration % METRICS_EVERY)) -eq 1 ]; then
+    [ -n "$ISTIOD_POD" ] || resolve_istiod >/dev/null
+    cpu_seconds=$(istiod_cpu_seconds)
+    istiod_restarts=$(kubectl get pod -n istio-system -l app=istiod \
+      --request-timeout=8s \
+      -o jsonpath='{.items[0].status.containerStatuses[0].restartCount}' 2>/dev/null)
+    pods_not_running=$(kubectl get pods --all-namespaces --request-timeout=8s \
+      --field-selector=status.phase!=Running,status.phase!=Succeeded \
+      --no-headers 2>/dev/null | wc -l)
+  fi
 
   wall_s=1
   if [ -n "$prev_sample_ms" ]; then
     wall_s=$(awk -v a="$sample_ms" -v b="$prev_sample_ms" 'BEGIN{d=(a-b)/1000; print (d>0?d:1)}')
   fi
 
+  # The istiod Prometheus reading is rationed, so its own interval is measured
+  # separately from the sample interval.
   istiod_cpu_cores=""
-  if [ -n "$cpu_seconds" ] && [ -n "$prev_cpu_seconds" ]; then
-    istiod_cpu_cores=$(awk -v a="$cpu_seconds" -v b="$prev_cpu_seconds" -v w="$wall_s" \
-      'BEGIN{printf "%.3f", (a-b)/w}')
+  if [ -n "$cpu_seconds" ]; then
+    if [ -n "$prev_cpu_seconds" ] && [ -n "$prev_cpu_ms" ]; then
+      istiod_cpu_cores=$(awk -v a="$cpu_seconds" -v b="$prev_cpu_seconds" \
+        -v now="$sample_ms" -v then="$prev_cpu_ms" \
+        'BEGIN{w=(now-then)/1000; if (w>0) printf "%.3f", (a-b)/w}')
+    fi
+    prev_cpu_seconds="$cpu_seconds"
+    prev_cpu_ms="$sample_ms"
   fi
 
   istiod_cgroup_cores=""
@@ -245,11 +274,18 @@ while :; do
     "$webhook_calls" "$webhook_mean_ms" "$apf_inqueue" "$apf_executing" \
     "$apiserver_terminations" >>"$SAMPLES"
 
-  prev_cpu_seconds="$cpu_seconds"
   prev_cgroup_usec="$cgroup_usec"
   prev_busy="$busy"
   prev_total="$total"
   prev_sample_ms="$sample_ms"
 
-  sleep "$INTERVAL"
+  # Keep an honest cadence: subtract the work already done from the interval,
+  # and record the overrun when a sample took longer than the interval itself.
+  work_ms=$(($(now_ms) - sample_ms))
+  remaining=$(awk -v i="$INTERVAL" -v w="$work_ms" \
+    'BEGIN{r=i-w/1000; if (r<0) r=0; printf "%.2f", r}')
+  if [ "$work_ms" -gt $((INTERVAL * 1000)) ]; then
+    echo "sample ${iteration} took ${work_ms}ms, longer than the ${INTERVAL}s interval"
+  fi
+  sleep "$remaining"
 done
