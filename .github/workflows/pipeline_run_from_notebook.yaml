@@ -7,6 +7,7 @@ on:
     - applications/notebooks-v1/**
     - applications/pipeline/upstream/**
     - tests/istio*
+    - tests/ci_latency_probe*
     - tests/dashboard_install.sh
     - tests/notebooks_install.sh
     - tests/multi_tenancy_install.sh
@@ -47,17 +48,51 @@ jobs:
     - name: Install Multi-Tenancy
       run: ./tests/multi_tenancy_install.sh
 
+    # Throwaway experiment instrumentation. Everything between here and the
+    # "Stop control plane latency probe" step exists only to record where the
+    # control plane time goes during the installation burst.
+    - name: Start control plane latency probe
+      run: |
+        mkdir -p probe
+        chmod +x ./tests/ci_latency_probe.sh
+        nohup ./tests/ci_latency_probe.sh probe </dev/null >/dev/null 2>&1 &
+        echo $! > probe/pid
+        disown || true
+        echo "$(date +%s%3N),probe-started" >> probe/marks.csv
+        sleep 20
+        echo "probe running with process identifier $(cat probe/pid)"
+        head -3 probe/samples.csv || true
+
+    - name: Mark before KF Pipelines
+      run: echo "$(date +%s%3N),install-pipelines-begin" >> probe/marks.csv
+
     - name: Install KF Pipelines
       run: ./tests/pipelines_install.sh
+
+    - name: Mark after KF Pipelines
+      if: always()
+      run: echo "$(date +%s%3N),install-pipelines-end" >> probe/marks.csv
 
     - name: Install Dashboard
       run: ./tests/dashboard_install.sh
 
+    - name: Mark after Dashboard
+      if: always()
+      run: echo "$(date +%s%3N),install-dashboard-end" >> probe/marks.csv
+
     - name: Install Notebooks v1
       run: ./tests/notebooks_install.sh
 
+    - name: Mark after Notebooks v1
+      if: always()
+      run: echo "$(date +%s%3N),install-notebooks-end" >> probe/marks.csv
+
     - name: Create KF Profile
       run: ./tests/kubeflow_profile_install.sh
+
+    - name: Mark after KF Profile
+      if: always()
+      run: echo "$(date +%s%3N),create-profile-end" >> probe/marks.csv
 
     - name: Apply PodDefaults to access ml-pipeline with projected token
       run: kubectl apply -f tests/poddefaults.access-ml-pipeline.kubeflow-user-example-com.yaml
@@ -80,6 +115,54 @@ jobs:
 
     - name: Apply Pod Security Standards restricted levels
       run: ./tests/PSS_enable.sh
+
+    - name: Stop control plane latency probe and summarize
+      if: always()
+      timeout-minutes: 6
+      run: |
+        echo "$(date +%s%3N),job-end" >> probe/marks.csv
+        if [ -f probe/pid ]; then
+          kill "$(cat probe/pid)" 2>/dev/null || true
+        fi
+        sleep 2
+
+        kubectl get --raw \
+          "/api/v1/namespaces/istio-system/pods/$(kubectl get pod -n istio-system \
+            -l app=istiod -o jsonpath='{.items[0].metadata.name}'):15014/proxy/metrics" \
+          > probe/istiod-metrics-final.txt 2>&1 || true
+        kubectl get --raw /metrics > probe/apiserver-metrics-final.txt 2>&1 || true
+        gzip -f probe/apiserver-metrics-final.txt || true
+        kubectl logs -n istio-system -l app=istiod --tail=2000 \
+          > probe/istiod.log 2>&1 || true
+        kubectl describe pod -n istio-system -l app=istiod \
+          > probe/istiod-describe.txt 2>&1 || true
+        kubectl get events --all-namespaces \
+          --sort-by=.metadata.creationTimestamp \
+          > probe/events.txt 2>&1 || true
+        docker stats --no-stream > probe/docker-stats.txt 2>&1 || true
+        nproc > probe/nproc.txt 2>&1 || true
+        free -m > probe/free.txt 2>&1 || true
+
+        echo "===== raw samples ====="
+        cat probe/samples.csv
+        echo "===== probe log ====="
+        tail -50 probe/probe.log || true
+        echo "===== summary ====="
+        python3 ./tests/ci_latency_probe_summary.py probe || true
+        echo "===== server side injection webhook histogram ====="
+        zcat probe/apiserver-metrics-final.txt.gz 2>/dev/null \
+          | grep 'apiserver_admission_webhook_admission_duration_seconds_bucket' \
+          | grep 'sidecar-injector' || true
+
+        mkdir -p logs
+        cp -r probe logs/probe
+
+    - name: Upload probe data
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: control-plane-latency-probe-${{ github.run_id }}-${{ github.run_attempt }}
+        path: probe/
 
     - name: Collect Logs on Failure
       if: failure()
