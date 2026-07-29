@@ -29,16 +29,20 @@ copy_component_manifests() {
 TARGET_DIRECTORY="applications/notebooks-v1/upstream"
 HELM_CHART_PATH="applications/notebooks-v1/helm"
 HELM_CHART_DIRECTORY="${MANIFESTS_DIRECTORY}/${HELM_CHART_PATH}"
-HELM_PLATFORM_TEMPLATE="${HELM_CHART_DIRECTORY}/templates/platform.yaml"
+COMPONENT_NAME="kubeflow-notebooks"
 
 update_notebooks_helm_chart() {
     local chart_yaml="${HELM_CHART_DIRECTORY}/Chart.yaml"
 
     update_helm_chart_application_version "$chart_yaml" "$COMMIT"
-    render_kustomize_helm_template "$MANIFESTS_DIRECTORY" \
-        "${HELM_CHART_PATH}/kustomize" \
-        "platform" \
-        "$HELM_PLATFORM_TEMPLATE"
+    python3 "${SCRIPT_DIRECTORY}/generate-notebooks-v1-helm-manifests.py" \
+        --repository-root "$MANIFESTS_DIRECTORY"
+}
+
+validate_notebooks_helm_chart() {
+    # The chart refuses any namespace but kubeflow, so the linter needs it too.
+    helm lint "$HELM_CHART_DIRECTORY" --namespace kubeflow
+    "${MANIFESTS_DIRECTORY}/tests/helm_kustomize_compare_all.sh" "$COMPONENT_NAME"
 }
 
 copy_component_manifests "components/crud-web-apps/jupyter/manifests" \
@@ -55,12 +59,23 @@ copy_component_manifests "components/pvcviewer-controller/config" \
     "${TARGET_DIRECTORY}/pvcviewer-controller"
 
 update_notebooks_helm_chart
+validate_notebooks_helm_chart
 
+# An upstream change that the chart cannot absorb makes the parity comparison
+# above fail until a maintainer edits the chart. The component-owned chart paths
+# are therefore part of a synchronization change, and staging them keeps this
+# script from reporting success while that correction stays uncommitted.
 commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests to ${COMMIT}" \
   "${TARGET_DIRECTORY}" \
   "${HELM_CHART_PATH}/Chart.yaml" \
   "${HELM_CHART_PATH}/kustomize/kustomization.yaml" \
-  "${HELM_CHART_PATH}/templates/platform.yaml" \
+  "${HELM_CHART_PATH}/manifests" \
+  "${HELM_CHART_PATH}/templates" \
+  "${HELM_CHART_PATH}/values.yaml" \
+  "${HELM_CHART_PATH}/ci" \
+  "${HELM_CHART_PATH}/README.md" \
+  "${SCRIPT_DIRECTORY}/helm_manifest_generator.py" \
+  "${SCRIPT_DIRECTORY}/generate-notebooks-v1-helm-manifests.py" \
   "${SCRIPT_DIRECTORY}/synchronize-notebooks-v1-manifests.sh" \
   "README.md"
 echo "Synchronization completed successfully."
