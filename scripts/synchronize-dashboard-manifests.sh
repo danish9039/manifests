@@ -52,11 +52,21 @@ copy_component_manifests "components/profile-controller/manifests/kustomize" \
     "${TARGET_DIRECTORY}/profile-controller"
 update_dashboard_helm_chart
 validate_dashboard_helm_chart
+# An upstream change to one of the hand-written resources makes the parity
+# comparison above fail until a maintainer updates the corresponding template.
+# The component-owned chart paths are therefore part of a synchronization
+# change, and staging them keeps the script from reporting success while that
+# correction stays uncommitted.
 commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" \
   "${TARGET_DIRECTORY}" \
   "${HELM_CHART_PATH}/Chart.yaml" \
   "${HELM_CHART_PATH}/kustomize/kustomization.yaml" \
   "${HELM_CHART_PATH}/manifests" \
+  "${HELM_CHART_PATH}/templates" \
+  "${HELM_CHART_PATH}/values.yaml" \
+  "${HELM_CHART_PATH}/ci" \
+  "${HELM_CHART_PATH}/README.md" \
+  "${SCRIPT_DIRECTORY}/helm_manifest_generator.py" \
   "${SCRIPT_DIRECTORY}/generate-dashboard-helm-manifests.py" \
   "${SCRIPT_DIRECTORY}/synchronize-dashboard-manifests.sh" \
   "README.md"
