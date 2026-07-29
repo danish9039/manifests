@@ -86,6 +86,29 @@ The platform Dashboard Kustomize overlay includes Central Dashboard, the
 PodDefaults webhook, and Profile Controller with KFAM. This chart keeps that
 grouping for parity.
 
+### Upgrading
+
+Helm 4 applies server-side. Two sets of fields in this chart are owned by other
+controllers once the cluster is running:
+
+- the Kubernetes RBAC aggregation controller fills in `.rules` on the aggregated
+  `poddefaults-admin` and `poddefaults-edit` cluster roles, which ship empty;
+- cert-manager's CA injector writes
+  `.webhooks[].clientConfig.caBundle` on the PodDefaults webhook configuration.
+
+A plain `helm upgrade` therefore stops with a field-ownership conflict. Pass
+`--force-conflicts`:
+
+```bash
+helm upgrade kubeflow-dashboard ./applications/dashboard/helm \
+  --namespace kubeflow --force-conflicts --wait
+```
+
+This is safe here: both controllers reconcile continuously and restore their
+fields immediately after the apply, which was verified on a live cluster. Note
+that an upgrade which fails on a conflict has already applied the objects it
+processed before the failure, so re-run it rather than assuming nothing changed.
+
 ### Custom resource definition lifecycle
 
 The `profiles.kubeflow.org` and `poddefaults.kubeflow.org` custom resource
