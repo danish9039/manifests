@@ -26,6 +26,18 @@ CONTROL_PLANE_DEPLOYMENTS = (
     "llmisvc-controller-manager",
 )
 
+CLUSTER_SCOPED_KINDS = {
+    "CustomResourceDefinition",
+    "MutatingWebhookConfiguration",
+    "Namespace",
+    "ValidatingWebhookConfiguration",
+}
+
+
+def is_cluster_scoped(resource):
+    resource_kind = resource.get("kind", "")
+    return resource_kind.startswith("Cluster") or resource_kind in CLUSTER_SCOPED_KINDS
+
 
 def render_kustomization(kustomization_path):
     completed_process = subprocess.run(
@@ -61,34 +73,32 @@ class KServeManifestTest(unittest.TestCase):
             REPOSITORY_ROOT / "applications/kserve/kserve-ui"
         )
 
-    def test_relocation_leaves_no_resource_in_the_kubeflow_namespace(self):
+    def test_every_namespaced_resource_is_in_kserve(self):
         """A resource left behind in kubeflow still installs and still runs.
 
         Nothing in the live installation fails, so only a static sweep of the
-        rendered output can prove the relocation is complete.
+        rendered output can prove the relocation is complete. Assert the exact
+        namespace rather than the absence of the old one: a resource that
+        declares no namespace at all is applied into whichever namespace the
+        caller happens to be using, which is `default` for the installation
+        scripts, and a check for "not kubeflow" would stay green.
         """
-        for resource in self.kserve_resources:
-            self.assertNotEqual(
-                resource.get("metadata", {}).get("namespace"),
-                "kubeflow",
-                msg=(
-                    f"{resource.get('kind')}/"
-                    f"{resource.get('metadata', {}).get('name')} remains in kubeflow"
-                ),
-            )
-
-        for resource in self.kserve_user_interface_resources:
-            resource_kind = resource.get("kind", "")
-            if resource_kind.startswith("Cluster"):
-                continue
-            self.assertEqual(
-                resource.get("metadata", {}).get("namespace"),
-                "kserve",
-                msg=(
-                    f"{resource_kind}/"
-                    f"{resource.get('metadata', {}).get('name')} is not in kserve"
-                ),
-            )
+        for resources in (
+            self.kserve_resources,
+            self.kserve_user_interface_resources,
+        ):
+            for resource in resources:
+                if is_cluster_scoped(resource):
+                    continue
+                self.assertEqual(
+                    resource.get("metadata", {}).get("namespace"),
+                    "kserve",
+                    msg=(
+                        f"{resource.get('kind')}/"
+                        f"{resource.get('metadata', {}).get('name')} "
+                        "is not in kserve"
+                    ),
+                )
 
     def test_istio_injects_the_user_interface_but_not_the_control_plane(self):
         """The kserve namespace is not injection-enabled on purpose.
@@ -156,19 +166,9 @@ class KServeManifestTest(unittest.TestCase):
         A stray namespace field therefore never fails an apply and is only
         visible in the rendered manifests.
         """
-        explicitly_cluster_scoped_kinds = {
-            "CustomResourceDefinition",
-            "MutatingWebhookConfiguration",
-            "Namespace",
-            "ValidatingWebhookConfiguration",
-        }
-
         for resource in self.kserve_resources:
             resource_kind = resource.get("kind", "")
-            if not (
-                resource_kind.startswith("Cluster")
-                or resource_kind in explicitly_cluster_scoped_kinds
-            ):
+            if not is_cluster_scoped(resource):
                 continue
 
             self.assertNotIn(

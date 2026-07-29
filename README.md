@@ -351,7 +351,7 @@ Optionally, you can install Knative Eventing, which can be used for inference re
 ./tests/kserve_install.sh
 ```
 
-The KServe control plane is installed in the `kserve` namespace. The KServe UI remains in the `kubeflow` namespace.
+The KServe control plane and the KServe Models Web Application are installed in the `kserve` namespace. User `InferenceService` resources remain in the profile namespaces, and the Models Web Application is still reached through the Kubeflow gateway at `/kserve-endpoints/`.
 
 #### Kubeflow Pipelines
 

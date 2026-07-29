@@ -7,6 +7,7 @@ on:
     - scripts/synchronize-dashboard-manifests.sh
     - experimental/helm/charts/**
     - applications/hub/**
+    - applications/kserve/kserve/**
     - applications/kserve/kserve-ui/**
     - common/cert-manager/**
     - common/kubeflow-namespace/**
