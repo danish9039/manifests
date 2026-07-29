@@ -13,6 +13,7 @@ jobs:
     name: Test
     if: ${{ github.repository == 'kubeflow/community-distribution' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
     - name: Check out repo

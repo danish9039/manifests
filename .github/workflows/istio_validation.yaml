@@ -23,6 +23,7 @@ env:
 jobs:
   istio_validation:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     strategy:
       matrix:
         istio-mode: ['cni', 'insecure', 'ambient']
