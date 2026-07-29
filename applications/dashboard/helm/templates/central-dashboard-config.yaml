@@ -5,8 +5,8 @@
   "USERID_HEADER" (.Values.identity.userIdHeader | toString)
   "USERID_PREFIX" (.Values.identity.userIdPrefix | toString) }}
 {{- $configuration := dict
-  "links" (include "kubeflow-dashboard.document" (dict "root" . "path" "manifests/documents/dashboard-links.json" "value" .Values.centralDashboard.links))
-  "settings" (include "kubeflow-dashboard.document" (dict "root" . "path" "manifests/documents/dashboard-settings.json" "value" .Values.centralDashboard.settings)) }}
+  "links" (include "kubeflow-dashboard.document" (dict "root" . "path" "manifests/documents/dashboard-links.json" "value" .Values.centralDashboard.links "name" "centralDashboard.links"))
+  "settings" (include "kubeflow-dashboard.document" (dict "root" . "path" "manifests/documents/dashboard-settings.json" "value" .Values.centralDashboard.settings "name" "centralDashboard.settings")) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

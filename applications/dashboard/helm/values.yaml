@@ -9,6 +9,16 @@
 # Supported value: platform
 scenario: platform
 
+customResourceDefinitions:
+  # -- Render the PodDefault and Profile custom resource definitions.
+  # They are rendered as ordinary templates rather than from crds/, because
+  # Helm never upgrades or deletes anything in crds/, and they carry
+  # helm.sh/resource-policy: keep so uninstalling the release cannot delete
+  # existing Profiles and PodDefaults. Helm's --skip-crds does not apply to
+  # templates; set this to false instead when an administrator or another
+  # release already owns both definitions.
+  enabled: true
+
 image:
   # -- Registry and repository prefix for every Dashboard image.
   # Override this to install from a mirror or an air-gapped registry.

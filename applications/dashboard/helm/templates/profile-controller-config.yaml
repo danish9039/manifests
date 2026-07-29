@@ -8,7 +8,7 @@
   "USERID_PREFIX" (.Values.identity.userIdPrefix | toString)
   "WORKLOAD_IDENTITY" (.Values.profileController.workloadIdentity | toString) }}
 {{- $namespaceLabels := dict
-  "namespace-labels.yaml" (include "kubeflow-dashboard.document" (dict "root" . "path" "manifests/documents/profile-namespace-labels.yaml" "value" .Values.profileController.namespaceLabels)) }}
+  "namespace-labels.yaml" (include "kubeflow-dashboard.document" (dict "root" . "path" "manifests/documents/profile-namespace-labels.yaml" "value" .Values.profileController.namespaceLabels "name" "profileController.namespaceLabels")) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

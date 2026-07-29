@@ -19,12 +19,22 @@ Return an embedded document: the caller's value when set, otherwise the
 generated upstream document. The generator writes documents with a single
 trailing newline, which is removed so the inherited default matches the
 Kustomize ConfigMap value exactly.
+
+These values are documents, so the contract is a string. A map or list would
+otherwise be rendered with Go's own formatting - a value of
+"{menuLinks: []}" becomes the literal text "map[menuLinks:[]]" - which Helm
+accepts and the application cannot parse. Reject anything that is not a string
+rather than writing invalid configuration.
 */}}
 {{- define "kubeflow-dashboard.document" -}}
 {{- $root := index . "root" -}}
 {{- $path := index . "path" -}}
 {{- $value := index . "value" -}}
-{{- if $value -}}
+{{- $name := index . "name" -}}
+{{- if not (or (kindIs "string" $value) (kindIs "invalid" $value)) -}}
+{{- fail (printf "%s must be a string containing the document; got %s. Quote the value or pass it with --set-file." $name (kindOf $value)) -}}
+{{- end -}}
+{{- if and (kindIs "string" $value) (ne $value "") -}}
 {{- $value -}}
 {{- else -}}
 {{- $document := $root.Files.Get $path -}}

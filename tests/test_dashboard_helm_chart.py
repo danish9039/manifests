@@ -147,6 +147,71 @@ class DashboardHelmChartTest(unittest.TestCase):
 
         self.assertEqual(overridden["data"]["settings"], override)
 
+    def test_non_string_document_override_is_rejected(self):
+        """A document is a string. A map would render as Go's map formatting.
+
+        Helm would accept "map[menuLinks:[]]" and the application could not
+        parse it, so the chart must refuse rather than write it.
+        """
+        cases = [
+            ("centralDashboard", "links", {"menuLinks": []}),
+            ("centralDashboard", "settings", {"DASHBOARD_FORCE_IFRAME": True}),
+            ("profileController", "namespaceLabels", {"example.com/enabled": "true"}),
+            ("centralDashboard", "links", ["a", "b"]),
+            ("centralDashboard", "settings", False),
+        ]
+        for section, key, value in cases:
+            with self.subTest(value=f"{section}.{key}={value!r}"):
+                result = render_chart(values={section: {key: value}})
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{section}.{key} must be a string", result.stderr)
+
+    def test_empty_document_override_inherits_the_upstream_default(self):
+        result = render_chart(values={"centralDashboard": {"links": ""}})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        inherited = find_manifest(
+            load_manifests(result.stdout), "ConfigMap", "dashboard-config"
+        )
+
+        self.assertIn("menuLinks", inherited["data"]["links"])
+
+    def test_custom_resource_definitions_can_be_disabled(self):
+        default_crds = [
+            m for m in self.manifests if m["kind"] == "CustomResourceDefinition"
+        ]
+        self.assertEqual(len(default_crds), 2)
+        for crd in default_crds:
+            self.assertEqual(
+                crd["metadata"]["annotations"]["helm.sh/resource-policy"], "keep"
+            )
+
+        result = render_chart("customResourceDefinitions.enabled=false")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifests = load_manifests(result.stdout)
+
+        self.assertEqual(
+            [m for m in manifests if m["kind"] == "CustomResourceDefinition"], []
+        )
+        self.assertEqual(len(manifests), len(self.manifests) - 2)
+
+    def test_profile_controller_configuration_change_rolls_its_deployment(self):
+        baseline = find_manifest(self.manifests, "Deployment", "profiles-deployment")
+        baseline_checksum = baseline["spec"]["template"]["metadata"]["annotations"][
+            "checksum/config"
+        ]
+
+        result = render_chart("profileController.admin=admin@example.com")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        changed = find_manifest(
+            load_manifests(result.stdout), "Deployment", "profiles-deployment"
+        )
+
+        self.assertNotEqual(
+            changed["spec"]["template"]["metadata"]["annotations"]["checksum/config"],
+            baseline_checksum,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
