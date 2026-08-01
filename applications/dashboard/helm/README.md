@@ -31,6 +31,61 @@ helm install kubeflow-dashboard ./applications/dashboard/helm \
   --wait
 ```
 
+## How this chart is kept up to date
+
+Nobody maintains the generated payloads by hand. They are output, not source.
+
+```text
+ upstream Dashboard release
+        |
+        |  scripts/synchronize-dashboard-manifests.sh
+        v
+ kustomize build applications/dashboard/helm/kustomize
+        |
+        |  scripts/generate-dashboard-helm-manifests.py
+        v
+ manifests/*.yaml        generated, DO NOT EDIT header, never hand-edited
+ templates/*.yaml        hand-written, never generated into
+```
+
+Three mechanisms keep that honest, and each fails loudly rather than drifting:
+
+- **Regeneration is idempotent.** The idempotence job re-runs the synchronization
+  script and fails if the tree changes, so a hand-edited payload is caught.
+- **Parity is the drift detector.** Every scenario compares the committed chart
+  against a fresh `kustomize build`. If an upstream release changes a resource
+  and the chart does not follow, the comparison fails.
+- **Excluded resources are declared.** The seven resources rendered from
+  hand-written templates are named in `scripts/generate-dashboard-helm-manifests.py`.
+  If one stops being produced by Kustomize, the generator refuses to run rather
+  than silently dropping it:
+
+  ```text
+  hand-written resources are no longer rendered by Kustomize;
+  their templates are orphaned: Deployment/dashboard
+  ```
+
+So at release *n + 10* the payloads are whatever `kustomize build` produced at
+that release, and the only manual surface is those seven templates — each one
+checked against Kustomize by the parity job on every run.
+
+Regenerate with:
+
+```bash
+python3 -m pip install pyyaml "ruamel.yaml==0.19.1"
+KUBEFLOW_SYNCHRONIZE_NO_COMMIT=true \
+  ./scripts/synchronize-dashboard-manifests.sh
+```
+
+Do not edit files under `manifests/` directly.
+
+Review a generated payload change in two steps, because they prove different
+things. First read the change by resource identity and upstream source boundary:
+which resources appeared, disappeared or changed, and does each change belong to
+the upstream release. Then regenerate and confirm `git diff` is empty. The replay
+proves only that the generator is deterministic; it cannot tell you whether a new
+upstream release introduced an unintended webhook, permission or policy change.
+
 ## Configuration
 
 Every value corresponds to something the Kustomize baseline already declares -
@@ -65,6 +120,12 @@ default byte for byte, or supply the replacement as a quoted block scalar.
 `identity.userIdHeader` and `identity.userIdPrefix` are consumed by both the
 Central Dashboard and the Profile Controller. They are declared once and rendered
 into both ConfigMaps so the two cannot disagree.
+
+**Authentication is not configured here.** `centralDashboard.registrationFlow`
+turns off the self-service user registration screen, which is the only
+sign-in-related surface this chart owns. The login flow itself belongs to the
+`dex` and `oauth2-proxy` charts; this chart only consumes the identity those
+components put in `identity.userIdHeader`.
 
 The three values ending in `Principal` are platform wiring rather than ordinary
 settings. They are the service account identities that Kubeflow components
@@ -131,23 +192,6 @@ an administrator or another release already owns both definitions.
 | `helm uninstall` | **Retains** both definitions and every Profile and PodDefault. Namespaced Dashboard resources are removed. |
 | reinstall | Succeeds against the retained definitions and adopts them into the new release. |
 | manual cleanup | `kubectl delete crd profiles.kubeflow.org poddefaults.kubeflow.org` — this deletes every Profile and PodDefault in the cluster. |
-
-Regenerate the payloads through the component synchronization workflow:
-
-```bash
-python3 -m pip install pyyaml "ruamel.yaml==0.19.1"
-KUBEFLOW_SYNCHRONIZE_NO_COMMIT=true \
-  ./scripts/synchronize-dashboard-manifests.sh
-```
-
-Do not edit files under `manifests/` directly.
-
-Review a generated payload change in two steps, because they prove different
-things. First read the change by resource identity and upstream source boundary:
-which resources appeared, disappeared or changed, and does each change belong to
-the upstream release. Then regenerate and confirm `git diff` is empty. The replay
-proves only that the generator is deterministic; it cannot tell you whether a new
-upstream release introduced an unintended webhook, permission or policy change.
 
 ## Kustomize Mapping
 
