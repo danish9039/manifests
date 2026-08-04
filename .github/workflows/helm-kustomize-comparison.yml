@@ -3,6 +3,8 @@ name: Helm vs Kustomize Comparison
 on:
   pull_request:
     paths:
+    - applications/dashboard/**
+    - scripts/synchronize-dashboard-manifests.sh
     - experimental/helm/charts/**
     - applications/hub/**
     - applications/kserve/kserve-ui/**
@@ -24,6 +26,11 @@ on:
     - tests/helm_kustomize_compare_all.sh
     - tests/test_dex_helm_rollout_checksums.py
     - tests/test_istio_helm_chart.py
+    - tests/test_dashboard_helm_chart.py
+    - tests/test_generate_dashboard_helm_manifests.py
+    - tests/test_helm_manifest_generator.py
+    - scripts/generate-dashboard-helm-manifests.py
+    - scripts/helm_manifest_generator.py
     - .github/workflows/helm-kustomize-comparison.yml
   workflow_dispatch:
 
@@ -49,7 +56,9 @@ jobs:
       with:
         version: v4.2.2
     - name: Install Kustomize
-      run: ./tests/kustomize_install.sh
+      run: |
+        ./tests/kustomize_install.sh
+        echo "/tmp/usr/local/bin" >> "$GITHUB_PATH"
     - name: Test Helm comparison normalization
       run: python tests/test_helm_kustomize_compare.py
     - name: Test Dex Helm behavior
@@ -101,6 +110,38 @@ jobs:
         VERBOSE: "true"
       run: ./tests/helm_kustomize_compare_all.sh istio
 
+  validate-dashboard:
+    runs-on: ubuntu-latest
+    name: Compare Dashboard Helm and Kustomize manifests
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Set up Python
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: '3.12'
+    - name: Install Python dependencies
+      run: python -m pip install pyyaml
+    - name: Install Helm
+      uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
+      with:
+        version: v4.2.2
+    - name: Install Kustomize
+      run: |
+        ./tests/kustomize_install.sh
+        echo "/tmp/usr/local/bin" >> "$GITHUB_PATH"
+    - name: Test Dashboard Helm behavior
+      run: python tests/test_dashboard_helm_chart.py
+    - name: Test Dashboard manifest generation
+      run: |
+        python -m pip install ruamel.yaml==0.19.1
+        python tests/test_helm_manifest_generator.py
+        python tests/test_generate_dashboard_helm_manifests.py
+    - name: Compare Dashboard Helm and Kustomize manifests
+      env:
+        VERBOSE: "true"
+      run: ./tests/helm_kustomize_compare_all.sh kubeflow-dashboard
+
   validate-helm-kustomize-equivalence:
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -121,7 +162,9 @@ jobs:
       with:
         version: v4.2.2
     - name: Install Kustomize
-      run: ./tests/kustomize_install.sh
+      run: |
+        ./tests/kustomize_install.sh
+        echo "/tmp/usr/local/bin" >> "$GITHUB_PATH"
     - name: Run all scenarios comparison
       env:
         VERBOSE: "true"

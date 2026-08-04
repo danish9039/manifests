@@ -1,0 +1,113 @@
+{{- if eq .Values.scenario "platform" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "kubeflow-dashboard.profileController.labels" . | nindent 4 }}
+  name: profiles-deployment
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kubeflow-dashboard.profileController.labels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/profile-controller-config.yaml") . | sha256sum }}
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        {{- include "kubeflow-dashboard.profileController.labels" . | nindent 8 }}
+        sidecar.istio.io/inject: "true"
+    spec:
+      containers:
+      - command:
+        - /access-management
+        - -cluster-admin
+        - $(ADMIN)
+        - -userid-header
+        - $(USERID_HEADER)
+        - -userid-prefix
+        - $(USERID_PREFIX)
+        envFrom:
+        - configMapRef:
+            name: profiles-config
+        image: {{ include "kubeflow-dashboard.image" (dict "root" . "repository" .Values.profileController.accessManagement.image.repository) }}
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 30
+        name: access-management
+        ports:
+        - containerPort: 8081
+          name: http-kfam
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 30
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+      - args:
+        - --leader-elect
+        - --health-probe-bind-address=:9876
+        - --metrics-bind-address=0
+        command:
+        - /manager
+        - -userid-header
+        - $(USERID_HEADER)
+        - -userid-prefix
+        - $(USERID_PREFIX)
+        - -workload-identity
+        - $(WORKLOAD_IDENTITY)
+        envFrom:
+        - configMapRef:
+            name: profiles-config
+        image: {{ include "kubeflow-dashboard.image" (dict "root" . "repository" .Values.profileController.image.repository) }}
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 9876
+          initialDelaySeconds: 15
+          periodSeconds: 30
+        name: manager
+        ports:
+        - containerPort: 9876
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 9876
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - mountPath: /etc/profile-controller
+          name: namespace-labels
+          readOnly: true
+      serviceAccountName: profiles-controller-service-account
+      volumes:
+      - configMap:
+          name: profiles-namespace-labels-data
+        name: namespace-labels
+{{- end }}

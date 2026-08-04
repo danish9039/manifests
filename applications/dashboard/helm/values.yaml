@@ -1,0 +1,83 @@
+# Default values for the Kubeflow Dashboard chart.
+#
+# Every value below corresponds to something the Kustomize baseline already
+# declares - a container image transformer or a configMapGenerator input - and
+# every default equals the value rendered by
+# applications/dashboard/overlays/istio.
+
+# -- Rendered Kustomize parity scenario.
+# Supported value: platform
+scenario: platform
+
+customResourceDefinitions:
+  # -- Render the PodDefault and Profile custom resource definitions.
+  # They are rendered as ordinary templates rather than from crds/, because
+  # Helm never upgrades or deletes anything in crds/, and they carry
+  # helm.sh/resource-policy: keep so uninstalling the release cannot delete
+  # existing Profiles and PodDefaults. Helm's --skip-crds does not apply to
+  # templates; set this to false instead when an administrator or another
+  # release already owns both definitions.
+  enabled: true
+
+image:
+  # -- Registry and repository prefix for every Dashboard image.
+  # Override this to install from a mirror or an air-gapped registry.
+  registry: ghcr.io/kubeflow/dashboard
+  # -- Image tag shared by every Dashboard image.
+  # Empty selects the chart appVersion.
+  tag: ""
+
+# User identity headers are consumed by both the Central Dashboard and the
+# Profile Controller. They are declared once here and rendered into both
+# ConfigMaps so the two can never disagree.
+identity:
+  # -- Request header carrying the authenticated user identity.
+  userIdHeader: kubeflow-userid
+  # -- Prefix stripped from the user identity header value.
+  userIdPrefix: ""
+
+centralDashboard:
+  image:
+    # -- Central Dashboard image repository, appended to image.registry.
+    repository: dashboard
+  # -- Enable the self-service user registration flow.
+  registrationFlow: false
+  # -- Report anonymous usage metrics.
+  collectMetrics: true
+  # -- Dashboard menu, quick link and documentation definitions, as JSON.
+  # Empty inherits the upstream document.
+  links: ""
+  # -- Central Dashboard runtime settings, as JSON.
+  # Empty inherits the upstream document.
+  settings: ""
+
+profileController:
+  image:
+    # -- Profile Controller image repository, appended to image.registry.
+    repository: profile-controller
+  accessManagement:
+    image:
+      # -- Access Management image repository, appended to image.registry.
+      repository: access-management
+  # -- Cluster administrator granted access to every Profile.
+  admin: ""
+  # -- Google Cloud workload identity bound to Profile service accounts.
+  workloadIdentity: ""
+  # -- Labels applied to every Profile namespace, as YAML.
+  # Empty inherits the upstream document.
+  namespaceLabels: ""
+  # The three principals below are platform wiring, not ordinary settings. They
+  # are the service account identities that Kubeflow components authenticate
+  # with when calling the Profile Controller. Changing one without changing the
+  # corresponding component namespace or service account breaks authorization.
+  # -- Istio ingress gateway service account principal.
+  istioIngressGatewayPrincipal: cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account
+  # -- Kubeflow Notebooks controller service account principal.
+  notebookControllerPrincipal: cluster.local/ns/kubeflow/sa/notebook-controller-service-account
+  # -- Kubeflow Pipelines user interface service account principal.
+  kfpUiPrincipal: cluster.local/ns/kubeflow/sa/ml-pipeline-ui
+
+podDefaultsWebhook:
+  image:
+    # -- PodDefaults webhook image repository, appended to image.registry.
+    repository: poddefaults-webhook

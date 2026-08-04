@@ -11,8 +11,8 @@ ROOT_DIRECTORY="$(dirname "$SCRIPT_DIRECTORY")"
 if [[ -z "$COMPONENT" ]]; then
     echo "ERROR: Component is required"
     echo "Usage: $0 <component> [scenario]"
-    echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy, istio"
-    echo "The scenario is optional. Defaults: KServe Models Web Application uses 'kubeflow', Dex uses 'oauth2-proxy', OAuth2-proxy uses 'm2m-dex-and-kind', and other components use 'base'."
+    echo "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy, istio, kubeflow-dashboard"
+    echo "The scenario is optional. Defaults: KServe Models Web Application uses 'kubeflow', Dex uses 'oauth2-proxy', OAuth2-proxy uses 'm2m-dex-and-kind', Kubeflow Dashboard uses 'platform', and other components use 'base'."
     exit 1
 fi
 
@@ -266,9 +266,26 @@ case "$COMPONENT" in
         )
         ;;
 
+    "kubeflow-dashboard")
+        CHART_DIRECTORY="$ROOT_DIRECTORY/applications/dashboard/helm"
+        MANIFESTS_DIRECTORY="$ROOT_DIRECTORY/applications/dashboard"
+
+        declare -A KUSTOMIZE_PATHS=(
+            ["platform"]="$MANIFESTS_DIRECTORY/overlays/istio"
+        )
+
+        declare -A HELM_VALUES=(
+            ["platform"]="$CHART_DIRECTORY/ci/values-platform.yaml"
+        )
+
+        declare -A NAMESPACES=(
+            ["platform"]="kubeflow"
+        )
+        ;;
+
     *)
         echo "ERROR: Unknown component: $COMPONENT"
-        echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy, istio"
+        echo "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy, istio, kubeflow-dashboard"
         exit 1
         ;;
 esac
@@ -283,6 +300,9 @@ if [[ -z "$SCENARIO" ]]; then
             ;;
         "oauth2-proxy")
             SCENARIO="m2m-dex-and-kind"
+            ;;
+        "kubeflow-dashboard")
+            SCENARIO="platform"
             ;;
         *)
             SCENARIO="base"
@@ -380,6 +400,10 @@ elif [[ "$COMPONENT" == "dex" ]]; then
             --namespace "$NAMESPACE" \
             --include-crds > "$HELM_OUTPUT"
     fi
+elif [[ "$COMPONENT" == "kubeflow-dashboard" ]]; then
+    helm template kubeflow-dashboard "$CHART_DIRECTORY" \
+        --namespace "$NAMESPACE" \
+        --values "$HELM_VALUES_ARGUMENTS" > "$HELM_OUTPUT"
 else
     cd "$CHART_DIRECTORY"
     if [[ "$COMPONENT" == "katib" ]]; then

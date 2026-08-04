@@ -301,6 +301,102 @@ class IstioManifestSelectionTest(unittest.TestCase):
 
 
 class ComparisonWorkflowTest(unittest.TestCase):
+    def test_dashboard_ignores_only_rollout_checksum_annotations(self):
+        deployment = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "dashboard", "namespace": "kubeflow"},
+            "spec": {
+                "template": {
+                    "metadata": {
+                        "annotations": {
+                            "checksum/config": "rendered-checksum",
+                            "kubectl.kubernetes.io/default-container": "dashboard",
+                        }
+                    }
+                }
+            },
+        }
+
+        normalized = helm_kustomize_compare.normalize_manifest(
+            deployment, "kubeflow-dashboard"
+        )
+
+        self.assertEqual(
+            normalized["spec"]["template"]["metadata"]["annotations"],
+            {"kubectl.kubernetes.io/default-container": "dashboard"},
+        )
+
+    def test_dashboard_rollout_checksums_are_scoped_to_its_deployments(self):
+        unrelated = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "poddefaults-webhook-deployment",
+                "namespace": "kubeflow",
+            },
+            "spec": {
+                "template": {
+                    "metadata": {"annotations": {"checksum/config": "unchanged"}}
+                }
+            },
+        }
+
+        normalized = helm_kustomize_compare.normalize_manifest(
+            unrelated, "kubeflow-dashboard"
+        )
+
+        self.assertEqual(
+            normalized["spec"]["template"]["metadata"]["annotations"],
+            {"checksum/config": "unchanged"},
+        )
+
+    def test_config_map_name_ending_in_ten_characters_is_not_truncated(self):
+        """A stable chart name must not lose a legitimate final segment.
+
+        "dashboard-parameters" ends in exactly ten lowercase alphanumeric
+        characters, which is indistinguishable from a Kustomize content hash.
+        Only the Kustomize side carries a real hash, so only that side is
+        normalized.
+        """
+        kustomize_config_map = {
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "dashboard-parameters-ckkh684h89",
+                "namespace": "kubeflow",
+            },
+        }
+        helm_config_map = {
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "dashboard-parameters",
+                "namespace": "kubeflow",
+            },
+        }
+
+        normalized_kustomize = helm_kustomize_compare.normalize_manifest(
+            kustomize_config_map,
+            "kubeflow-dashboard",
+            normalize_kustomize_names=True,
+        )
+        normalized_helm = helm_kustomize_compare.normalize_manifest(
+            helm_config_map,
+            "kubeflow-dashboard",
+            normalize_kustomize_names=(
+                helm_kustomize_compare.helm_uses_kustomize_generated_names(
+                    "kubeflow-dashboard"
+                )
+            ),
+        )
+
+        self.assertEqual(normalized_kustomize, normalized_helm)
+        self.assertEqual(
+            helm_kustomize_compare.get_resource_key(
+                normalized_helm, "kubeflow-dashboard"
+            ),
+            "ConfigMap/kubeflow/dashboard-parameters",
+        )
+
     def test_dex_checks_run_in_enforcing_job(self):
         workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
         unit_test_job = workflow["jobs"]["validate-dex-unit-tests"]

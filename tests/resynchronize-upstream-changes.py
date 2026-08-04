@@ -9,6 +9,10 @@ from pathlib import Path
 
 path_to_synchronization_script = {
     "applications/dashboard/upstream": "scripts/synchronize-dashboard-manifests.sh",
+    "applications/dashboard/overlays/istio": "scripts/synchronize-dashboard-manifests.sh",
+    "applications/dashboard/helm/Chart.yaml": "scripts/synchronize-dashboard-manifests.sh",
+    "applications/dashboard/helm/kustomize": "scripts/synchronize-dashboard-manifests.sh",
+    "applications/dashboard/helm/manifests": "scripts/synchronize-dashboard-manifests.sh",
     "applications/hub/upstream": "scripts/synchronize-hub-manifests.sh",
     "applications/katib/upstream": "scripts/synchronize-katib-manifests.sh",
     "applications/kserve/kserve/upstream": "scripts/synchronize-kserve-kserve-manifests.sh",
@@ -23,6 +27,8 @@ path_to_synchronization_script = {
     "common/istio": "scripts/synchronize-istio-manifests.sh",
     "common/knative": "scripts/synchronize-knative-manifests.sh",
     "common/oauth2-proxy": "scripts/synchronize-oauth2-proxy-manifests.sh",
+    "scripts/generate-dashboard-helm-manifests.py": "scripts/synchronize-dashboard-manifests.sh",
+    "scripts/helm_manifest_generator.py": "scripts/synchronize-dashboard-manifests.sh",
 }
 
 # convert the strings above into actual path objects for easier handling later
