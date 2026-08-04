@@ -99,7 +99,9 @@ def dump_pipeline_diagnostics():
                 DIAGNOSTIC_TIMEOUT_SECONDS,
             )
         except FileNotFoundError:
-            logger.warning("Unable to run diagnostics because kubectl is not available.")
+            logger.warning(
+                "Unable to run diagnostics because kubectl is not available."
+            )
             return
         except Exception as e:
             logger.warning(
