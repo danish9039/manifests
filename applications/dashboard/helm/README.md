@@ -13,7 +13,7 @@ instead, so those values can be set through `values.yaml`. Everything else is
 vendored verbatim. Before committing an update, the synchronization script runs
 Helm linting and the Helm/Kustomize parity comparison.
 
-## Install
+## Installation
 
 Install the platform prerequisites first: `kubeflow-namespaces`,
 `kubeflow-platform`, `cert-manager`, `istio`, `oauth2-proxy`, and `dex`.
