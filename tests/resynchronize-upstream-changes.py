@@ -22,7 +22,6 @@ path_to_synchronization_script = {
     "applications/notebooks-v1/helm/kustomize": "scripts/synchronize-notebooks-v1-manifests.sh",
     "applications/notebooks-v1/helm/manifests": "scripts/synchronize-notebooks-v1-manifests.sh",
     "scripts/generate-notebooks-v1-helm-manifests.py": "scripts/synchronize-notebooks-v1-manifests.sh",
-    "scripts/helm_manifest_generator.py": "scripts/synchronize-notebooks-v1-manifests.sh",
     "applications/pipeline/upstream": "scripts/synchronize-pipelines-manifests.sh",
     "applications/spark/spark-operator": "scripts/synchronize-spark-operator-manifests.sh",
     "applications/trainer/upstream": "scripts/synchronize-trainer-manifests.sh",
@@ -33,25 +32,33 @@ path_to_synchronization_script = {
     "common/knative": "scripts/synchronize-knative-manifests.sh",
     "common/oauth2-proxy": "scripts/synchronize-oauth2-proxy-manifests.sh",
     "scripts/generate-dashboard-helm-manifests.py": "scripts/synchronize-dashboard-manifests.sh",
-    "scripts/helm_manifest_generator.py": "scripts/synchronize-dashboard-manifests.sh",
+    # The shared generator belongs to every component that renders through it,
+    # so a change to it must resynchronize all of them.
+    "scripts/helm_manifest_generator.py": (
+        "scripts/synchronize-dashboard-manifests.sh",
+        "scripts/synchronize-notebooks-v1-manifests.sh",
+    ),
 }
 
 # convert the strings above into actual path objects for easier handling later
 path_to_synchronization_script = {
-    Path(k): Path(v) for k, v in path_to_synchronization_script.items()
+    Path(key): tuple(
+        Path(script) for script in ((value,) if isinstance(value, str) else value)
+    )
+    for key, value in path_to_synchronization_script.items()
 }
 
 
 def find_upstream_scripts(changed_files: list[Path]) -> set[Path]:
     upstream_scripts = set()
     for changed in changed_files:
-        for upstream_path, script in path_to_synchronization_script.items():
+        for upstream_path, scripts in path_to_synchronization_script.items():
             if (
-                changed == script
+                changed in scripts
                 or upstream_path in changed.parents
                 or changed == upstream_path
             ):
-                upstream_scripts.add(script)
+                upstream_scripts.update(scripts)
     return upstream_scripts
 
 
