@@ -7,6 +7,7 @@ on:
     - applications/notebooks-v1/**
     - applications/pipeline/upstream/**
     - tests/istio*
+    - tests/ci_kindnet_*
     - tests/dashboard_install.sh
     - tests/notebooks_install.sh
     - tests/multi_tenancy_install.sh
@@ -22,55 +23,130 @@ permissions:
 jobs:
   pipeline_run_from_notebook:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Raised for the throwaway kindnet processor quota experiment so that a hang
+    # produces measurements instead of a cancelled job. The individual steps
+    # carry their own bounds, so the collection step below is always reached.
+    timeout-minutes: 55
     steps:
     - name: Checkout
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Install KinD, Create KinD cluster and Install kustomize
+      timeout-minutes: 15
       run: ./tests/install_KinD_create_KinD_cluster_install_kustomize.sh
 
+    # Throwaway experiment instrumentation. Everything between here and the
+    # "Collect kindnet experiment measurements" step exists only to decide
+    # whether the kindnet processor limit of 100m is the mechanism behind the
+    # flaky pipeline tests.
+    - name: Configure the kindnet processor quota experiment arm
+      timeout-minutes: 6
+      run: |
+        mkdir -p probe
+        chmod +x ./tests/ci_kindnet_*.sh
+        ./tests/ci_kindnet_arm_apply.sh probe
+
+    - name: Start the paired Service and Endpoint probe
+      timeout-minutes: 8
+      run: ./tests/ci_kindnet_probe_pod.sh probe
+
+    - name: Start the kindnet processor and NFQUEUE sampler
+      timeout-minutes: 3
+      run: |
+        nohup ./tests/ci_kindnet_probe.sh probe </dev/null >probe/sampler.log 2>&1 &
+        echo $! > probe/pid
+        disown || true
+        echo "$(date +%s%3N),sampler-started" >> probe/marks.csv
+        sleep 15
+        echo "sampler running with process identifier $(cat probe/pid)"
+        head -3 probe/kindnet_cpu_stat.csv || true
+        head -3 probe/nfqueue.csv || true
+
     - name: Create kubeflow namespace
+      timeout-minutes: 5
       run: kustomize build common/kubeflow-namespace/base | kubectl apply -f -
 
     - name: Install Istio
+      timeout-minutes: 12
       run: ./tests/istio-cni_install.sh
 
+    - name: Mark after Istio
+      if: always()
+      run: echo "$(date +%s%3N),install-istio-end" >> probe/marks.csv
+
     - name: Install oauth2-proxy
+      timeout-minutes: 10
       run: ./tests/oauth2-proxy_install.sh
 
     - name: Install cert-manager
+      timeout-minutes: 10
       run: ./tests/cert_manager_install.sh
 
     - name: Install Kubeflow Istio Resources
+      timeout-minutes: 5
       run: kustomize build common/istio/kubeflow-istio-resources/base | kubectl apply -f -
 
     - name: Install Multi-Tenancy
+      timeout-minutes: 8
       run: ./tests/multi_tenancy_install.sh
 
+    - name: Mark before KF Pipelines
+      if: always()
+      run: echo "$(date +%s%3N),install-pipelines-begin" >> probe/marks.csv
+
     - name: Install KF Pipelines
+      timeout-minutes: 16
       run: ./tests/pipelines_install.sh
 
+    - name: Mark after KF Pipelines and add the ml-pipeline paired probe target
+      if: always()
+      timeout-minutes: 4
+      run: |
+        echo "$(date +%s%3N),install-pipelines-end" >> probe/marks.csv
+        ./tests/ci_kindnet_probe_add_target.sh kubeflow ml-pipeline 8888 /apis/v1beta1/healthz || true
+
     - name: Install Dashboard
+      timeout-minutes: 12
       run: ./tests/dashboard_install.sh
 
+    - name: Mark after Dashboard
+      if: always()
+      run: echo "$(date +%s%3N),install-dashboard-end" >> probe/marks.csv
+
     - name: Install Notebooks v1
+      timeout-minutes: 12
       run: ./tests/notebooks_install.sh
 
+    - name: Mark after Notebooks v1
+      if: always()
+      run: echo "$(date +%s%3N),install-notebooks-end" >> probe/marks.csv
+
     - name: Create KF Profile
+      timeout-minutes: 10
       run: ./tests/kubeflow_profile_install.sh
 
+    - name: Mark after KF Profile
+      if: always()
+      run: echo "$(date +%s%3N),create-profile-end" >> probe/marks.csv
+
     - name: Apply PodDefaults to access ml-pipeline with projected token
+      timeout-minutes: 5
       run: kubectl apply -f tests/poddefaults.access-ml-pipeline.kubeflow-user-example-com.yaml
 
     - name: Create Kubeflow Notebook with PodDefaults
+      timeout-minutes: 12
       run: |
         kubectl apply -f tests/notebook.test.kubeflow-user-example.com.yaml
         kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 \
           -f tests/notebook.test.kubeflow-user-example.com.yaml \
           --timeout 600s
 
+    - name: Mark before the pipeline run
+      if: always()
+      run: echo "$(date +%s%3N),pipeline-run-begin" >> probe/marks.csv
+
     - name: Copy and execute the pipeline run script in KF Notebook
+      timeout-minutes: 15
       run: |
         kubectl -n kubeflow-user-example-com cp \
           ./tests/pipeline_run_and_wait_kubeflow.py \
@@ -79,8 +155,21 @@ jobs:
         kubectl -n kubeflow-user-example-com exec -ti \
           test-0 -- python /home/jovyan/pipeline_run_and_wait_kubeflow.py
 
+    - name: Mark after the pipeline run
+      if: always()
+      run: echo "$(date +%s%3N),pipeline-run-end" >> probe/marks.csv
+
     - name: Apply Pod Security Standards restricted levels
+      timeout-minutes: 8
       run: ./tests/PSS_enable.sh
+
+    - name: Collect kindnet experiment measurements
+      if: always()
+      timeout-minutes: 10
+      run: |
+        echo "$(date +%s%3N),job-end" >> probe/marks.csv
+        chmod +x ./tests/ci_kindnet_*.sh
+        ./tests/ci_kindnet_probe_collect.sh probe
 
     - name: Collect Logs on Failure
       if: failure()
@@ -105,3 +194,11 @@ jobs:
       with:
         name: kubeflow-test-logs
         path: logs/
+
+    - name: Upload kindnet experiment measurements
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: kindnet-experiment-pipeline-run-from-notebook-${{ github.run_id }}-${{ github.run_attempt }}
+        path: probe/
+        if-no-files-found: warn
