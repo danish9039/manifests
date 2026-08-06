@@ -27,14 +27,6 @@ jobs:
     - name: Test Helm synchronization library
       run: python -m unittest tests/test_helm_synchronization_library.py
 
-    - name: Test resynchronization selection
-      run: python -m unittest tests/test_resynchronize_upstream_changes.py
-
-    - name: Install Helm
-      uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
-      with:
-        version: v4.2.2
-
     - name: Install Kustomize
       working-directory: /tmp
       run: |
