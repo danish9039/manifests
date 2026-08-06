@@ -1,0 +1,36 @@
+# Declares how this chart is compared against its Kustomize baseline.
+# The harness discovers this file; no shared list needs editing.
+component: katib
+releaseName: katib
+namespace: kubeflow
+includeCustomResourceDefinitions: true
+defaultScenario: standalone
+scenarios:
+  cert-manager:
+    kustomize:
+    - applications/katib/upstream/installs/katib-cert-manager
+    values: ci/values-cert-manager.yaml
+  external-db:
+    kustomize:
+    - applications/katib/upstream/installs/katib-external-db
+    values: ci/values-external-db.yaml
+  leader-election:
+    kustomize:
+    - applications/katib/upstream/installs/katib-leader-election
+    values: ci/values-leader-election.yaml
+  openshift:
+    kustomize:
+    - applications/katib/upstream/installs/katib-openshift
+    values: ci/values-openshift.yaml
+  standalone:
+    kustomize:
+    - applications/katib/upstream/installs/katib-standalone
+    values: ci/values-standalone.yaml
+  standalone-postgres:
+    kustomize:
+    - applications/katib/upstream/installs/katib-standalone-postgres
+    values: ci/values-postgres.yaml
+  with-kubeflow:
+    kustomize:
+    - applications/katib/upstream/installs/katib-with-kubeflow
+    values: ci/values-kubeflow.yaml

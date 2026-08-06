@@ -20,5 +20,5 @@ helm install kubeflow-platform ./common/kubeflow-roles/helm --namespace kubeflow
 Validate parity with:
 
 ```bash
-./tests/helm_kustomize_compare.sh kubeflow-platform base
+python3 tests/run_helm_kustomize_comparison.py kubeflow-platform base
 ```

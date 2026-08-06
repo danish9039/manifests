@@ -1,0 +1,11 @@
+# Declares how this chart is compared against its Kustomize baseline.
+# The harness discovers this file; no shared list needs editing.
+component: kubeflow-dashboard
+releaseName: kubeflow-dashboard
+namespace: kubeflow
+includeCustomResourceDefinitions: false
+scenarios:
+  platform:
+    kustomize:
+    - applications/dashboard/overlays/istio
+    values: ci/values-platform.yaml

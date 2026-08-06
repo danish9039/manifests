@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
+"""Decide whether two rendered manifest sets describe the same resources.
+
+Invoked by tests/run_helm_kustomize_comparison.py, which discovers components and renders both
+sides. This module knows about Kubernetes resources; that one knows about
+files and processes.
+"""
+
+import json
+import re
+import sys
+from typing import Any, Dict, List, Tuple
 
 import yaml
-import sys
-import json
-from typing import Dict, List, Tuple, Any
-import re
 
 KUSTOMIZE_HASH_SUFFIX = re.compile(r"-(?=[a-z0-9]{10}$)[a-z0-9]{10}$")
 
@@ -561,9 +568,6 @@ if __name__ == "__main__":
         print(
             "Usage: python helm_kustomize_compare.py <kustomize_file> <helm_file> <component> <scenario> [namespace] [--verbose]"
         )
-        print(
-            "Components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy, istio, kubeflow-dashboard, kubeflow-notebooks"
-        )
         sys.exit(1)
 
     kustomize_file = sys.argv[1]
@@ -573,25 +577,6 @@ if __name__ == "__main__":
     namespace = (
         sys.argv[5] if len(sys.argv) > 5 and not sys.argv[5].startswith("--") else ""
     )
-
-    if component not in [
-        "katib",
-        "hub",
-        "kserve-models-web-application",
-        "cert-manager",
-        "kubeflow-namespaces",
-        "kubeflow-platform",
-        "dex",
-        "oauth2-proxy",
-        "istio",
-        "kubeflow-dashboard",
-        "kubeflow-notebooks",
-    ]:
-        print(f"ERROR: Unknown component: {component}")
-        print(
-            "Supported components: katib, hub, kserve-models-web-application, cert-manager, kubeflow-namespaces, kubeflow-platform, dex, oauth2-proxy, istio, kubeflow-dashboard, kubeflow-notebooks"
-        )
-        sys.exit(1)
 
     verbose = "--verbose" in sys.argv[1:]
 

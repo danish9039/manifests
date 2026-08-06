@@ -1,0 +1,11 @@
+# Declares how this chart is compared against its Kustomize baseline.
+# The harness discovers this file; no shared list needs editing.
+component: dex
+releaseName: dex
+namespace: auth
+includeCustomResourceDefinitions: true
+scenarios:
+  oauth2-proxy:
+    kustomize:
+    - common/dex/overlays/oauth2-proxy
+    values: ci/values-oauth2-proxy.yaml

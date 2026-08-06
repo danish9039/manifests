@@ -42,7 +42,7 @@ update_notebooks_helm_chart() {
 validate_notebooks_helm_chart() {
     # The chart refuses any namespace but kubeflow, so the linter needs it too.
     helm lint "$HELM_CHART_DIRECTORY" --namespace kubeflow
-    "${MANIFESTS_DIRECTORY}/tests/helm_kustomize_compare_all.sh" "$COMPONENT_NAME"
+    python3 "${MANIFESTS_DIRECTORY}/tests/run_helm_kustomize_comparison.py" "$COMPONENT_NAME" --all-scenarios
 }
 
 copy_component_manifests "components/crud-web-apps/jupyter/manifests" \

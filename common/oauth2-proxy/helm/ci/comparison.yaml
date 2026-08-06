@@ -1,0 +1,11 @@
+# Declares how this chart is compared against its Kustomize baseline.
+# The harness discovers this file; no shared list needs editing.
+component: oauth2-proxy
+releaseName: oauth2-proxy
+namespace: oauth2-proxy
+includeCustomResourceDefinitions: true
+scenarios:
+  m2m-dex-and-kind:
+    kustomize:
+    - common/oauth2-proxy/overlays/m2m-dex-and-kind
+    values: ci/values-m2m-dex-and-kind.yaml

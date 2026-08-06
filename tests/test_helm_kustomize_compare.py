@@ -407,7 +407,10 @@ class ComparisonWorkflowTest(unittest.TestCase):
         self.assertIn("./tests/kustomize_install.sh", run_commands)
         self.assertIn("python tests/test_helm_kustomize_compare.py", run_commands)
         self.assertIn("python tests/test_dex_helm_rollout_checksums.py", run_commands)
-        self.assertIn("./tests/helm_kustomize_compare_all.sh dex", run_commands)
+        self.assertIn(
+            "python3 tests/run_helm_kustomize_comparison.py dex --all-scenarios",
+            run_commands,
+        )
         for step_name in [
             "Install Kustomize",
             "Test Helm comparison normalization",

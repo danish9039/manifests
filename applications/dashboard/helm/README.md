@@ -201,8 +201,8 @@ an administrator or another release already owns both definitions.
 
 ```bash
 helm lint applications/dashboard/helm --namespace kubeflow
-./tests/helm_kustomize_compare.sh kubeflow-dashboard platform
-./tests/helm_kustomize_compare_all.sh kubeflow-dashboard
+python3 tests/run_helm_kustomize_comparison.py kubeflow-dashboard platform
+python3 tests/run_helm_kustomize_comparison.py kubeflow-dashboard --all-scenarios
 python3 tests/test_dashboard_helm_chart.py
 python3 tests/test_generate_dashboard_helm_manifests.py
 ```

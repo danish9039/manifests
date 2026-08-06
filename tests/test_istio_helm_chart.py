@@ -238,7 +238,7 @@ class IstioWorkflowTest(unittest.TestCase):
         self.assertFalse(comparison_step.get("continue-on-error", False))
         self.assertNotIn("if", comparison_step)
         self.assertIn(
-            "./tests/helm_kustomize_compare_all.sh istio",
+            "python3 tests/run_helm_kustomize_comparison.py istio --all-scenarios",
             comparison_step["run"],
         )
 

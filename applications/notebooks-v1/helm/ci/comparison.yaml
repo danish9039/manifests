@@ -1,0 +1,11 @@
+# Declares how this chart is compared against its Kustomize baseline.
+# The harness discovers this file; no shared list needs editing.
+component: kubeflow-notebooks
+releaseName: kubeflow-notebooks
+namespace: kubeflow
+includeCustomResourceDefinitions: false
+scenarios:
+  platform:
+    kustomize:
+    - applications/notebooks-v1/overlays/istio
+    values: ci/values-platform.yaml

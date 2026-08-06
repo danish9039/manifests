@@ -81,7 +81,7 @@ permission or policy change.
 
 ```bash
 helm lint applications/notebooks-v1/helm --namespace kubeflow
-./tests/helm_kustomize_compare.sh kubeflow-notebooks platform
-./tests/helm_kustomize_compare_all.sh kubeflow-notebooks
+python3 tests/run_helm_kustomize_comparison.py kubeflow-notebooks platform
+python3 tests/run_helm_kustomize_comparison.py kubeflow-notebooks --all-scenarios
 python3 tests/test_notebooks_helm_chart.py
 ```

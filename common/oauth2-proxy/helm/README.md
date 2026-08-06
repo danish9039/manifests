@@ -45,5 +45,5 @@ stable.
 
 ```bash
 helm lint common/oauth2-proxy/helm
-./tests/helm_kustomize_compare.sh oauth2-proxy m2m-dex-and-kind
+python3 tests/run_helm_kustomize_comparison.py oauth2-proxy m2m-dex-and-kind
 ```

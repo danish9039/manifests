@@ -50,6 +50,6 @@ helm install kubeflow-namespaces ./common/kubeflow-namespace/helm --namespace de
 Validate parity with:
 
 ```bash
-./tests/helm_kustomize_compare.sh kubeflow-namespaces base
-./tests/helm_kustomize_compare.sh kubeflow-namespaces platform-namespaces
+python3 tests/run_helm_kustomize_comparison.py kubeflow-namespaces base
+python3 tests/run_helm_kustomize_comparison.py kubeflow-namespaces platform-namespaces
 ```

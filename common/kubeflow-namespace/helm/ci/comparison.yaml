@@ -1,0 +1,21 @@
+# Declares how this chart is compared against its Kustomize baseline.
+# The harness discovers this file; no shared list needs editing.
+component: kubeflow-namespaces
+releaseName: kubeflow-namespaces
+namespace: default
+includeCustomResourceDefinitions: false
+defaultScenario: base
+scenarios:
+  base:
+    kustomize:
+    - common/kubeflow-namespace/base
+    values: ci/values-default.yaml
+  platform-namespaces:
+    kustomize:
+    - common/kubeflow-namespace/base
+    - common/cert-manager/base
+    - common/istio/istio-namespace/base
+    - common/oauth2-proxy/base
+    - common/dex/base
+    - applications/kserve/kserve
+    values: ci/values-default.yaml
