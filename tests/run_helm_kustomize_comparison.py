@@ -7,6 +7,7 @@ that component's directory and never a shared list.
 """
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -179,9 +180,17 @@ def main():
     parser.add_argument(
         "--list", action="store_true", help="print every component and its scenarios"
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="with --list, print the component names as JSON for the CI matrix",
+    )
     arguments = parser.parse_args()
 
     if arguments.list:
+        if arguments.json:
+            print(json.dumps(sorted(descriptors)))
+            return 0
         for component, (_, descriptor) in sorted(descriptors.items()):
             print(f"{component}: {' '.join(sorted(descriptor['scenarios']))}")
         return 0

@@ -8,10 +8,6 @@ from pathlib import Path
 import yaml
 
 MODULE_PATH = Path(__file__).with_name("helm_kustomize_compare.py")
-WORKFLOW_PATH = (
-    Path(__file__).resolve().parents[1]
-    / ".github/workflows/helm-kustomize-comparison.yml"
-)
 MODULE_SPEC = importlib.util.spec_from_file_location(
     "helm_kustomize_compare", MODULE_PATH
 )
@@ -395,44 +391,6 @@ class ComparisonWorkflowTest(unittest.TestCase):
                 normalized_helm, "kubeflow-dashboard"
             ),
             "ConfigMap/kubeflow/dashboard-parameters",
-        )
-
-    def test_dex_checks_run_in_enforcing_job(self):
-        workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
-        unit_test_job = workflow["jobs"]["validate-dex-unit-tests"]
-        steps_by_name = {step["name"]: step for step in unit_test_job["steps"]}
-        run_commands = "\n".join(step.get("run", "") for step in unit_test_job["steps"])
-
-        self.assertFalse(unit_test_job.get("continue-on-error", False))
-        self.assertIn("./tests/kustomize_install.sh", run_commands)
-        self.assertIn("python tests/test_helm_kustomize_compare.py", run_commands)
-        self.assertIn("python tests/test_dex_helm_rollout_checksums.py", run_commands)
-        self.assertIn(
-            "python3 tests/run_helm_kustomize_comparison.py dex --all-scenarios",
-            run_commands,
-        )
-        for step_name in [
-            "Install Kustomize",
-            "Test Helm comparison normalization",
-            "Test Dex Helm behavior",
-            "Compare Dex Helm and Kustomize manifests",
-        ]:
-            with self.subTest(step_name=step_name):
-                test_step = steps_by_name[step_name]
-                self.assertFalse(test_step.get("continue-on-error", False))
-                self.assertNotIn("if", test_step)
-
-    def test_comparison_unit_tests_run_in_enforcing_job(self):
-        workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
-        unit_test_job = workflow["jobs"]["validate-comparison-unit-tests"]
-
-        self.assertFalse(unit_test_job.get("continue-on-error", False))
-        self.assertTrue(
-            any(
-                "python -m unittest tests/test_helm_kustomize_compare.py"
-                in step.get("run", "")
-                for step in unit_test_job["steps"]
-            )
         )
 
 

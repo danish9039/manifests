@@ -4,7 +4,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 import run_helm_kustomize_comparison as comparison
+
+WORKFLOW_PATH = (
+    comparison.ROOT_DIRECTORY / ".github/workflows/helm-kustomize-comparison.yml"
+)
 
 
 class DescriptorTest(unittest.TestCase):
@@ -75,6 +81,47 @@ class MalformedDescriptorTest(unittest.TestCase):
                 "scenarios:\n  standalone:\n    kustomize: [x]\n"
                 "  platform:\n    kustomize: [y]\n"
             )
+
+
+class WorkflowTest(unittest.TestCase):
+    """The comparison is only a check if it can fail a pull request."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
+
+    def test_the_matrix_is_discovered_not_listed(self):
+        """A hand-written component list is what this design removed.
+
+        Kubeflow Pipelines was registered everywhere except a blocking job, and
+        nothing noticed, because an incomplete list looks like a complete one.
+        """
+        matrix = self.workflow["jobs"]["compare"]["strategy"]["matrix"]["component"]
+        self.assertIn("fromJSON(needs.discover-components.outputs.components)", matrix)
+
+    def test_no_job_is_advisory(self):
+        """'Compare All Scenarios' carried continue-on-error: true, so seven of
+        the ten components had no blocking parity check at all."""
+        for name, job in self.workflow["jobs"].items():
+            with self.subTest(job=name):
+                self.assertFalse(job.get("continue-on-error", False))
+                for step in job["steps"]:
+                    self.assertFalse(step.get("continue-on-error", False))
+
+    def test_the_comparison_cannot_be_skipped(self):
+        """A conditional step passes by not running, which reads as success."""
+        for step in self.workflow["jobs"]["compare"]["steps"]:
+            with self.subTest(step=step["name"]):
+                self.assertNotIn("if", step)
+
+    def test_the_comparison_job_puts_kustomize_on_the_path(self):
+        """Installing kustomize without exporting the path fails at render time,
+        far from the step that caused it."""
+        commands = "\n".join(
+            step.get("run", "") for step in self.workflow["jobs"]["compare"]["steps"]
+        )
+        self.assertIn("./tests/kustomize_install.sh", commands)
+        self.assertIn('echo "/tmp/usr/local/bin" >> "$GITHUB_PATH"', commands)
 
 
 if __name__ == "__main__":
