@@ -41,7 +41,14 @@ update_dashboard_helm_chart() {
 validate_dashboard_helm_chart() {
     # The chart refuses any namespace but kubeflow, so the linter needs it too.
     helm lint "$HELM_CHART_DIRECTORY" --namespace kubeflow
-    python3 "${MANIFESTS_DIRECTORY}/tests/run_helm_kustomize_comparison.py" "$COMPONENT_NAME" --all-scenarios
+    # Parity is not compared here. The comparison depends on the exact Helm
+    # version, which continuous integration pins and a contributor's machine does
+    # not, so a local run can fail on a rendering difference nobody can act on
+    # and block a routine upstream update. The "Compare ${COMPONENT_NAME}" job is
+    # the authority.
+    echo "Parity is enforced in continuous integration, by the job \"Compare ${COMPONENT_NAME}\"."
+    echo "To check it before pushing:"
+    echo "  python3 tests/run_helm_kustomize_comparison.py ${COMPONENT_NAME} --all-scenarios"
 }
 
 copy_component_manifests "components/poddefaults-webhooks/manifests/kustomize" \
@@ -52,11 +59,12 @@ copy_component_manifests "components/profile-controller/manifests/kustomize" \
     "${TARGET_DIRECTORY}/profile-controller"
 update_dashboard_helm_chart
 validate_dashboard_helm_chart
-# An upstream change to one of the hand-written resources makes the parity
-# comparison above fail until a maintainer updates the corresponding template.
-# The component-owned chart paths are therefore part of a synchronization
-# change, and staging them keeps the script from reporting success while that
-# correction stays uncommitted.
+# This script writes component-owned chart paths as well as the upstream copy:
+# the regenerated payloads, Chart.yaml and the comparison descriptor. They are
+# therefore part of a synchronization change and are staged with it, so that
+# re-running the script reproduces the commit exactly. An upstream change to one
+# of the hand-written resources additionally needs a template correction, which
+# the comparison job reports on the pull request.
 commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" \
   "${TARGET_DIRECTORY}" \
   "${HELM_CHART_PATH}/Chart.yaml" \
