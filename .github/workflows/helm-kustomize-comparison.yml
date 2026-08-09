@@ -79,8 +79,6 @@ jobs:
         ./tests/kustomize_install.sh
         echo "/tmp/usr/local/bin" >> "$GITHUB_PATH"
     - name: Compare Helm and Kustomize manifests
-      env:
-        VERBOSE: "true"
       run: python3 tests/run_helm_kustomize_comparison.py "${{ matrix.component }}" --all-scenarios
 
   chart-behavior-tests:

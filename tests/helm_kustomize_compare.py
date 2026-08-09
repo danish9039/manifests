@@ -476,7 +476,6 @@ def compare_manifests(
     component: str,
     scenario: str,
     namespace: str = "",
-    verbose: bool = False,
 ) -> bool:
     """Compare Kustomize and Helm manifests."""
     kustomize_manifests = load_manifests(kustomize_file)
@@ -527,17 +526,15 @@ def compare_manifests(
 
     if only_in_kustomize:
         print(f"Resources only in Kustomize: {len(only_in_kustomize)}")
-        if verbose:
-            for key in sorted(only_in_kustomize):
-                print(f"  {key}")
+        for key in sorted(only_in_kustomize):
+            print(f"  {key}")
         success = False
         differences_found.extend(only_in_kustomize)
 
     if unexpected_helm_extras:
         print(f"Unexpected resources only in Helm: {len(unexpected_helm_extras)}")
-        if verbose:
-            for key in sorted(unexpected_helm_extras):
-                print(f"  {key}")
+        for key in sorted(unexpected_helm_extras):
+            print(f"  {key}")
         success = False
         differences_found.extend(unexpected_helm_extras)
 
@@ -550,9 +547,8 @@ def compare_manifests(
 
         if differences:
             print(f"Differences in {key}: {len(differences)} fields")
-            if verbose:
-                for difference in differences:
-                    print(f"  {difference}")
+            for difference in differences:
+                print(f"  {difference}")
             differences_found.append(key)
             success = False
 
@@ -566,7 +562,8 @@ def compare_manifests(
 if __name__ == "__main__":
     if len(sys.argv) < 5:
         print(
-            "Usage: python helm_kustomize_compare.py <kustomize_file> <helm_file> <component> <scenario> [namespace] [--verbose]"
+            "Usage: python helm_kustomize_compare.py "
+            "<kustomize_file> <helm_file> <component> <scenario> [namespace]"
         )
         sys.exit(1)
 
@@ -574,13 +571,9 @@ if __name__ == "__main__":
     helm_file = sys.argv[2]
     component = sys.argv[3]
     scenario = sys.argv[4]
-    namespace = (
-        sys.argv[5] if len(sys.argv) > 5 and not sys.argv[5].startswith("--") else ""
-    )
-
-    verbose = "--verbose" in sys.argv[1:]
+    namespace = sys.argv[5] if len(sys.argv) > 5 else ""
 
     success = compare_manifests(
-        kustomize_file, helm_file, component, scenario, namespace, verbose
+        kustomize_file, helm_file, component, scenario, namespace
     )
     sys.exit(0 if success else 1)

@@ -8,7 +8,6 @@ that component's directory and never a shared list.
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -121,7 +120,7 @@ def render_helm(chart, descriptor, scenario, destination):
     )
 
 
-def compare(component, name, descriptors, verbose):
+def compare(component, name, descriptors):
     chart, descriptor = descriptors[component]
     scenario = descriptor["scenarios"][name]
     print(f"Comparing {component} manifests for scenario: {name}")
@@ -156,8 +155,6 @@ def compare(component, name, descriptors, verbose):
             name,
             descriptor["namespace"],
         ]
-        if verbose:
-            command.append("--verbose")
         return subprocess.run(command, cwd=ROOT_DIRECTORY).returncode == 0
 
 
@@ -166,12 +163,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("component", nargs="?", help="component to compare, or 'all'")
     parser.add_argument("scenario", nargs="?")
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        default=os.environ.get("VERBOSE") == "true",
-        help="print differing fields. Also enabled by VERBOSE=true.",
-    )
     parser.add_argument(
         "--all-scenarios",
         action="store_true",
@@ -221,7 +212,7 @@ def main():
             scenarios = [descriptor["defaultScenario"]]
 
         for name in scenarios:
-            if not compare(component, name, descriptors, arguments.verbose):
+            if not compare(component, name, descriptors):
                 print(f"FAILED: {component}/{name}")
                 failed.append(f"{component}/{name}")
 
