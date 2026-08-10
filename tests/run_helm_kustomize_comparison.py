@@ -125,37 +125,50 @@ def compare(component, name, descriptors):
     scenario = descriptor["scenarios"][name]
     print(f"Comparing {component} manifests for scenario: {name}")
 
-    if descriptor.get("dependencyRepositories"):
-        for repository, url in descriptor["dependencyRepositories"].items():
-            # Adding fails when the repository is already present, and its index
-            # may be stale, so refresh it exactly as the previous harness did.
-            if subprocess.run(
-                ["helm", "repo", "add", repository, url], capture_output=True
-            ).returncode:
-                subprocess.run(
-                    ["helm", "repo", "update", repository],
-                    check=True,
-                    capture_output=True,
-                )
-        subprocess.run(
-            ["helm", "dependency", "build", str(chart)], check=True, capture_output=True
-        )
+    try:
+        if descriptor.get("dependencyRepositories"):
+            for repository, url in descriptor["dependencyRepositories"].items():
+                # Adding fails when the repository is already present, and its
+                # index may be stale, so refresh it as the previous harness did.
+                if subprocess.run(
+                    ["helm", "repo", "add", repository, url], capture_output=True
+                ).returncode:
+                    subprocess.run(
+                        ["helm", "repo", "update", repository],
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    )
+            subprocess.run(
+                ["helm", "dependency", "build", str(chart)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
 
-    with tempfile.TemporaryDirectory() as directory:
-        kustomize_output = Path(directory) / "kustomize.yaml"
-        helm_output = Path(directory) / "helm.yaml"
-        render_kustomize(scenario, kustomize_output)
-        render_helm(chart, descriptor, scenario, helm_output)
-        command = [
-            sys.executable,
-            str(COMPARATOR),
-            str(kustomize_output),
-            str(helm_output),
-            component,
-            name,
-            descriptor["namespace"],
-        ]
-        return subprocess.run(command, cwd=ROOT_DIRECTORY).returncode == 0
+        with tempfile.TemporaryDirectory() as directory:
+            kustomize_output = Path(directory) / "kustomize.yaml"
+            helm_output = Path(directory) / "helm.yaml"
+            render_kustomize(scenario, kustomize_output)
+            render_helm(chart, descriptor, scenario, helm_output)
+            command = [
+                sys.executable,
+                str(COMPARATOR),
+                str(kustomize_output),
+                str(helm_output),
+                component,
+                name,
+                descriptor["namespace"],
+            ]
+            return subprocess.run(command, cwd=ROOT_DIRECTORY).returncode == 0
+    except subprocess.CalledProcessError as error:
+        # Kustomize and Helm explain their own failures; a Python traceback does
+        # not. Report the tool's message and let the remaining scenarios run, as
+        # the previous aggregate harness did.
+        print(f"ERROR: {' '.join(error.cmd)} exited {error.returncode}")
+        if error.stderr:
+            print(error.stderr.strip())
+        return False
 
 
 def main():
