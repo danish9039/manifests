@@ -52,3 +52,8 @@ until the default Dex + oauth2-proxy path is stable.
 helm lint common/dex/helm --namespace auth
 python3 tests/run_helm_kustomize_comparison.py dex oauth2-proxy
 ```
+
+How this chart is compared, including every declared allowance, is in
+[`ci/comparison.yaml`](ci/comparison.yaml); the descriptor format is documented in
+[`tests/README.md`](../../../tests/README.md).
+

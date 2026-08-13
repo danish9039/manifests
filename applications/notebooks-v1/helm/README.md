@@ -85,3 +85,8 @@ python3 tests/run_helm_kustomize_comparison.py kubeflow-notebooks platform
 python3 tests/run_helm_kustomize_comparison.py kubeflow-notebooks --all-scenarios
 python3 tests/test_notebooks_helm_chart.py
 ```
+
+How this chart is compared, including every declared allowance, is in
+[`ci/comparison.yaml`](ci/comparison.yaml); the descriptor format is documented in
+[`tests/README.md`](../../../tests/README.md).
+
