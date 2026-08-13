@@ -5,11 +5,15 @@ releaseName: kubeflow-namespaces
 namespace: default
 includeCustomResourceDefinitions: false
 defaultScenario: base
+# The two scenarios partition one chart output: base compares everything but
+# the Namespace objects, platform-namespaces compares only the Namespace
+# objects against the namespaces the platform bases create.
 scenarios:
   base:
     kustomize:
     - common/kubeflow-namespace/base
     values: ci/values-default.yaml
+    excludeKinds: [Namespace]
   platform-namespaces:
     kustomize:
     - common/kubeflow-namespace/base
@@ -19,3 +23,4 @@ scenarios:
     - common/dex/base
     - applications/kserve/kserve
     values: ci/values-default.yaml
+    onlyKinds: [Namespace]

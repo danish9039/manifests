@@ -83,6 +83,89 @@ class MalformedDescriptorTest(unittest.TestCase):
             )
 
 
+class MalformedAllowanceTest(unittest.TestCase):
+    """An allowance weakens the comparison, so a malformed one must not load.
+
+    Every rejection here is a mistake the code-based exceptions made possible:
+    unscoped rules, rules with no recorded reason, and typos that would have
+    silently matched nothing.
+    """
+
+    def load(self, body):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "comparison.yaml"
+            path.write_text(
+                "component: x\nreleaseName: x\nnamespace: n\n"
+                "scenarios:\n  a:\n    kustomize: [x]\n" + body
+            )
+            return comparison.load_descriptor(path)
+
+    def test_a_missing_reason_is_rejected_in_every_family(self):
+        for family, body in {
+            "ignoredLabels": "ignoredLabels:\n- keys: [a]\n",
+            "knownDifferences": "knownDifferences:\n- skip: Namespace/x\n",
+            "helmOnlyResources": "helmOnlyResources:\n- resource: Secret/x\n",
+        }.items():
+            with self.subTest(family=family):
+                with self.assertRaises(ValueError) as error:
+                    self.load(body)
+                self.assertIn("reason", str(error.exception))
+
+    def test_a_pattern_with_the_wrong_shape_is_rejected(self):
+        for pattern in ("Deployment", "a/b/c/d", "Deployment//x"):
+            with self.subTest(pattern=pattern):
+                with self.assertRaises(ValueError):
+                    self.load("knownDifferences:\n" f"- skip: {pattern}\n  reason: r\n")
+
+    def test_a_misspelled_action_is_rejected(self):
+        """An unknown field would otherwise declare an allowance that does
+        nothing, which the old code allowed and nothing detected."""
+        with self.assertRaises(ValueError) as error:
+            self.load(
+                "knownDifferences:\n"
+                "- resource: Deployment/auth/dex\n"
+                "  ignorePodTemplateAnnotation: [checksum/config]\n"
+                "  reason: r\n"
+            )
+        self.assertIn("unknown", str(error.exception))
+
+    def test_an_entry_without_any_action_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.load(
+                "knownDifferences:\n- resource: Deployment/auth/dex\n  reason: r\n"
+            )
+
+    def test_an_ignored_labels_entry_without_keys_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.load("ignoredLabels:\n- reason: r\n")
+
+    def test_a_skip_entry_with_extra_fields_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.load(
+                "knownDifferences:\n"
+                "- skip: Namespace/x\n  trimDataWhitespace: true\n  reason: r\n"
+            )
+
+    def test_the_base_body_alone_loads(self):
+        """Every rejection above must be attributable to the malformed
+        allowance, not to the shared boilerplate."""
+        self.load("")
+
+    def test_an_empty_only_kinds_list_is_rejected(self):
+        """An empty onlyKinds would compare nothing and still report success."""
+        with self.assertRaises(ValueError):
+            self.load_with_scenario_field("onlyKinds: []")
+
+    def load_with_scenario_field(self, field):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "comparison.yaml"
+            path.write_text(
+                "component: x\nreleaseName: x\nnamespace: n\n"
+                f"scenarios:\n  a:\n    kustomize: [x]\n    {field}\n"
+            )
+            return comparison.load_descriptor(path)
+
+
 class WorkflowTest(unittest.TestCase):
     """The comparison is only a check if it can fail a pull request."""
 

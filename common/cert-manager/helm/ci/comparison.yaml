@@ -7,6 +7,26 @@ includeCustomResourceDefinitions: true
 defaultScenario: base
 dependencyRepositories:
   jetstack: https://charts.jetstack.io
+ignoredLabels:
+- keys: [app.kubernetes.io/managed-by]
+  reason: >
+    The upstream chart labels every resource app.kubernetes.io/managed-by:
+    Helm; the static Kustomize baseline carries no such label.
+knownDifferences:
+- skip: Namespace/cert-manager
+  reason: >
+    The Kustomize base creates the cert-manager namespace; the chart is
+    installed into an existing namespace and renders none.
+# Upstream cert-manager annotates its CustomResourceDefinitions with
+# helm.sh/resource-policy: keep, so helm uninstall leaves them and every
+# certificate behind. An undeclared keep annotation fails the comparison.
+retainedCustomResourceDefinitions:
+- certificaterequests.cert-manager.io
+- certificates.cert-manager.io
+- challenges.acme.cert-manager.io
+- clusterissuers.cert-manager.io
+- issuers.cert-manager.io
+- orders.acme.cert-manager.io
 scenarios:
   base:
     kustomize:

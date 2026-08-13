@@ -4,6 +4,26 @@ component: dex
 releaseName: dex
 namespace: auth
 includeCustomResourceDefinitions: true
+knownDifferences:
+- skip: Namespace/auth
+  reason: >
+    The Kustomize base creates the auth namespace; the chart is installed
+    into an existing namespace and renders none.
+- resource: Deployment/auth/dex
+  ignorePodTemplateAnnotations:
+  - checksum/config
+  - checksum/oidc-client
+  - checksum/passwords
+  reason: >
+    The chart triggers a rollout on configuration changes with checksum
+    annotations; Kustomize achieves the same effect through content-hashed
+    resource names and renders no annotations.
+- resource: ConfigMap/auth/dex
+  compareDataAsYaml: [config.yaml]
+  reason: >
+    The chart templates the Dex configuration with different YAML quoting
+    than the baseline; parsing both sides compares the configuration's value
+    instead of its quote style.
 scenarios:
   oauth2-proxy:
     kustomize:

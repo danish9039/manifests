@@ -7,6 +7,7 @@ that component's directory and never a shared list.
 """
 
 import argparse
+import importlib.util
 import json
 import subprocess
 import sys
@@ -16,7 +17,12 @@ from pathlib import Path
 import yaml
 
 ROOT_DIRECTORY = Path(__file__).resolve().parents[1]
-COMPARATOR = Path(__file__).with_name("helm_kustomize_compare.py")
+COMPARATOR_PATH = Path(__file__).with_name("helm_kustomize_compare.py")
+_COMPARATOR_SPEC = importlib.util.spec_from_file_location(
+    "helm_kustomize_compare", COMPARATOR_PATH
+)
+comparator = importlib.util.module_from_spec(_COMPARATOR_SPEC)
+_COMPARATOR_SPEC.loader.exec_module(comparator)
 CHART_GLOBS = (
     "common/*/helm",
     "applications/*/helm",
@@ -52,12 +58,81 @@ _StrictLoader.add_constructor(
 )
 
 
+KNOWN_DIFFERENCE_ACTIONS = frozenset(
+    ("ignorePodTemplateAnnotations", "compareDataAsYaml", "trimDataWhitespace")
+)
+
+
+def _validate_reason(path, family, entry):
+    if not isinstance(entry, dict) or not str(entry.get("reason") or "").strip():
+        raise ValueError(f"{path}: every {family} entry needs a non-empty 'reason'")
+
+
+def _validate_pattern(path, family, pattern):
+    if (
+        not isinstance(pattern, str)
+        or len(pattern.split("/")) not in (2, 3)
+        or not all(pattern.split("/"))
+    ):
+        raise ValueError(
+            f"{path}: {family} must be 'Kind/name' or 'Kind/namespace/name', "
+            f"got {pattern!r}"
+        )
+
+
+def _validate_allowances(path, descriptor):
+    """Reject malformed declared allowances at load, not at comparison time."""
+    for entry in descriptor.get("ignoredLabels") or []:
+        _validate_reason(path, "ignoredLabels", entry)
+        keys = entry.get("keys")
+        if not isinstance(keys, list) or not keys:
+            raise ValueError(
+                f"{path}: an ignoredLabels entry needs a non-empty 'keys' list"
+            )
+        for pattern in entry.get("except") or []:
+            _validate_pattern(path, "ignoredLabels except", pattern)
+
+    for entry in descriptor.get("knownDifferences") or []:
+        _validate_reason(path, "knownDifferences", entry)
+        fields = set(entry) - {"reason"}
+        if "skip" in entry:
+            if fields != {"skip"}:
+                raise ValueError(
+                    f"{path}: a skip entry declares only 'skip' and 'reason'"
+                )
+            _validate_pattern(path, "skip", entry["skip"])
+            continue
+        if "resource" not in entry:
+            raise ValueError(
+                f"{path}: a knownDifferences entry needs 'resource' or 'skip'"
+            )
+        _validate_pattern(path, "resource", entry["resource"])
+        actions = fields - {"resource"}
+        unknown = actions - KNOWN_DIFFERENCE_ACTIONS
+        if unknown:
+            raise ValueError(
+                f"{path}: unknown knownDifferences fields: {', '.join(sorted(unknown))}"
+            )
+        if not actions:
+            raise ValueError(
+                f"{path}: knownDifferences entry for {entry['resource']!r} declares no action"
+            )
+
+    for entry in descriptor.get("helmOnlyResources") or []:
+        _validate_reason(path, "helmOnlyResources", entry)
+        if not entry.get("resource"):
+            raise ValueError(
+                f"{path}: every helmOnlyResources entry needs a 'resource'"
+            )
+
+
 def load_descriptor(path):
     """Read one descriptor, rejecting the mistakes that used to be possible."""
     descriptor = yaml.load(path.read_text(), Loader=_StrictLoader)
     for field in ("component", "releaseName", "namespace", "scenarios"):
         if not descriptor.get(field):
             raise ValueError(f"{path}: missing {field!r}")
+    _validate_allowances(path, descriptor)
 
     scenarios = descriptor["scenarios"]
     if not isinstance(scenarios, dict):
@@ -75,6 +150,14 @@ def load_descriptor(path):
             raise ValueError(
                 f"{path}: scenario {name!r} must declare a list of Kustomize targets"
             )
+        for field in ("onlyKinds", "excludeKinds"):
+            if field in scenario and (
+                not isinstance(scenario[field], list) or not scenario[field]
+            ):
+                raise ValueError(
+                    f"{path}: scenario {name!r} field {field!r} must be a "
+                    "non-empty list of kinds"
+                )
     return descriptor
 
 
@@ -120,7 +203,7 @@ def render_helm(chart, descriptor, scenario, destination):
     )
 
 
-def compare(component, name, descriptors):
+def compare(component, name, descriptors, rules):
     chart, descriptor = descriptors[component]
     scenario = descriptor["scenarios"][name]
     print(f"Comparing {component} manifests for scenario: {name}")
@@ -151,15 +234,9 @@ def compare(component, name, descriptors):
             helm_output = Path(directory) / "helm.yaml"
             render_kustomize(scenario, kustomize_output)
             render_helm(chart, descriptor, scenario, helm_output)
-            command = [
-                sys.executable,
-                str(COMPARATOR),
-                str(kustomize_output),
-                str(helm_output),
-                component,
-                name,
-            ]
-            return subprocess.run(command, cwd=ROOT_DIRECTORY).returncode == 0
+            return comparator.compare_manifests(
+                str(kustomize_output), str(helm_output), rules, scenario
+            )
     except subprocess.CalledProcessError as error:
         # Kustomize and Helm explain their own failures; a Python traceback does
         # not. Report the tool's message and let the remaining scenarios run, as
@@ -223,10 +300,28 @@ def main():
         else:
             scenarios = [descriptor["defaultScenario"]]
 
+        rules = comparator.ChartComparisonRules(descriptor)
         for name in scenarios:
-            if not compare(component, name, descriptors):
+            if not compare(component, name, descriptors, rules):
                 print(f"FAILED: {component}/{name}")
                 failed.append(f"{component}/{name}")
+
+        # A declared allowance that matches nothing is indistinguishable from
+        # one that is wrong, so it fails the run. Only a run that covered every
+        # scenario can make that judgement: a resource may exist in one
+        # scenario and not another.
+        if set(scenarios) == set(descriptor["scenarios"]):
+            stale = rules.unfired()
+            if stale:
+                print(
+                    f"Stale comparison allowances for {component}; every "
+                    "declared allowance must apply at least once across all "
+                    "scenarios:"
+                )
+                for line in stale:
+                    print(f"  {line}")
+                print(f"FAILED: {component}/allowances")
+                failed.append(f"{component}/allowances")
 
     if failed:
         print(f"FAILED: {', '.join(failed)}")

@@ -5,6 +5,16 @@ releaseName: hub
 namespace: kubeflow
 includeCustomResourceDefinitions: true
 defaultScenario: base
+ignoredLabels:
+- keys:
+  - app.kubernetes.io/managed-by
+  - app.kubernetes.io/version
+  - app.kubernetes.io/name
+  - app.kubernetes.io/instance
+  - app.kubernetes.io/component
+  reason: >
+    The chart derives the standard app.kubernetes.io labels from the release;
+    the upstream manifests pin different static values per component.
 scenarios:
   base:
     kustomize:

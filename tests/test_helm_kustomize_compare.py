@@ -15,6 +15,10 @@ helm_kustomize_compare = importlib.util.module_from_spec(MODULE_SPEC)
 MODULE_SPEC.loader.exec_module(helm_kustomize_compare)
 
 
+def rules(**descriptor):
+    return helm_kustomize_compare.ChartComparisonRules(descriptor)
+
+
 def dex_deployment_manifest():
     return {
         "apiVersion": "apps/v1",
@@ -43,7 +47,32 @@ def dex_deployment_manifest():
     }
 
 
-class NormalizeManifestTest(unittest.TestCase):
+DEX_CHECKSUM_RULES = {
+    "knownDifferences": [
+        {
+            "resource": "Deployment/auth/dex",
+            "ignorePodTemplateAnnotations": [
+                "checksum/config",
+                "checksum/oidc-client",
+                "checksum/passwords",
+            ],
+            "reason": "test",
+        }
+    ]
+}
+
+DEX_CONFIG_MAP_RULES = {
+    "knownDifferences": [
+        {
+            "resource": "ConfigMap/auth/dex",
+            "compareDataAsYaml": ["config.yaml"],
+            "reason": "test",
+        }
+    ]
+}
+
+
+class KnownDifferenceTest(unittest.TestCase):
     def test_dex_config_map_compares_embedded_yaml_semantically(self):
         unquoted_username = {
             "apiVersion": "v1",
@@ -57,13 +86,11 @@ class NormalizeManifestTest(unittest.TestCase):
         ] = 'staticPasswords:\n- username: "user"\n'
 
         self.assertEqual(
-            helm_kustomize_compare.normalize_manifest(
-                unquoted_username,
-                component="dex",
+            rules(**DEX_CONFIG_MAP_RULES).normalize(
+                unquoted_username, is_helm_manifest=False
             ),
-            helm_kustomize_compare.normalize_manifest(
-                quoted_username,
-                component="dex",
+            rules(**DEX_CONFIG_MAP_RULES).normalize(
+                quoted_username, is_helm_manifest=True
             ),
         )
 
@@ -75,29 +102,21 @@ class NormalizeManifestTest(unittest.TestCase):
             "data": {"config.yaml": "staticPasswords:\n- username: user\n"},
         }
         outside_scope = {
-            "different component": (manifest, "katib"),
-            "different kind": ({**manifest, "kind": "Secret"}, "dex"),
-            "different name": (
-                {
-                    **manifest,
-                    "metadata": {**manifest["metadata"], "name": "dex-canary"},
-                },
-                "dex",
-            ),
-            "different namespace": (
-                {
-                    **manifest,
-                    "metadata": {**manifest["metadata"], "namespace": "other"},
-                },
-                "dex",
-            ),
+            "different kind": {**manifest, "kind": "Secret"},
+            "different name": {
+                **manifest,
+                "metadata": {**manifest["metadata"], "name": "dex-canary"},
+            },
+            "different namespace": {
+                **manifest,
+                "metadata": {**manifest["metadata"], "namespace": "other"},
+            },
         }
 
-        for case_name, (candidate, component) in outside_scope.items():
+        for case_name, candidate in outside_scope.items():
             with self.subTest(case_name=case_name):
-                normalized = helm_kustomize_compare.normalize_manifest(
-                    copy.deepcopy(candidate),
-                    component=component,
+                normalized = rules(**DEX_CONFIG_MAP_RULES).normalize(
+                    copy.deepcopy(candidate), is_helm_manifest=True
                 )
                 self.assertIsInstance(normalized["data"]["config.yaml"], str)
 
@@ -110,16 +129,15 @@ class NormalizeManifestTest(unittest.TestCase):
         }
 
         with self.assertRaises(yaml.YAMLError):
-            helm_kustomize_compare.normalize_manifest(
-                malformed_config_map,
-                component="dex",
+            rules(**DEX_CONFIG_MAP_RULES).normalize(
+                malformed_config_map, is_helm_manifest=True
             )
 
-    def test_dex_ignores_only_known_rollout_checksum_annotations(self):
+    def test_dex_ignores_only_declared_rollout_checksum_annotations(self):
         manifest = dex_deployment_manifest()
 
-        normalized = helm_kustomize_compare.normalize_manifest(
-            copy.deepcopy(manifest), component="dex"
+        normalized = rules(**DEX_CHECKSUM_RULES).normalize(
+            copy.deepcopy(manifest), is_helm_manifest=True
         )
 
         self.assertEqual(
@@ -134,42 +152,139 @@ class NormalizeManifestTest(unittest.TestCase):
             },
         )
 
-    def test_dex_ignores_rollout_checksums_only_for_auth_namespace_deployment(self):
+    def test_dex_rollout_checksums_are_scoped_to_the_named_deployment(self):
         manifest = dex_deployment_manifest()
-        workloads_outside_dex_comparison_scope = {
-            "different component": (manifest, "katib"),
-            "different kind": ({**manifest, "kind": "StatefulSet"}, "dex"),
-            "different name": (
-                {
-                    **manifest,
-                    "metadata": {**manifest["metadata"], "name": "dex-canary"},
-                },
-                "dex",
-            ),
-            "different namespace": (
-                {
-                    **manifest,
-                    "metadata": {**manifest["metadata"], "namespace": "other"},
-                },
-                "dex",
-            ),
+        outside_scope = {
+            "different kind": {**manifest, "kind": "StatefulSet"},
+            "different name": {
+                **manifest,
+                "metadata": {**manifest["metadata"], "name": "dex-canary"},
+            },
+            "different namespace": {
+                **manifest,
+                "metadata": {**manifest["metadata"], "namespace": "other"},
+            },
         }
 
-        for case_name, (
-            workload,
-            component,
-        ) in workloads_outside_dex_comparison_scope.items():
+        for case_name, workload in outside_scope.items():
             with self.subTest(case_name=case_name):
-                normalized_workload = helm_kustomize_compare.normalize_manifest(
-                    copy.deepcopy(workload), component=component
+                normalized = rules(**DEX_CHECKSUM_RULES).normalize(
+                    copy.deepcopy(workload), is_helm_manifest=True
                 )
                 self.assertEqual(
-                    normalized_workload["spec"]["template"]["metadata"]["annotations"],
+                    normalized["spec"]["template"]["metadata"]["annotations"],
                     manifest["spec"]["template"]["metadata"]["annotations"],
                 )
 
+    def test_a_two_segment_pattern_matches_the_kind_and_name_in_any_namespace(self):
+        manifest = {
+            "kind": "Deployment",
+            "metadata": {"name": "dashboard", "namespace": "kubeflow"},
+            "spec": {
+                "template": {
+                    "metadata": {
+                        "annotations": {
+                            "checksum/config": "rendered-checksum",
+                            "kubectl.kubernetes.io/default-container": "dashboard",
+                        }
+                    }
+                }
+            },
+        }
 
-class OAuth2ProxyResourceKeyTest(unittest.TestCase):
+        normalized = rules(
+            knownDifferences=[
+                {
+                    "resource": "Deployment/dashboard",
+                    "ignorePodTemplateAnnotations": ["checksum/config"],
+                    "reason": "test",
+                }
+            ]
+        ).normalize(manifest, is_helm_manifest=True)
+
+        self.assertEqual(
+            normalized["spec"]["template"]["metadata"]["annotations"],
+            {"kubectl.kubernetes.io/default-container": "dashboard"},
+        )
+
+
+class IgnoredLabelTest(unittest.TestCase):
+    def test_declared_labels_are_ignored_in_pod_templates_too(self):
+        manifest = {
+            "kind": "Deployment",
+            "metadata": {
+                "name": "katib-controller",
+                "namespace": "kubeflow",
+                "labels": {"app.kubernetes.io/managed-by": "Helm", "app": "katib"},
+            },
+            "spec": {
+                "template": {
+                    "metadata": {
+                        "labels": {
+                            "app.kubernetes.io/managed-by": "Helm",
+                            "app": "katib",
+                        }
+                    }
+                }
+            },
+        }
+
+        normalized = rules(
+            ignoredLabels=[{"keys": ["app.kubernetes.io/managed-by"], "reason": "test"}]
+        ).normalize(manifest, is_helm_manifest=True)
+
+        self.assertEqual(normalized["metadata"]["labels"], {"app": "katib"})
+        self.assertEqual(
+            normalized["spec"]["template"]["metadata"]["labels"],
+            {"app": "katib"},
+        )
+
+    def test_an_excepted_resource_keeps_its_own_labels(self):
+        manifest = {
+            "kind": "ClusterIssuer",
+            "metadata": {
+                "name": "kubeflow-self-signing-issuer",
+                "labels": {"app.kubernetes.io/name": "cert-manager"},
+            },
+        }
+
+        normalized = rules(
+            ignoredLabels=[
+                {
+                    "keys": ["app.kubernetes.io/name"],
+                    "except": ["ClusterIssuer/kubeflow-self-signing-issuer"],
+                    "reason": "test",
+                }
+            ]
+        ).normalize(manifest, is_helm_manifest=True)
+
+        self.assertEqual(
+            normalized["metadata"]["labels"],
+            {"app.kubernetes.io/name": "cert-manager"},
+        )
+
+    def test_helm_sh_labels_and_annotations_are_always_removed(self):
+        manifest = {
+            "kind": "Service",
+            "metadata": {
+                "name": "hub",
+                "labels": {"helm.sh/chart": "hub-0.1.0", "app": "hub"},
+                "annotations": {
+                    "meta.helm.sh/release-name": "hub",
+                    "example.com/keep": "kept",
+                },
+            },
+        }
+
+        normalized = rules().normalize(manifest, is_helm_manifest=True)
+
+        self.assertEqual(normalized["metadata"]["labels"], {"app": "hub"})
+        self.assertEqual(
+            normalized["metadata"]["annotations"], {"example.com/keep": "kept"}
+        )
+
+
+class ResourceKeyTest(unittest.TestCase):
     def test_parameter_config_map_does_not_collide_with_main_config_map(self):
         main_config_map = {
             "kind": "ConfigMap",
@@ -186,14 +301,8 @@ class OAuth2ProxyResourceKeyTest(unittest.TestCase):
             },
         }
 
-        main_key = helm_kustomize_compare.get_resource_key(
-            main_config_map,
-            "oauth2-proxy",
-        )
-        parameters_key = helm_kustomize_compare.get_resource_key(
-            parameters_config_map,
-            "oauth2-proxy",
-        )
+        main_key = helm_kustomize_compare.get_resource_key(main_config_map)
+        parameters_key = helm_kustomize_compare.get_resource_key(parameters_config_map)
 
         self.assertNotEqual(main_key, parameters_key)
         self.assertEqual(
@@ -216,27 +325,18 @@ class OAuth2ProxyResourceKeyTest(unittest.TestCase):
                 "namespace": "oauth2-proxy",
             },
         }
+        static_name_rules = rules(helmUsesKustomizeNameHashes=False)
 
-        normalized_kustomize_config_map = helm_kustomize_compare.normalize_manifest(
-            kustomize_config_map,
-            "oauth2-proxy",
-            normalize_kustomize_names=True,
+        normalized_kustomize = static_name_rules.normalize(
+            kustomize_config_map, is_helm_manifest=False
         )
-        normalized_helm_config_map = helm_kustomize_compare.normalize_manifest(
-            helm_config_map,
-            "oauth2-proxy",
-            normalize_kustomize_names=False,
+        normalized_helm = static_name_rules.normalize(
+            helm_config_map, is_helm_manifest=True
         )
 
+        self.assertEqual(normalized_kustomize, normalized_helm)
         self.assertEqual(
-            normalized_kustomize_config_map,
-            normalized_helm_config_map,
-        )
-        self.assertEqual(
-            helm_kustomize_compare.get_resource_key(
-                normalized_kustomize_config_map,
-                "oauth2-proxy",
-            ),
+            helm_kustomize_compare.get_resource_key(normalized_kustomize),
             "ConfigMap/oauth2-proxy/oauth2-proxy-parameters",
         )
 
@@ -269,84 +369,6 @@ class OAuth2ProxyResourceKeyTest(unittest.TestCase):
             "oauth2-proxy",
         )
 
-
-class IstioManifestSelectionTest(unittest.TestCase):
-    def test_only_kustomize_excludes_foundation_owned_istio_system_namespace(self):
-        namespace = {
-            "apiVersion": "v1",
-            "kind": "Namespace",
-            "metadata": {"name": "istio-system"},
-        }
-
-        self.assertFalse(
-            helm_kustomize_compare.should_compare_manifest(
-                namespace,
-                component="istio",
-                scenario="base",
-                is_kustomize_manifest=True,
-            )
-        )
-        self.assertTrue(
-            helm_kustomize_compare.should_compare_manifest(
-                namespace,
-                component="istio",
-                scenario="base",
-                is_kustomize_manifest=False,
-            )
-        )
-
-
-class ComparisonWorkflowTest(unittest.TestCase):
-    def test_dashboard_ignores_only_rollout_checksum_annotations(self):
-        deployment = {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "metadata": {"name": "dashboard", "namespace": "kubeflow"},
-            "spec": {
-                "template": {
-                    "metadata": {
-                        "annotations": {
-                            "checksum/config": "rendered-checksum",
-                            "kubectl.kubernetes.io/default-container": "dashboard",
-                        }
-                    }
-                }
-            },
-        }
-
-        normalized = helm_kustomize_compare.normalize_manifest(
-            deployment, "kubeflow-dashboard"
-        )
-
-        self.assertEqual(
-            normalized["spec"]["template"]["metadata"]["annotations"],
-            {"kubectl.kubernetes.io/default-container": "dashboard"},
-        )
-
-    def test_dashboard_rollout_checksums_are_scoped_to_its_deployments(self):
-        unrelated = {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "metadata": {
-                "name": "poddefaults-webhook-deployment",
-                "namespace": "kubeflow",
-            },
-            "spec": {
-                "template": {
-                    "metadata": {"annotations": {"checksum/config": "unchanged"}}
-                }
-            },
-        }
-
-        normalized = helm_kustomize_compare.normalize_manifest(
-            unrelated, "kubeflow-dashboard"
-        )
-
-        self.assertEqual(
-            normalized["spec"]["template"]["metadata"]["annotations"],
-            {"checksum/config": "unchanged"},
-        )
-
     def test_config_map_name_ending_in_ten_characters_is_not_truncated(self):
         """A stable chart name must not lose a legitimate final segment.
 
@@ -369,29 +391,150 @@ class ComparisonWorkflowTest(unittest.TestCase):
                 "namespace": "kubeflow",
             },
         }
+        static_name_rules = rules(helmUsesKustomizeNameHashes=False)
 
-        normalized_kustomize = helm_kustomize_compare.normalize_manifest(
-            kustomize_config_map,
-            "kubeflow-dashboard",
-            normalize_kustomize_names=True,
+        normalized_kustomize = static_name_rules.normalize(
+            kustomize_config_map, is_helm_manifest=False
         )
-        normalized_helm = helm_kustomize_compare.normalize_manifest(
-            helm_config_map,
-            "kubeflow-dashboard",
-            normalize_kustomize_names=(
-                helm_kustomize_compare.helm_uses_kustomize_generated_names(
-                    "kubeflow-dashboard"
-                )
-            ),
+        normalized_helm = static_name_rules.normalize(
+            helm_config_map, is_helm_manifest=True
         )
 
         self.assertEqual(normalized_kustomize, normalized_helm)
         self.assertEqual(
-            helm_kustomize_compare.get_resource_key(
-                normalized_helm, "kubeflow-dashboard"
-            ),
+            helm_kustomize_compare.get_resource_key(normalized_helm),
             "ConfigMap/kubeflow/dashboard-parameters",
         )
+
+
+class ManifestSelectionTest(unittest.TestCase):
+    def test_a_skip_entry_excludes_only_the_named_resource(self):
+        skip_rules = rules(
+            knownDifferences=[{"skip": "Namespace/istio-system", "reason": "test"}]
+        )
+        istio_system = {
+            "kind": "Namespace",
+            "metadata": {"name": "istio-system"},
+        }
+        other_namespace = {
+            "kind": "Namespace",
+            "metadata": {"name": "kubeflow"},
+        }
+
+        self.assertFalse(skip_rules.should_compare(istio_system, {}))
+        self.assertTrue(skip_rules.should_compare(other_namespace, {}))
+
+    def test_scenario_kind_selection_partitions_the_output(self):
+        namespace = {"kind": "Namespace", "metadata": {"name": "kubeflow"}}
+        role = {"kind": "ClusterRole", "metadata": {"name": "kubeflow-view"}}
+        selection_rules = rules()
+
+        self.assertFalse(
+            selection_rules.should_compare(namespace, {"excludeKinds": ["Namespace"]})
+        )
+        self.assertTrue(
+            selection_rules.should_compare(role, {"excludeKinds": ["Namespace"]})
+        )
+        self.assertTrue(
+            selection_rules.should_compare(namespace, {"onlyKinds": ["Namespace"]})
+        )
+        self.assertFalse(
+            selection_rules.should_compare(role, {"onlyKinds": ["Namespace"]})
+        )
+
+
+class StalenessTest(unittest.TestCase):
+    def test_an_allowance_that_never_matches_is_reported_stale(self):
+        stale_rules = rules(
+            knownDifferences=[{"skip": "Namespace/gone", "reason": "test"}]
+        )
+
+        stale_rules.should_compare(
+            {"kind": "Namespace", "metadata": {"name": "kubeflow"}}, {}
+        )
+
+        self.assertEqual(stale_rules.unfired(), ["knownDifferences: Namespace/gone"])
+
+    def test_a_fired_allowance_is_not_reported(self):
+        fired_rules = rules(
+            knownDifferences=[{"skip": "Namespace/auth", "reason": "test"}]
+        )
+
+        fired_rules.should_compare(
+            {"kind": "Namespace", "metadata": {"name": "auth"}}, {}
+        )
+
+        self.assertEqual(fired_rules.unfired(), [])
+
+    def test_every_declaration_family_reports_staleness(self):
+        stale_rules = rules(
+            ignoredLabels=[{"keys": ["app.kubernetes.io/managed-by"], "reason": "t"}],
+            knownDifferences=[{"skip": "Namespace/gone", "reason": "t"}],
+            retainedCustomResourceDefinitions=["gone.example.com"],
+            helmOnlyResources=[{"resource": "Secret/gone", "reason": "t"}],
+        )
+
+        self.assertEqual(len(stale_rules.unfired()), 4)
+
+
+class RetainedCustomResourceDefinitionTest(unittest.TestCase):
+    def crd(self, name, annotations):
+        return {
+            "kind": "CustomResourceDefinition",
+            "metadata": {"name": name, "annotations": annotations},
+        }
+
+    def test_an_undeclared_keep_annotation_fails(self):
+        empty_rules = rules()
+
+        self.assertFalse(
+            empty_rules.validate_retained_custom_resource_definitions(
+                [self.crd("profiles.kubeflow.org", {"helm.sh/resource-policy": "keep"})]
+            )
+        )
+
+    def test_a_declared_keep_annotation_passes_and_fires(self):
+        declared_rules = rules(
+            retainedCustomResourceDefinitions=["profiles.kubeflow.org"]
+        )
+
+        self.assertTrue(
+            declared_rules.validate_retained_custom_resource_definitions(
+                [self.crd("profiles.kubeflow.org", {"helm.sh/resource-policy": "keep"})]
+            )
+        )
+        self.assertEqual(declared_rules.unfired(), [])
+
+    def test_a_declaration_without_the_annotation_goes_stale_not_green(self):
+        declared_rules = rules(
+            retainedCustomResourceDefinitions=["profiles.kubeflow.org"]
+        )
+
+        self.assertTrue(
+            declared_rules.validate_retained_custom_resource_definitions(
+                [self.crd("profiles.kubeflow.org", {})]
+            )
+        )
+        self.assertEqual(
+            declared_rules.unfired(),
+            ["retainedCustomResourceDefinitions: profiles.kubeflow.org"],
+        )
+
+
+class HelmOnlyResourceTest(unittest.TestCase):
+    def test_a_declared_extra_is_allowed_and_an_undeclared_one_is_not(self):
+        extras_rules = rules(
+            helmOnlyResources=[
+                {"resource": "Secret/kubeflow/katib-webhook-cert", "reason": "t"}
+            ]
+        )
+
+        unexpected = extras_rules.unexpected_helm_only(
+            {"Secret/kubeflow/katib-webhook-cert", "Secret/kubeflow/surprise"}
+        )
+
+        self.assertEqual(unexpected, {"Secret/kubeflow/surprise"})
+        self.assertEqual(extras_rules.unfired(), [])
 
 
 if __name__ == "__main__":

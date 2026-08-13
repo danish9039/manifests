@@ -5,6 +5,28 @@ releaseName: katib
 namespace: kubeflow
 includeCustomResourceDefinitions: true
 defaultScenario: standalone
+ignoredLabels:
+- keys:
+  - app.kubernetes.io/managed-by
+  - app.kubernetes.io/version
+  - app.kubernetes.io/name
+  - app.kubernetes.io/instance
+  - app.kubernetes.io/component
+  reason: >
+    The chart adds the standard app.kubernetes.io release labels to every
+    resource; the upstream Kustomize manifests carry none of them.
+knownDifferences:
+- resource: ConfigMap/kubeflow/katib-config
+  trimDataWhitespace: true
+  reason: >
+    The two sides embed katib-config.yaml with different leading document
+    separators and surrounding whitespace; both are trimmed before the
+    values are compared.
+helmOnlyResources:
+- resource: Secret/kubeflow/katib-webhook-cert
+  reason: >
+    The chart pre-creates the webhook certificate Secret that upstream's
+    certificate generator otherwise creates at runtime.
 scenarios:
   cert-manager:
     kustomize:
