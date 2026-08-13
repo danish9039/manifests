@@ -158,7 +158,6 @@ def compare(component, name, descriptors):
                 str(helm_output),
                 component,
                 name,
-                descriptor["namespace"],
             ]
             return subprocess.run(command, cwd=ROOT_DIRECTORY).returncode == 0
     except subprocess.CalledProcessError as error:

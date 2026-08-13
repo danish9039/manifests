@@ -255,17 +255,6 @@ def normalize_manifest(
             name = normalized["metadata"]["name"]
             normalized["metadata"]["name"] = KUSTOMIZE_HASH_SUFFIX.sub("", name)
 
-    if "metadata" in normalized:
-        metadata = normalized["metadata"]
-
-        metadata.pop("generation", None)
-        metadata.pop("resourceVersion", None)
-        metadata.pop("uid", None)
-        metadata.pop("creationTimestamp", None)
-        metadata.pop("managedFields", None)
-
-    normalized.pop("status", None)
-
     def remove_empty_values(obj):
         if isinstance(obj, dict):
             return {
@@ -475,7 +464,6 @@ def compare_manifests(
     helm_file: str,
     component: str,
     scenario: str,
-    namespace: str = "",
 ) -> bool:
     """Compare Kustomize and Helm manifests."""
     kustomize_manifests = load_manifests(kustomize_file)
@@ -563,7 +551,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 5:
         print(
             "Usage: python helm_kustomize_compare.py "
-            "<kustomize_file> <helm_file> <component> <scenario> [namespace]"
+            "<kustomize_file> <helm_file> <component> <scenario>"
         )
         sys.exit(1)
 
@@ -571,9 +559,6 @@ if __name__ == "__main__":
     helm_file = sys.argv[2]
     component = sys.argv[3]
     scenario = sys.argv[4]
-    namespace = sys.argv[5] if len(sys.argv) > 5 else ""
 
-    success = compare_manifests(
-        kustomize_file, helm_file, component, scenario, namespace
-    )
+    success = compare_manifests(kustomize_file, helm_file, component, scenario)
     sys.exit(0 if success else 1)
