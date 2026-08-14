@@ -1,3 +1,17 @@
+# Kubeflow aggregate roles for KServe, projected into user Profiles by the
+# aggregated ClusterRole pattern described in common/kubeflow-roles/README.md.
+#
+# These arrived embedded in upstream/kserve_kubeflow.yaml, which this component
+# no longer installs. The standard upstream/kserve.yaml embeds none, so they are
+# kept here instead.
+#
+# upstream/aggregated-roles.yaml is not a substitute: it grants only
+# inferenceservices and the Knative resources, and is missing inferencegraphs,
+# llminferenceservices, servingruntimes and trainedmodels. Adopting it would
+# silently remove permissions that users have today.
+#
+# llminferenceserviceconfigs is deliberately excluded while the LLM
+# configuration templates are omitted.
 aggregationRule:
   clusterRoleSelectors:
   - matchLabels:

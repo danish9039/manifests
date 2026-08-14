@@ -149,6 +149,10 @@ class KServeManifestTest(unittest.TestCase):
         tests/PSS_enable.sh does not label kubeflow-user-example-com as
         restricted, so no cluster run exercises this container under the
         Pod Security Standard that real Profile namespaces enforce.
+
+        runAsUser is deliberately absent. The image declares a numeric non-root
+        user, which is what runAsNonRoot needs in order to be verified, so
+        pinning the identifier here would only restate it.
         """
         storage_container = find_resource(
             self.kserve_resources, "ClusterStorageContainer", "default"
@@ -157,7 +161,7 @@ class KServeManifestTest(unittest.TestCase):
         self.assertFalse(security_context["allowPrivilegeEscalation"])
         self.assertEqual(security_context["capabilities"]["drop"], ["ALL"])
         self.assertTrue(security_context["runAsNonRoot"])
-        self.assertEqual(security_context["runAsUser"], 1000)
+        self.assertNotIn("runAsUser", security_context)
         self.assertEqual(security_context["seccompProfile"]["type"], "RuntimeDefault")
 
     def test_cluster_scoped_resources_have_no_namespace(self):

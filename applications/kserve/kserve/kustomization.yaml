@@ -22,7 +22,10 @@ patches:
     name: default
 
 # Make storage initializer containers compatible with the restricted Pod
-# Security Standard used by Kubeflow Profile namespaces.
+# Security Standard used by Kubeflow Profile namespaces. runAsUser is not set
+# because the image already declares a numeric non-root user, which is what
+# runAsNonRoot needs to verify. Upstream follows the same rule and sets
+# runAsUser only for the runtimes whose images lack one.
 - patch: |-
     - op: add
       path: /spec/container/securityContext
@@ -32,7 +35,6 @@ patches:
           drop:
           - ALL
         runAsNonRoot: true
-        runAsUser: 1000
         seccompProfile:
           type: RuntimeDefault
   target:
@@ -115,6 +117,9 @@ patches:
     $patch: delete
 
 # Enable path-based routing via pathTemplate on the inferenceservice-config ConfigMap.
+# This replaces the whole ingress value, so every key upstream ships must be
+# repeated here. Compare against upstream/kserve.yaml on each synchronization,
+# otherwise a newly added key is dropped without any error.
 # This allows KServe to auto-generate VirtualServices for path-based URLs
 # (/serving/<namespace>/<name>/...), eliminating manual VirtualService creation.
 # Ref: https://github.com/kserve/kserve/issues/2257
@@ -128,6 +133,7 @@ patches:
     data:
       ingress: |-
         {
+          "disableHTTPRouteTimeout": false,
           "enableGatewayApi": false,
           "kserveIngressGateway": "kserve/kserve-ingress-gateway",
           "ingressGateway": "kubeflow/kubeflow-gateway",
