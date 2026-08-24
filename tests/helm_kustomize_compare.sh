@@ -125,7 +125,7 @@ case "$COMPONENT" in
         )
 
         declare -A NAMESPACES=(
-            ["kubeflow"]="kubeflow"
+            ["kubeflow"]="kserve"
         )
         ;;
 
@@ -161,6 +161,7 @@ case "$COMPONENT" in
             "$ROOT_DIRECTORY/common/istio/istio-namespace/base"
             "$ROOT_DIRECTORY/common/oauth2-proxy/base"
             "$ROOT_DIRECTORY/common/dex/base"
+            "$ROOT_DIRECTORY/applications/kserve/kserve"
         )
         PLATFORM_NAMESPACE_PATHS="$(printf '%s\n' "${PLATFORM_NAMESPACE_KUSTOMIZE_PATHS[@]}")"
 
