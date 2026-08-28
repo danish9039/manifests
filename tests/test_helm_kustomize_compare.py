@@ -2,6 +2,7 @@
 
 import copy
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -427,6 +428,27 @@ class ManifestSelectionTest(unittest.TestCase):
         self.assertFalse(
             selection_rules.should_compare(role, {"onlyKinds": ["Namespace"]})
         )
+
+    def test_a_selection_matching_nothing_fails_instead_of_passing_empty(self):
+        """A misspelled kind filters both sides to zero resources; comparing
+        two empty sets must fail, not report parity."""
+        namespace = {"kind": "Namespace", "metadata": {"name": "kubeflow"}}
+        with tempfile.TemporaryDirectory() as directory:
+            for side in ("kustomize", "helm"):
+                (Path(directory) / f"{side}.yaml").write_text(yaml.safe_dump(namespace))
+            kustomize_file = str(Path(directory) / "kustomize.yaml")
+            helm_file = str(Path(directory) / "helm.yaml")
+
+            self.assertFalse(
+                helm_kustomize_compare.compare_manifests(
+                    kustomize_file, helm_file, rules(), {"onlyKinds": ["Namespcae"]}
+                )
+            )
+            self.assertTrue(
+                helm_kustomize_compare.compare_manifests(
+                    kustomize_file, helm_file, rules(), {"onlyKinds": ["Namespace"]}
+                )
+            )
 
 
 class StalenessTest(unittest.TestCase):

@@ -427,6 +427,13 @@ def compare_manifests(
         normalized = rules.normalize(manifest, is_helm_manifest=True)
         helm_resources[get_resource_key(normalized)] = normalized
 
+    # A misspelled onlyKinds or excludeKinds filter selects nothing on either
+    # side, and two empty sets compare equal; that is a coverage failure, not
+    # a parity success.
+    if not kustomize_resources and not helm_resources:
+        print("Scenario selection left nothing to compare on either side")
+        return False
+
     kustomize_keys = set(kustomize_resources.keys())
     helm_keys = set(helm_resources.keys())
 
