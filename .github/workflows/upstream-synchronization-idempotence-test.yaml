@@ -42,7 +42,7 @@ jobs:
     - name: Test Helm synchronization tooling
       run: |
         python -m unittest tests/test_helm_manifest_generator.py
-        python -m unittest tests/test_generate_dashboard_helm_manifests.py
+        python -m unittest tests/test_dashboard_helm_manifest_generator.py
 
     - name: Run upstream synchronization scripts for changed files
       run: |

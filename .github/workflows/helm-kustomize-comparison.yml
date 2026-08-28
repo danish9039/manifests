@@ -112,4 +112,4 @@ jobs:
     - name: Test Dashboard manifest generation
       run: |
         python tests/test_helm_manifest_generator.py
-        python tests/test_generate_dashboard_helm_manifests.py
+        python tests/test_dashboard_helm_manifest_generator.py

@@ -204,7 +204,7 @@ helm lint applications/dashboard/helm --namespace kubeflow
 python3 tests/run_helm_kustomize_comparison.py kubeflow-dashboard platform
 python3 tests/run_helm_kustomize_comparison.py kubeflow-dashboard --all-scenarios
 python3 tests/test_dashboard_helm_chart.py
-python3 tests/test_generate_dashboard_helm_manifests.py
+python3 tests/test_dashboard_helm_manifest_generator.py
 ```
 
 How this chart is compared, including every declared allowance, is in
