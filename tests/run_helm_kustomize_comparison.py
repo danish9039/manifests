@@ -59,7 +59,7 @@ _StrictLoader.add_constructor(
 
 
 KNOWN_DIFFERENCE_ACTIONS = frozenset(
-    ("ignorePodTemplateAnnotations", "compareDataAsYaml", "trimDataWhitespace")
+    ("ignorePodTemplateAnnotations", "compareDataAsYaml")
 )
 
 
@@ -89,9 +89,6 @@ def _validate_allowances(path, descriptor):
             raise ValueError(
                 f"{path}: an ignoredLabels entry needs a non-empty 'keys' list"
             )
-        for pattern in entry.get("except") or []:
-            _validate_pattern(path, "ignoredLabels except", pattern)
-
     for entry in descriptor.get("knownDifferences") or []:
         _validate_reason(path, "knownDifferences", entry)
         fields = set(entry) - {"reason"}
@@ -123,6 +120,16 @@ def _validate_allowances(path, descriptor):
         if not entry.get("resource"):
             raise ValueError(
                 f"{path}: every helmOnlyResources entry needs a 'resource'"
+            )
+
+    retained = descriptor.get("retainedCustomResourceDefinitions")
+    if retained is not None:
+        _validate_reason(path, "retainedCustomResourceDefinitions", retained)
+        names = retained.get("names")
+        if not isinstance(names, list) or not names:
+            raise ValueError(
+                f"{path}: retainedCustomResourceDefinitions needs a non-empty "
+                "'names' list"
             )
 
 

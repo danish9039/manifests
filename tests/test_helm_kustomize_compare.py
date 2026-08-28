@@ -209,7 +209,7 @@ class KnownDifferenceTest(unittest.TestCase):
 
 
 class IgnoredLabelTest(unittest.TestCase):
-    def test_declared_labels_are_ignored_in_pod_templates_too(self):
+    def test_pod_template_labels_are_ignored_only_when_declared(self):
         manifest = {
             "kind": "Deployment",
             "metadata": {
@@ -229,38 +229,24 @@ class IgnoredLabelTest(unittest.TestCase):
             },
         }
 
-        normalized = rules(
-            ignoredLabels=[{"keys": ["app.kubernetes.io/managed-by"], "reason": "test"}]
-        ).normalize(manifest, is_helm_manifest=True)
+        entry = {"keys": ["app.kubernetes.io/managed-by"], "reason": "test"}
 
-        self.assertEqual(normalized["metadata"]["labels"], {"app": "katib"})
-        self.assertEqual(
-            normalized["spec"]["template"]["metadata"]["labels"],
-            {"app": "katib"},
+        top_level_only = rules(ignoredLabels=[entry]).normalize(
+            manifest, is_helm_manifest=True
+        )
+        declared = rules(ignoredLabels=[dict(entry, podTemplates=True)]).normalize(
+            manifest, is_helm_manifest=True
         )
 
-    def test_an_excepted_resource_keeps_its_own_labels(self):
-        manifest = {
-            "kind": "ClusterIssuer",
-            "metadata": {
-                "name": "kubeflow-self-signing-issuer",
-                "labels": {"app.kubernetes.io/name": "cert-manager"},
-            },
-        }
-
-        normalized = rules(
-            ignoredLabels=[
-                {
-                    "keys": ["app.kubernetes.io/name"],
-                    "except": ["ClusterIssuer/kubeflow-self-signing-issuer"],
-                    "reason": "test",
-                }
-            ]
-        ).normalize(manifest, is_helm_manifest=True)
-
+        self.assertEqual(top_level_only["metadata"]["labels"], {"app": "katib"})
         self.assertEqual(
-            normalized["metadata"]["labels"],
-            {"app.kubernetes.io/name": "cert-manager"},
+            top_level_only["spec"]["template"]["metadata"]["labels"],
+            {"app.kubernetes.io/managed-by": "Helm", "app": "katib"},
+        )
+        self.assertEqual(declared["metadata"]["labels"], {"app": "katib"})
+        self.assertEqual(
+            declared["spec"]["template"]["metadata"]["labels"],
+            {"app": "katib"},
         )
 
     def test_helm_sh_labels_and_annotations_are_always_removed(self):
@@ -470,7 +456,10 @@ class StalenessTest(unittest.TestCase):
         stale_rules = rules(
             ignoredLabels=[{"keys": ["app.kubernetes.io/managed-by"], "reason": "t"}],
             knownDifferences=[{"skip": "Namespace/gone", "reason": "t"}],
-            retainedCustomResourceDefinitions=["gone.example.com"],
+            retainedCustomResourceDefinitions={
+                "reason": "t",
+                "names": ["gone.example.com"],
+            },
             helmOnlyResources=[{"resource": "Secret/gone", "reason": "t"}],
         )
 
@@ -495,7 +484,10 @@ class RetainedCustomResourceDefinitionTest(unittest.TestCase):
 
     def test_a_declared_keep_annotation_passes_and_fires(self):
         declared_rules = rules(
-            retainedCustomResourceDefinitions=["profiles.kubeflow.org"]
+            retainedCustomResourceDefinitions={
+                "reason": "t",
+                "names": ["profiles.kubeflow.org"],
+            }
         )
 
         self.assertTrue(
@@ -507,7 +499,10 @@ class RetainedCustomResourceDefinitionTest(unittest.TestCase):
 
     def test_a_declaration_without_the_annotation_goes_stale_not_green(self):
         declared_rules = rules(
-            retainedCustomResourceDefinitions=["profiles.kubeflow.org"]
+            retainedCustomResourceDefinitions={
+                "reason": "t",
+                "names": ["profiles.kubeflow.org"],
+            }
         )
 
         self.assertTrue(

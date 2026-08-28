@@ -6,11 +6,10 @@ renders both sides and loads each chart's descriptor. This module knows about
 Kubernetes resources; that one knows about files and processes.
 
 Only universal facts about the two renderers are normalized here in code: the
-helm.sh label and annotation namespaces, and Kustomize's content-hash suffixes.
-Everything specific to one chart is declared in that chart's ci/comparison.yaml
-and interpreted by ChartComparisonRules, so every chart-specific allowance is
-scoped to named resources, carries a reason, and is reported as stale when it
-stops matching anything.
+helm.sh label and annotation namespaces, and Kustomize's content-hash suffixes,
+stripped from the Helm side only when the chart reproduces them. Everything
+specific to one chart is declared in that chart's ci/comparison.yaml, carries a
+validated reason, and is reported as stale when it stops matching anything.
 """
 
 import fnmatch
@@ -80,7 +79,8 @@ class ChartComparisonRules:
         self.ignored_labels = descriptor.get("ignoredLabels") or []
         self.known_differences = descriptor.get("knownDifferences") or []
         self.retained_custom_resource_definitions = set(
-            descriptor.get("retainedCustomResourceDefinitions") or []
+            (descriptor.get("retainedCustomResourceDefinitions") or {}).get("names")
+            or []
         )
         self.helm_only_resources = descriptor.get("helmOnlyResources") or []
         self.helm_uses_kustomize_name_hashes = descriptor.get(
@@ -193,34 +193,26 @@ class ChartComparisonRules:
                 report.append(f"helmOnlyResources: {entry['resource']}")
         return report
 
-    def _ignored_label_entries(
-        self, kind: str, namespace: str, name: str, top_level: bool
-    ) -> List[int]:
+    def _ignored_label_entries(self, top_level: bool) -> List[int]:
         """Indices of ignoredLabels entries applying at this metadata block.
 
-        An except pattern spares only the resource's own metadata; labels the
-        chart propagates into pod templates keep being ignored there.
+        An entry applies to every resource's own metadata; nested template
+        metadata is compared strictly unless the entry declares podTemplates,
+        for a chart that also adds the keys to its workloads' pod templates.
         """
-        applicable = []
-        for index, entry in enumerate(self.ignored_labels):
-            if top_level and any(
-                resource_matches(pattern, kind, namespace, name)
-                for pattern in entry.get("except") or []
-            ):
-                continue
-            applicable.append(index)
-        return applicable
+        return [
+            index
+            for index, entry in enumerate(self.ignored_labels)
+            if top_level or entry.get("podTemplates")
+        ]
 
     def _strip_ignored_metadata(self, manifest: Dict) -> Dict:
         """Rebuild the manifest without ignored labels and Helm annotations.
 
-        Every nested metadata mapping is cleaned, so pod template metadata is
-        treated the same way as the resource's own.
+        Helm's own label and annotation namespaces are stripped from every
+        metadata mapping; declared ignoredLabels apply per entry, to top-level
+        metadata by default.
         """
-        kind = manifest.get("kind", "")
-        metadata = manifest.get("metadata", {})
-        namespace = metadata.get("namespace", "")
-        name = metadata.get("name", "")
 
         def clean_metadata(block: Dict, entry_indices: List[int]) -> Dict:
             cleaned = {}
@@ -259,9 +251,7 @@ class ChartComparisonRules:
                 result = {}
                 for key, value in obj.items():
                     if key == "metadata" and isinstance(value, dict):
-                        indices = self._ignored_label_entries(
-                            kind, namespace, name, top_level=at_resource_root
-                        )
+                        indices = self._ignored_label_entries(at_resource_root)
                         result[key] = clean_metadata(value, indices)
                     else:
                         result[key] = walk(value, False)
@@ -304,18 +294,6 @@ class ChartComparisonRules:
                 if isinstance(value, str):
                     normalized["data"][data_key] = yaml.safe_load(value)
                     self._fired.add(identity)
-
-            if entry.get("trimDataWhitespace"):
-                data = normalized.get("data")
-                if isinstance(data, dict):
-                    for data_key, value in data.items():
-                        if isinstance(value, str):
-                            trimmed = value.strip()
-                            if trimmed.startswith("---"):
-                                trimmed = trimmed[3:].strip()
-                            if trimmed != value:
-                                self._fired.add(identity)
-                            data[data_key] = trimmed
 
 
 def normalize_kustomize_refs(obj: Any, path: str = "") -> Any:

@@ -10,25 +10,27 @@ knownDifferences:
   reason: >
     The istio-namespace Kustomize base creates the namespace; the chart is
     installed into an existing namespace and renders none.
-# Upstream Istio annotates every CustomResourceDefinition with
-# helm.sh/resource-policy: keep, and the chart ships those payloads byte for
-# byte. An undeclared keep annotation fails the comparison.
 retainedCustomResourceDefinitions:
-- authorizationpolicies.security.istio.io
-- destinationrules.networking.istio.io
-- envoyfilters.networking.istio.io
-- gateways.networking.istio.io
-- peerauthentications.security.istio.io
-- proxyconfigs.networking.istio.io
-- requestauthentications.security.istio.io
-- serviceentries.networking.istio.io
-- sidecars.networking.istio.io
-- telemetries.telemetry.istio.io
-- trafficextensions.extensions.istio.io
-- virtualservices.networking.istio.io
-- wasmplugins.extensions.istio.io
-- workloadentries.networking.istio.io
-- workloadgroups.networking.istio.io
+  reason: >
+    Upstream Istio annotates every CustomResourceDefinition with
+    helm.sh/resource-policy: keep, and the chart ships those payloads byte
+    for byte, so helm uninstall leaves the definitions and their objects.
+  names:
+  - authorizationpolicies.security.istio.io
+  - destinationrules.networking.istio.io
+  - envoyfilters.networking.istio.io
+  - gateways.networking.istio.io
+  - peerauthentications.security.istio.io
+  - proxyconfigs.networking.istio.io
+  - requestauthentications.security.istio.io
+  - serviceentries.networking.istio.io
+  - sidecars.networking.istio.io
+  - telemetries.telemetry.istio.io
+  - trafficextensions.extensions.istio.io
+  - virtualservices.networking.istio.io
+  - wasmplugins.extensions.istio.io
+  - workloadentries.networking.istio.io
+  - workloadgroups.networking.istio.io
 scenarios:
   base:
     kustomize:

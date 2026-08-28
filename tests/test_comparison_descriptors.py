@@ -143,8 +143,18 @@ class MalformedAllowanceTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.load(
                 "knownDifferences:\n"
-                "- skip: Namespace/x\n  trimDataWhitespace: true\n  reason: r\n"
+                "- skip: Namespace/x\n  compareDataAsYaml: [a]\n  reason: r\n"
             )
+
+    def test_a_retained_definition_block_needs_names_and_a_reason(self):
+        for body in (
+            "retainedCustomResourceDefinitions:\n- a.example.com\n",
+            "retainedCustomResourceDefinitions:\n  names: [a.example.com]\n",
+            "retainedCustomResourceDefinitions:\n  reason: r\n  names: []\n",
+        ):
+            with self.subTest(body=body):
+                with self.assertRaises(ValueError):
+                    self.load(body)
 
     def test_the_base_body_alone_loads(self):
         """Every rejection above must be attributable to the malformed

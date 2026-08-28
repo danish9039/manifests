@@ -16,8 +16,8 @@ knownDifferences:
   - checksum/passwords
   reason: >
     The chart triggers a rollout on configuration changes with checksum
-    annotations; Kustomize achieves the same effect through content-hashed
-    resource names and renders no annotations.
+    annotations; the Kustomize base disables generator name hashes and
+    renders no such annotations.
 - resource: ConfigMap/auth/dex
   compareDataAsYaml: [config.yaml]
   reason: >

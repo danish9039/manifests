@@ -4,12 +4,12 @@ component: kubeflow-namespaces
 releaseName: kubeflow-namespaces
 namespace: default
 includeCustomResourceDefinitions: false
-defaultScenario: base
-# The two scenarios partition one chart output: base compares everything but
-# the Namespace objects, platform-namespaces compares only the Namespace
-# objects against the namespaces the platform bases create.
+defaultScenario: platform-network-policies
+# The two scenarios partition one chart output: platform-network-policies
+# compares everything but the Namespace objects, platform-namespaces compares
+# only the Namespace objects against the namespaces the platform bases create.
 scenarios:
-  base:
+  platform-network-policies:
     kustomize:
     - common/kubeflow-namespace/base
     values: ci/values-default.yaml

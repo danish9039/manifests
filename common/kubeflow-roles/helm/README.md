@@ -20,7 +20,7 @@ helm install kubeflow-platform ./common/kubeflow-roles/helm --namespace kubeflow
 Validate parity with:
 
 ```bash
-python3 tests/run_helm_kustomize_comparison.py kubeflow-platform base
+python3 tests/run_helm_kustomize_comparison.py kubeflow-platform platform-cluster-roles
 ```
 
 How this chart is compared, including every declared allowance, is in

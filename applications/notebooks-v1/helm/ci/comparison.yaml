@@ -4,13 +4,14 @@ component: kubeflow-notebooks
 releaseName: kubeflow-notebooks
 namespace: kubeflow
 includeCustomResourceDefinitions: false
-# helm uninstall must leave the notebook, PVC viewer and tensorboard
-# definitions, and with them every user's workloads, behind. An undeclared
-# keep annotation fails the comparison.
 retainedCustomResourceDefinitions:
-- notebooks.kubeflow.org
-- pvcviewers.kubeflow.org
-- tensorboards.tensorboard.kubeflow.org
+  reason: >
+    helm uninstall must leave the notebook, PVC viewer and tensorboard
+    definitions, and with them every user's workloads, behind.
+  names:
+  - notebooks.kubeflow.org
+  - pvcviewers.kubeflow.org
+  - tensorboards.tensorboard.kubeflow.org
 scenarios:
   platform:
     kustomize:

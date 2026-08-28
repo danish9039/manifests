@@ -17,11 +17,11 @@ ignoredLabels:
     resource; the upstream Kustomize manifests carry none of them.
 knownDifferences:
 - resource: ConfigMap/kubeflow/katib-config
-  trimDataWhitespace: true
+  compareDataAsYaml: [katib-config.yaml]
   reason: >
     The two sides embed katib-config.yaml with different leading document
-    separators and surrounding whitespace; both are trimmed before the
-    values are compared.
+    separators and surrounding whitespace; parsing both sides compares the
+    configuration's value instead of its serialization.
 helmOnlyResources:
 - resource: Secret/kubeflow/katib-webhook-cert
   reason: >

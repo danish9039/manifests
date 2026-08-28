@@ -20,12 +20,13 @@ knownDifferences:
   reason: >
     Same rollout mechanism as the dashboard Deployment: a checksum annotation
     replaces Kustomize's content-hashed ConfigMap name.
-# helm uninstall must leave PodDefault and Profile definitions, and with them
-# every user's profile, behind. An undeclared keep annotation fails the
-# comparison.
 retainedCustomResourceDefinitions:
-- poddefaults.kubeflow.org
-- profiles.kubeflow.org
+  reason: >
+    helm uninstall must leave the PodDefault and Profile definitions, and
+    with them every user's profile, behind.
+  names:
+  - poddefaults.kubeflow.org
+  - profiles.kubeflow.org
 scenarios:
   platform:
     kustomize:

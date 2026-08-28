@@ -5,7 +5,7 @@ releaseName: kubeflow-platform
 namespace: kubeflow-system
 includeCustomResourceDefinitions: false
 scenarios:
-  base:
+  platform-cluster-roles:
     kustomize:
     - common/kubeflow-roles/base
     values: ci/values-default.yaml
