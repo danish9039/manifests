@@ -138,8 +138,9 @@ upstream document from `manifests/documents/` byte for byte. Set it to replace
 the document entirely.
 
 Changing any value that feeds a ConfigMap updates a checksum annotation on the
-consuming Deployment, so `helm upgrade` restarts the workload. Kustomize achieves
-the same result through content-hashed ConfigMap names.
+consuming Deployment, so `helm upgrade` restarts the workload. Kustomize hashes
+its generated ConfigMap names for the same effect; `dashboard-config` is the
+exception and keeps a stable name on both sides.
 
 ## Caveats
 

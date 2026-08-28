@@ -6,8 +6,10 @@ cluster, and compare every Helm chart against its Kustomize baseline.
 ## Helm/Kustomize comparison
 
 The contract in one sentence: **a chart must render the same resources as the
-Kustomize baseline it wraps, and every intended difference must be declared,
-scoped to named resources, and justified.**
+Kustomize baseline it wraps, and every intended difference must be declared and
+justified.** The harness compares rendered snapshots; runtime behavior, such as
+whether a configuration change restarts consuming Pods, belongs to each
+component's chart behavior tests.
 
 ```bash
 python3 tests/run_helm_kustomize_comparison.py --list
@@ -69,16 +71,18 @@ enforces three rules, in this order of importance:
    stale allowance is indistinguishable from a wrong one; both are silent.
 2. **Every allowance carries a non-empty `reason`.** The reason is the review
    surface: it must say why the difference is intended, not what the rule does.
-3. **An allowance names resources**, as `Kind/name` (any namespace, the form
+3. **An allowance names what it allows.** `knownDifferences` and
+   `helmOnlyResources` name resources, as `Kind/name` (any namespace, the form
    for cluster-scoped resources) or `Kind/namespace/name`, with `*` wildcards
-   per segment.
+   per segment; `ignoredLabels` names label keys; retained definitions are
+   named individually.
 
 | field | meaning |
 | --- | --- |
-| `ignoredLabels` | entries of `keys` (label keys ignored on both sides, in resource and pod template metadata alike) with optional `except` resource patterns whose own labels stay compared |
+| `ignoredLabels` | entries of `keys`, label keys ignored on both sides in every resource's top-level metadata; an entry adds `podTemplates: true` when the chart also writes the keys into workload template metadata |
 | `knownDifferences` | entries of either `skip` (exclude one named resource from the comparison entirely) or `resource` plus one or more actions below |
 | `helmOnlyResources` | resources the chart renders that no Kustomize baseline contains |
-| `retainedCustomResourceDefinitions` | the CustomResourceDefinitions the chart annotates `helm.sh/resource-policy: keep`; an undeclared keep annotation fails the comparison, because that annotation makes `helm uninstall` leave the definition and its objects behind |
+| `retainedCustomResourceDefinitions` | a `reason` plus the `names` of the CustomResourceDefinitions the chart annotates `helm.sh/resource-policy: keep`; an undeclared keep annotation fails the comparison, because that annotation makes `helm uninstall` leave the definition and its objects behind |
 
 `knownDifferences` actions:
 
@@ -86,7 +90,6 @@ enforces three rules, in this order of importance:
 | --- | --- |
 | `ignorePodTemplateAnnotations` | ignore the listed pod template annotation keys, typically rollout checksums that replace Kustomize's content-hashed names |
 | `compareDataAsYaml` | parse the listed `data` keys as YAML before comparing, so quoting style does not matter |
-| `trimDataWhitespace` | trim surrounding whitespace and a leading document separator from every string `data` value |
 
 Labels in the `helm.sh/` namespace and annotations in the `helm.sh/` and
 `meta.helm.sh/` namespaces are always ignored; they are properties of Helm

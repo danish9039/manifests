@@ -42,14 +42,8 @@ update_notebooks_helm_chart() {
 validate_notebooks_helm_chart() {
     # The chart refuses any namespace but kubeflow, so the linter needs it too.
     helm lint "$HELM_CHART_DIRECTORY" --namespace kubeflow
-    # Parity is not compared here. The comparison depends on the exact Helm
-    # version, which continuous integration pins and a contributor's machine does
-    # not, so a local run can fail on a rendering difference nobody can act on
-    # and block a routine upstream update. The "Compare ${COMPONENT_NAME}" job is
-    # the authority.
-    echo "Parity is enforced in continuous integration, by the job \"Compare ${COMPONENT_NAME}\"."
-    echo "To check it before pushing:"
-    echo "  python3 tests/run_helm_kustomize_comparison.py ${COMPONENT_NAME} --all-scenarios"
+    # Parity is compared in continuous integration, by the
+    # "Compare ${COMPONENT_NAME}" job, with its pinned Helm version.
 }
 
 copy_component_manifests "components/crud-web-apps/jupyter/manifests" \
@@ -68,10 +62,10 @@ copy_component_manifests "components/pvcviewer-controller/config" \
 update_notebooks_helm_chart
 validate_notebooks_helm_chart
 
-# An upstream change that the chart cannot absorb makes the parity comparison
-# above fail until a maintainer edits the chart. The component-owned chart paths
-# are therefore part of a synchronization change, and staging them keeps this
-# script from reporting success while that correction stays uncommitted.
+# An upstream change that the chart cannot absorb makes the continuous
+# integration comparison fail until a maintainer edits the chart. The
+# component-owned chart paths are therefore part of a synchronization change
+# and are staged with it.
 commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests to ${COMMIT}" \
   "${TARGET_DIRECTORY}" \
   "${HELM_CHART_PATH}/Chart.yaml" \

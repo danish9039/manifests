@@ -1,11 +1,5 @@
 name: Helm vs Kustomize Comparison
 
-# The comparison covers every chart the repository ships, and a chart's Kustomize
-# baseline can be any manifests directory, so this filter is deliberately broad.
-# A narrower, hand-maintained list is indistinguishable from a complete one when
-# it is wrong: applications/katib was missing from the previous filter, so a
-# Katib upstream synchronization changed all seven Katib baselines without ever
-# running a comparison.
 on:
   pull_request:
     paths:
