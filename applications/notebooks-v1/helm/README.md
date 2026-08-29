@@ -83,7 +83,7 @@ permission or policy change.
 helm lint applications/notebooks-v1/helm --namespace kubeflow
 python3 tests/run_helm_kustomize_comparison.py kubeflow-notebooks platform
 python3 tests/run_helm_kustomize_comparison.py kubeflow-notebooks --all-scenarios
-python3 tests/test_notebooks_helm_chart.py
+python3 tests/notebooks_helm_chart_test.py
 ```
 
 How this chart is compared, including every declared allowance, is in

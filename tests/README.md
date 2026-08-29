@@ -29,7 +29,7 @@ failure as real.
 Components are discovered, not registered. Every chart declares how it is
 compared in its own `ci/comparison.yaml`; adding a chart touches only that
 chart's directory, and a chart without a descriptor fails
-`tests/test_comparison_descriptors.py`.
+`tests/comparison_descriptors_test.py`.
 
 ### Identity fields
 
@@ -105,5 +105,5 @@ itself, not of one chart, so they are not declared per chart.
 4. Declare nothing in advance: a declaration that never fires fails the run.
 
 The load-time rejection messages come from `tests/run_helm_kustomize_comparison.py`
-and name the file and the rule that was violated; `tests/test_comparison_descriptors.py`
+and name the file and the rule that was violated; `tests/comparison_descriptors_test.py`
 exercises each one.

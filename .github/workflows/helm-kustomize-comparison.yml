@@ -33,11 +33,11 @@ jobs:
     # Validating descriptors here fails the workflow in seconds rather than once
     # per matrix job, and a malformed descriptor would break discovery anyway.
     - name: Test comparison descriptors
-      run: python tests/test_comparison_descriptors.py
+      run: python tests/comparison_descriptors_test.py
     - name: Test comparison normalization
       run: |
-        python tests/test_helm_kustomize_compare.py
-        python -m unittest tests/test_helm_kustomize_compare.py
+        python tests/helm_kustomize_compare_test.py
+        python -m unittest tests/helm_kustomize_compare_test.py
     - name: Discover components
       id: discover
       run: |
@@ -96,14 +96,14 @@ jobs:
         ./tests/kustomize_install.sh
         echo "/tmp/usr/local/bin" >> "$GITHUB_PATH"
     - name: Test Dex Helm behavior
-      run: python tests/test_dex_helm_rollout_checksums.py
+      run: python tests/dex_helm_rollout_checksums_test.py
     - name: Test Istio Helm behavior
-      run: python tests/test_istio_helm_chart.py
+      run: python tests/istio_helm_chart_test.py
     - name: Test Dashboard Helm behavior
-      run: python tests/test_dashboard_helm_chart.py
+      run: python tests/dashboard_helm_chart_test.py
     - name: Test Notebooks Helm behavior
-      run: python tests/test_notebooks_helm_chart.py
+      run: python tests/notebooks_helm_chart_test.py
     - name: Test Dashboard manifest generation
       run: |
-        python tests/test_helm_manifest_generator.py
-        python tests/test_dashboard_helm_manifest_generator.py
+        python tests/helm_manifest_generator_test.py
+        python tests/dashboard_helm_manifest_generator_test.py
