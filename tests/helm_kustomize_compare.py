@@ -165,14 +165,19 @@ class ChartComparisonRules:
 
     def unexpected_helm_only(self, only_in_helm: set) -> set:
         """Filter Helm-side extras down to the undeclared ones."""
-        declared = {
-            entry["resource"]: f"helmOnlyResources[{index}]"
-            for index, entry in enumerate(self.helm_only_resources)
-        }
+        unexpected = set()
         for key in only_in_helm:
-            if key in declared:
-                self._fired.add(declared[key])
-        return {key for key in only_in_helm if key not in declared}
+            segments = key.split("/")
+            kind, namespace, name = (
+                segments if len(segments) == 3 else (segments[0], "", segments[1])
+            )
+            for index, entry in enumerate(self.helm_only_resources):
+                if resource_matches(entry["resource"], kind, namespace, name):
+                    self._fired.add(f"helmOnlyResources[{index}]")
+                    break
+            else:
+                unexpected.add(key)
+        return unexpected
 
     def unfired(self) -> List[str]:
         """Describe every declared allowance that matched nothing."""

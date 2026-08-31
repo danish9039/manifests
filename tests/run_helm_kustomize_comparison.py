@@ -80,15 +80,33 @@ def _validate_pattern(path, family, pattern):
         )
 
 
+def _reject_unknown_fields(path, context, mapping, allowed):
+    unknown = set(mapping) - allowed
+    if unknown:
+        raise ValueError(
+            f"{path}: unknown {context} fields: {', '.join(sorted(unknown))}"
+        )
+
+
 def _validate_allowances(path, descriptor):
     """Reject malformed declared allowances at load, not at comparison time."""
     for entry in descriptor.get("ignoredLabels") or []:
         _validate_reason(path, "ignoredLabels", entry)
+        _reject_unknown_fields(
+            path, "ignoredLabels", entry, {"reason", "keys", "podTemplates"}
+        )
         keys = entry.get("keys")
-        if not isinstance(keys, list) or not keys:
+        if (
+            not isinstance(keys, list)
+            or not keys
+            or not all(isinstance(key, str) and key for key in keys)
+        ):
             raise ValueError(
-                f"{path}: an ignoredLabels entry needs a non-empty 'keys' list"
+                f"{path}: an ignoredLabels entry needs a non-empty 'keys' list "
+                "of label keys"
             )
+        if not isinstance(entry.get("podTemplates", False), bool):
+            raise ValueError(f"{path}: ignoredLabels 'podTemplates' must be a boolean")
     for entry in descriptor.get("knownDifferences") or []:
         _validate_reason(path, "knownDifferences", entry)
         fields = set(entry) - {"reason"}
@@ -114,17 +132,26 @@ def _validate_allowances(path, descriptor):
             raise ValueError(
                 f"{path}: knownDifferences entry for {entry['resource']!r} declares no action"
             )
+        for action in actions:
+            value = entry[action]
+            if (
+                not isinstance(value, list)
+                or not value
+                or not all(isinstance(item, str) and item for item in value)
+            ):
+                raise ValueError(f"{path}: {action} must be a non-empty list of keys")
 
     for entry in descriptor.get("helmOnlyResources") or []:
         _validate_reason(path, "helmOnlyResources", entry)
-        if not entry.get("resource"):
-            raise ValueError(
-                f"{path}: every helmOnlyResources entry needs a 'resource'"
-            )
+        _reject_unknown_fields(path, "helmOnlyResources", entry, {"reason", "resource"})
+        _validate_pattern(path, "helmOnlyResources", entry.get("resource"))
 
     retained = descriptor.get("retainedCustomResourceDefinitions")
     if retained is not None:
         _validate_reason(path, "retainedCustomResourceDefinitions", retained)
+        _reject_unknown_fields(
+            path, "retainedCustomResourceDefinitions", retained, {"reason", "names"}
+        )
         names = retained.get("names")
         if not isinstance(names, list) or not names:
             raise ValueError(
@@ -136,6 +163,25 @@ def _validate_allowances(path, descriptor):
 def load_descriptor(path):
     """Read one descriptor, rejecting the mistakes that used to be possible."""
     descriptor = yaml.load(path.read_text(), Loader=_StrictLoader)
+    _reject_unknown_fields(
+        path,
+        "descriptor",
+        descriptor,
+        {
+            "component",
+            "releaseName",
+            "namespace",
+            "scenarios",
+            "defaultScenario",
+            "includeCustomResourceDefinitions",
+            "helmUsesKustomizeNameHashes",
+            "dependencyRepositories",
+            "ignoredLabels",
+            "knownDifferences",
+            "helmOnlyResources",
+            "retainedCustomResourceDefinitions",
+        },
+    )
     for field in ("component", "releaseName", "namespace", "scenarios"):
         if not descriptor.get(field):
             raise ValueError(f"{path}: missing {field!r}")
@@ -156,6 +202,20 @@ def load_descriptor(path):
         if not isinstance(targets, list) or not targets:
             raise ValueError(
                 f"{path}: scenario {name!r} must declare a list of Kustomize targets"
+            )
+        _reject_unknown_fields(
+            path,
+            f"scenario {name!r}",
+            scenario,
+            {"kustomize", "values", "onlyKinds", "excludeKinds"},
+        )
+        if (
+            "values" in scenario
+            and not (path.parent.parent / scenario["values"]).is_file()
+        ):
+            raise ValueError(
+                f"{path}: scenario {name!r} values file "
+                f"{scenario['values']!r} does not exist in the chart"
             )
         for field in ("onlyKinds", "excludeKinds"):
             if field in scenario and (
