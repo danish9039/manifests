@@ -50,6 +50,11 @@ helm install kubeflow-namespaces ./common/kubeflow-namespace/helm --namespace de
 Validate parity with:
 
 ```bash
-./tests/helm_kustomize_compare.sh kubeflow-namespaces base
-./tests/helm_kustomize_compare.sh kubeflow-namespaces platform-namespaces
+python3 tests/run_helm_kustomize_comparison.py kubeflow-namespaces platform-network-policies
+python3 tests/run_helm_kustomize_comparison.py kubeflow-namespaces platform-namespaces
 ```
+
+How this chart is compared, including every declared allowance, is in
+[`ci/comparison.yaml`](ci/comparison.yaml); the descriptor format is documented in
+[`tests/README.md`](../../../tests/README.md).
+

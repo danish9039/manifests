@@ -34,3 +34,13 @@ helm install kserve-models-web-application \
 
 This migration causes a short Models Web Application interruption. It does not
 delete user `InferenceService` resources or model-serving workloads.
+
+## Comparison
+
+```bash
+python3 tests/run_helm_kustomize_comparison.py kserve-models-web-application --all-scenarios
+```
+
+How this chart is compared, including every declared allowance, is in
+[`ci/comparison.yaml`](ci/comparison.yaml); the descriptor format is documented in
+[`tests/README.md`](../../../../tests/README.md).
