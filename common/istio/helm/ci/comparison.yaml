@@ -5,11 +5,6 @@ releaseName: istio
 namespace: istio-system
 includeCustomResourceDefinitions: true
 defaultScenario: base
-knownDifferences:
-- skip: Namespace/istio-system
-  reason: >
-    The istio-namespace Kustomize base creates the namespace; the chart is
-    installed into an existing namespace and renders none.
 retainedCustomResourceDefinitions:
   reason: >
     Upstream Istio annotates every CustomResourceDefinition with

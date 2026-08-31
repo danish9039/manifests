@@ -50,6 +50,55 @@ Helm release metadata and Istio workloads are stored in `istio-system`. The
 `kubeflow-namespaces` foundation chart creates `Namespace/istio-system` first.
 Istio CNI resources still run in `kube-system`.
 
+The chart refuses to render outside `istio-system`.
+
+### Who owns `Namespace/istio-system`
+
+A Kubernetes resource belongs to exactly one Helm release, so exactly one chart
+may render the namespace. `namespaces.create` selects which.
+
+| installation | `namespaces.create` | `--create-namespace` |
+| --- | --- | --- |
+| with the `kubeflow-namespaces` foundation chart, the default | `false` | **never pass it** |
+| standalone, without the foundation chart | `true` | required |
+
+**With the foundation chart, do not pass `--create-namespace`.** Measured against
+Helm 4.1.0: it replaces the existing namespace with a minimal one and removes
+every label the foundation chart applied, including
+`pod-security.kubernetes.io/enforce: restricted`. Helm 4 defaults `--server-side`
+to `true`, so this happens on a plain `helm install --create-namespace` with no
+other flags. See [helm/helm#31767](https://github.com/helm/helm/issues/31767).
+Restore the labels with:
+
+```bash
+helm upgrade kubeflow-namespaces ./common/kubeflow-namespace/helm --namespace default
+```
+
+Setting `namespaces.create=true` while the foundation chart owns the namespace
+fails the installation with `invalid ownership metadata`, before anything is
+applied.
+
+Do not pass `--take-ownership` in either case. It lets this release adopt a
+namespace another release still lists as its own, and uninstalling this release
+then deletes the namespace along with everything inside it.
+
+### Installing without the foundation chart
+
+`namespaces.create=true` renders `Namespace/istio-system` from this chart, with
+the labels the Kustomize baseline defines. `--create-namespace` is required as
+well, because Helm stores the release in `istio-system` before it applies any
+resource. Helm creates a bare namespace first and the chart's own namespace is
+applied over it, so the labels end up correct.
+
+```bash
+helm install istio ./common/istio/helm \
+  --namespace istio-system \
+  --create-namespace \
+  --values ./common/istio/helm/ci/values-crds.yaml \
+  --set namespaces.create=true \
+  --wait
+```
+
 ## Namespace names
 
 Namespace names are fixed to match the Kustomize baseline and `kubeflow-namespaces` foundation chart. Istio workloads use `istio-system`, Istio CNI resources use `kube-system`, and Kubeflow gateway resources refer to `kubeflow`. These names are not configurable.
@@ -57,12 +106,18 @@ Namespace names are fixed to match the Kustomize baseline and `kubeflow-namespac
 ## Kustomize Mapping
 
 - `ci/values-crds.yaml`: `common/istio/istio-crds/base`
-- `ci/values-base.yaml`: `common/istio/istio-crds/base`, `common/istio/istio-namespace/base` NetworkPolicies, and `common/istio/istio-install/base`
-- `ci/values-oauth2-proxy.yaml`: `common/istio/istio-crds/base`, `common/istio/istio-namespace/base` NetworkPolicies, and `common/istio/istio-install/overlays/oauth2-proxy`
-- `ci/values-gke.yaml`: `common/istio/istio-crds/base`, `common/istio/istio-namespace/base` NetworkPolicies, and `common/istio/istio-install/overlays/gke`
+- `ci/values-base.yaml`: `common/istio/istio-crds/base`, `common/istio/istio-namespace/base`, and `common/istio/istio-install/base`
+- `ci/values-oauth2-proxy.yaml`: `common/istio/istio-crds/base`, `common/istio/istio-namespace/base`, and `common/istio/istio-install/overlays/oauth2-proxy`
+- `ci/values-gke.yaml`: `common/istio/istio-crds/base`, `common/istio/istio-namespace/base`, and `common/istio/istio-install/overlays/gke`
 - `ci/values-cluster-local-gateway.yaml`: `common/istio/cluster-local-gateway/base`
 - `ci/values-kubeflow-istio-resources.yaml`: `common/istio/kubeflow-istio-resources/base`
 - `ci/values-platform-full.yaml`: the managed platform Istio slice above plus cluster-local gateway and Kubeflow Istio resources
+
+`common/istio/istio-namespace/base` renders both the namespace and the
+NetworkPolicies. The synchronization script writes them to separate payloads,
+`manifests/namespaces.yaml` and `manifests/networkpolicies.yaml`, so each has its
+own value. The comparison script enables `namespaces.create` for the scenarios
+that build that path, so the namespace is compared rather than skipped.
 
 Ambient, insecure, and `cluster-local-gateway/overlays/m2m-auth` variants are
 intentionally deferred to later chart slices.
@@ -81,7 +136,9 @@ static payload together, including provenance headers and formatting cleanup.
 ## Comparison
 
 ```bash
-helm lint common/istio/helm
+# The chart guards its namespace, so lint from istio-system. Linting elsewhere
+# stops at the guard and reports success without checking any template.
+helm lint common/istio/helm --namespace istio-system
 python3 tests/run_helm_kustomize_comparison.py istio crds
 python3 tests/run_helm_kustomize_comparison.py istio base
 python3 tests/run_helm_kustomize_comparison.py istio oauth2-proxy
