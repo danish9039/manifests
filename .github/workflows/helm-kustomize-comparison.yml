@@ -105,7 +105,7 @@ jobs:
       run: |
         ./tests/kustomize_install.sh
         echo "/tmp/usr/local/bin" >> "$GITHUB_PATH"
-    - name: Test Dex Helm behavior
+    - name: Test Dex and OAuth2 Proxy Helm behavior
       run: |
         python tests/dex_helm_rollout_checksums_test.py
         python tests/dex_helm_connectors_test.py
