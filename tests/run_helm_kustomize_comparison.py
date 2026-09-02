@@ -217,7 +217,10 @@ def load_descriptor(path):
                     f"{path}: scenario {name!r} values must be a non-empty path in the chart"
                 )
             values_path = (chart_directory / values).resolve()
-            if not values_path.is_relative_to(chart_directory) or not values_path.is_file():
+            if (
+                not values_path.is_relative_to(chart_directory)
+                or not values_path.is_file()
+            ):
                 raise ValueError(
                     f"{path}: scenario {name!r} values file "
                     f"{values!r} does not exist in the chart"
