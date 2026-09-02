@@ -5,8 +5,8 @@ source "${SCRIPT_DIRECTORY}/library.sh"
 setup_error_handling
 COMPONENT_NAME="istio"
 REPOSITORY_NAME="istio/istio"
-COMMIT="1.30.3"
-PREVIOUS_COMMIT="1.30.2"
+COMMIT="1.31.0"
+PREVIOUS_COMMIT="1.30.3"
 SOURCE_DIRECTORY=${SOURCE_DIRECTORY:=/tmp/kubeflow-${COMPONENT_NAME}}
 BRANCH_NAME=${BRANCH_NAME:=synchronize-${COMPONENT_NAME}-manifests-${COMMIT?}}
 MANIFESTS_DIRECTORY=$(dirname $SCRIPT_DIRECTORY)
@@ -27,6 +27,8 @@ $ISTIOCTL manifest generate -f profile.yaml -f profile-overlay.yaml \
   --set components.cni.enabled=true \
   --set components.cni.namespace=kube-system > dump.yaml
 ./split-istio-packages -f dump.yaml
+sed -i -e 's/[[:space:]]\+$//' -e '${/^$/d;}' \
+  crd.yaml install.yaml cluster-local-gateway.yaml
 mv $ISTIO_DIRECTORY/crd.yaml $ISTIO_DIRECTORY/istio-crds/base/
 mv $ISTIO_DIRECTORY/install.yaml $ISTIO_DIRECTORY/istio-install/base/
 mv $ISTIO_DIRECTORY/cluster-local-gateway.yaml $ISTIO_DIRECTORY/cluster-local-gateway/base/
@@ -35,6 +37,8 @@ $ISTIOCTL manifest generate -f profile.yaml -f profile-overlay.yaml \
   --set components.cni.enabled=true \
   --set components.ztunnel.enabled=true > dump-ztunnel.yaml
 ./split-istio-packages -f dump-ztunnel.yaml
+sed -i -e 's/[[:space:]]\+$//' -e '${/^$/d;}' \
+  crd.yaml install.yaml cluster-local-gateway.yaml ztunnel.yaml
 mv $ISTIO_DIRECTORY/ztunnel.yaml $ISTIO_DIRECTORY/istio-install/components/ambient-mode/
 rm dump-ztunnel.yaml crd.yaml install.yaml cluster-local-gateway.yaml
 sed -i "s/\"tag\": \".*\"/\"tag\": \"$COMMIT\"/" "$ISTIO_DIRECTORY/istio-install/base/patches/istio-sidecar-injector-patch.yaml"

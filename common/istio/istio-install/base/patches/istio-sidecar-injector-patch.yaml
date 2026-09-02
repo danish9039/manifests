@@ -27,7 +27,7 @@ data:
           }
         },
         "externalIstiod": false,
-        "hub": "registry.istio.io/release",
+        "hub": "docker.io/istio",
         "imagePullPolicy": "",
         "imagePullSecrets": [],
         "istioNamespace": "istio-system",
@@ -113,7 +113,7 @@ data:
         "sts": {
           "servicePort": 0
         },
-        "tag": "1.30.3",
+        "tag": "1.31.0",
         "variant": "",
         "waypoint": {
           "affinity": {},
