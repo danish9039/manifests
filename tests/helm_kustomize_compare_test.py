@@ -553,6 +553,20 @@ class HelmOnlyResourceTest(unittest.TestCase):
         self.assertEqual(unexpected, {"Secret/kubeflow/surprise"})
         self.assertEqual(extras_rules.unfired(), [])
 
+    def test_a_wildcard_entry_matches_as_the_contract_documents(self):
+        """Patterns carry * wildcards per segment, exactly as knownDifferences
+        patterns do; a two-segment pattern matches any namespace."""
+        extras_rules = rules(
+            helmOnlyResources=[{"resource": "Secret/*-webhook-cert", "reason": "t"}]
+        )
+
+        unexpected = extras_rules.unexpected_helm_only(
+            {"Secret/kubeflow/katib-webhook-cert", "Secret/kubeflow/surprise"}
+        )
+
+        self.assertEqual(unexpected, {"Secret/kubeflow/surprise"})
+        self.assertEqual(extras_rules.unfired(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

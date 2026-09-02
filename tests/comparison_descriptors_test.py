@@ -72,6 +72,39 @@ class MalformedDescriptorTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.load("scenarios:\n  a:\n    values: v.yaml\n")
 
+    def test_an_unknown_top_level_field_is_rejected(self):
+        """A misspelled field would otherwise be replaced by its default and
+        silently change which manifests are compared."""
+        with self.assertRaises(ValueError) as error:
+            self.load(
+                "helmUsesKustomizeNameHash: false\n"
+                "scenarios:\n  a:\n    kustomize: [x]\n"
+            )
+        self.assertIn("unknown", str(error.exception))
+
+    def test_an_unknown_scenario_field_is_rejected(self):
+        for field in ("value: v.yaml", "excludeKind: [Namespace]"):
+            with self.subTest(field=field):
+                with self.assertRaises(ValueError):
+                    self.load(f"scenarios:\n  a:\n    kustomize: [x]\n    {field}\n")
+
+    def test_a_declared_values_file_must_exist_in_the_chart(self):
+        """helm template ignores nothing louder than a missing --values file
+        at load time; catching the typo here names the file and the rule."""
+        with tempfile.TemporaryDirectory() as directory:
+            chart = Path(directory)
+            (chart / "ci").mkdir()
+            path = chart / "ci" / "comparison.yaml"
+            body = (
+                "component: x\nreleaseName: x\nnamespace: n\n"
+                "scenarios:\n  a:\n    kustomize: [x]\n    values: v.yaml\n"
+            )
+            path.write_text(body)
+            with self.assertRaises(ValueError):
+                comparison.load_descriptor(path)
+            (chart / "v.yaml").write_text("")
+            comparison.load_descriptor(path)
+
     def test_a_default_scenario_that_is_not_declared_is_rejected(self):
         """Katib's old default was 'base', a scenario Katib does not have, so
         comparing it without naming one could only ever fail."""
@@ -138,6 +171,35 @@ class MalformedAllowanceTest(unittest.TestCase):
     def test_an_ignored_labels_entry_without_keys_is_rejected(self):
         with self.assertRaises(ValueError):
             self.load("ignoredLabels:\n- reason: r\n")
+
+    def test_a_misspelled_ignored_labels_field_is_rejected(self):
+        """'podTemplate: true' would otherwise load, do nothing, and still
+        pass the staleness gate through its top-level match."""
+        with self.assertRaises(ValueError):
+            self.load("ignoredLabels:\n- keys: [a]\n  podTemplate: true\n  reason: r\n")
+
+    def test_a_non_list_action_value_is_rejected(self):
+        """A boolean would raise TypeError at comparison time; a scalar string
+        would be iterated character by character and never fire."""
+        for value in ("true", "checksum/config"):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    self.load(
+                        "knownDifferences:\n"
+                        "- resource: Deployment/auth/dex\n"
+                        f"  ignorePodTemplateAnnotations: {value}\n"
+                        "  reason: r\n"
+                    )
+
+    def test_a_helm_only_entry_needs_a_well_formed_resource(self):
+        for body in (
+            "helmOnlyResources:\n- reason: r\n",
+            "helmOnlyResources:\n- resource: Secret\n  reason: r\n",
+            "helmOnlyResources:\n- resource: Secret/x\n  reasons: r\n  reason: r\n",
+        ):
+            with self.subTest(body=body):
+                with self.assertRaises(ValueError):
+                    self.load(body)
 
     def test_a_skip_entry_with_extra_fields_is_rejected(self):
         with self.assertRaises(ValueError):
