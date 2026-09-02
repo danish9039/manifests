@@ -209,14 +209,19 @@ def load_descriptor(path):
             scenario,
             {"kustomize", "values", "onlyKinds", "excludeKinds"},
         )
-        if (
-            "values" in scenario
-            and not (path.parent.parent / scenario["values"]).is_file()
-        ):
-            raise ValueError(
-                f"{path}: scenario {name!r} values file "
-                f"{scenario['values']!r} does not exist in the chart"
-            )
+        if "values" in scenario:
+            values = scenario["values"]
+            chart_directory = path.parent.parent.resolve()
+            if not isinstance(values, str) or not values:
+                raise ValueError(
+                    f"{path}: scenario {name!r} values must be a non-empty path in the chart"
+                )
+            values_path = (chart_directory / values).resolve()
+            if not values_path.is_relative_to(chart_directory) or not values_path.is_file():
+                raise ValueError(
+                    f"{path}: scenario {name!r} values file "
+                    f"{values!r} does not exist in the chart"
+                )
         for field in ("onlyKinds", "excludeKinds"):
             if field in scenario and (
                 not isinstance(scenario[field], list) or not scenario[field]
