@@ -209,6 +209,7 @@ def load_descriptor(path):
             "defaultScenario",
             "includeCustomResourceDefinitions",
             "helmUsesKustomizeNameHashes",
+            "helmUsesReleaseNamespace",
             "dependencyRepositories",
             "ignoredLabels",
             "knownDifferences",
