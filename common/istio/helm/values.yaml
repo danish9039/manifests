@@ -36,6 +36,11 @@ oauth2Proxy:
 clusterLocalGateway:
   # -- Render the Kubeflow cluster-local gateway resources.
   enabled: false
+  machineToMachineAuthentication:
+    # -- Require valid JWT principals on the cluster-local gateway, rendering
+    # the cluster-local-gateway/overlays/m2m-auth payload instead of the base
+    # payload. The managed platform installation enables this.
+    enabled: false
 
 kubeflowIstioResources:
   # -- Render Kubeflow-specific Istio gateway and RBAC resources.

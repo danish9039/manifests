@@ -162,6 +162,8 @@ render_helm_manifest "$ISTIO_DIRECTORY/istio-install/overlays/gke" \
   "$HELM_MANIFESTS_DIRECTORY/install-gke.yaml"
 render_helm_manifest "$ISTIO_DIRECTORY/cluster-local-gateway/base" \
   "$HELM_MANIFESTS_DIRECTORY/cluster-local-gateway.yaml"
+render_helm_manifest "$ISTIO_DIRECTORY/cluster-local-gateway/overlays/m2m-auth" \
+  "$HELM_MANIFESTS_DIRECTORY/cluster-local-gateway-m2m-auth.yaml"
 render_helm_manifest "$ISTIO_DIRECTORY/kubeflow-istio-resources/base" \
   "$HELM_MANIFESTS_DIRECTORY/kubeflow-istio-resources.yaml"
 render_selected_documents_manifest "$ISTIO_DIRECTORY/istio-namespace/base" \

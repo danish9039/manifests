@@ -8,6 +8,8 @@ install:
   enabled: true
 clusterLocalGateway:
   enabled: true
+  machineToMachineAuthentication:
+    enabled: true
 kubeflowIstioResources:
   enabled: true
 namespaces:
