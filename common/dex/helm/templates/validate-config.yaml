@@ -3,8 +3,17 @@ Only checked when the workload is rendered. With dex.enabled=false there is no
 ConfigMap and no Deployment, so none of these values are used.
 */ -}}
 {{- if .Values.dex.enabled }}
-{{- if not (or (kindIs "slice" .Values.config.connectors) (kindIs "invalid" .Values.config.connectors)) }}
-{{- fail (printf "config.connectors must be a list of Dex connectors; got %s" (kindOf .Values.config.connectors)) }}
+{{- /*
+A quoted "false" is a non-empty string and therefore true to the template,
+while the ConfigMap would still write the YAML boolean false: the lockout
+guard below would be skipped and Dex would start with neither a password
+database nor a connector. Reject anything but a real boolean first.
+*/ -}}
+{{- if not (kindIs "bool" .Values.config.enablePasswordDB) }}
+{{- fail (printf "config.enablePasswordDB must be a boolean, true or false without quotes; got %s" (kindOf .Values.config.enablePasswordDB)) }}
+{{- end }}
+{{- if not (kindIs "slice" .Values.config.connectors) }}
+{{- fail (printf "config.connectors must be a list of Dex connectors, [] when there are none; got %s" (kindOf .Values.config.connectors)) }}
 {{- end }}
 {{- range $index, $connector := .Values.config.connectors }}
 {{- if not (kindIs "map" $connector) }}
@@ -43,8 +52,8 @@ directory. This is a lint on what was written, not a filesystem boundary: Helm
 sees strings and cannot resolve symbolic links. Collapse repeated separators and
 compare against the directory plus a separator, so a sibling such as
 /etc/dex/certificate-authorities-elsewhere is not mistaken for it while
-/etc/dex//certificate-authorities still is, and reject . or .. segments rather
-than trying to resolve them.
+/etc/dex//certificate-authorities still is, and reject . or .. segments,
+including a final one, rather than trying to resolve them.
 */ -}}
 {{- $certificateAuthorityDirectory := include "dex.certificateAuthorityDirectory" . }}
 {{- $mountPrefix := printf "%s/" $certificateAuthorityDirectory }}
@@ -53,7 +62,7 @@ than trying to resolve them.
 {{- if not (kindIs "string" $certificate) }}
 {{- fail (printf "config.connectors[%d] rootCAs entries must be file paths; got %s" $index (kindOf $certificate)) }}
 {{- end }}
-{{- if or (contains "/./" $certificate) (contains "/../" $certificate) }}
+{{- if regexMatch "(^|/)\\.\\.?(/|$)" $certificate }}
 {{- fail (printf "config.connectors[%d] rootCAs entry %s is not a normalized path; write it without . or .. segments" $index $certificate) }}
 {{- end }}
 {{- $collapsed := regexReplaceAll "/+" $certificate "/" }}

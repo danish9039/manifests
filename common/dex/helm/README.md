@@ -66,11 +66,17 @@ references from its environment, so put the secret material in a Secret in the
 kubectl create secret generic keycloak-oidc-credentials \
   --namespace auth \
   --from-literal=KEYCLOAK_CLIENT_ID=kubeflow \
-  --from-literal=KEYCLOAK_CLIENT_SECRET=<client secret>
+  --from-literal=KEYCLOAK_CLIENT_SECRET="${KEYCLOAK_CLIENT_SECRET:?set the client secret in the environment first}"
 ```
 
 The chart does not create these Secrets. They must exist before the release is
-installed.
+installed. Dex reads them into its environment when the process starts, and
+updating a Secret does not change the pod template, so after rotating a
+credential restart Dex:
+
+```bash
+kubectl -n auth rollout restart deployment/dex
+```
 
 ### Providers behind a private certificate authority
 

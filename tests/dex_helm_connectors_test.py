@@ -101,7 +101,10 @@ class DexConnectorTest(unittest.TestCase):
         configuration = self.dex_configuration(result.stdout)
         self.assertNotIn("staticPasswords", configuration)
         self.assertFalse(configuration["enablePasswordDB"])
-        self.assertEqual([c["id"] for c in configuration["connectors"]], ["keycloak"])
+        self.assertEqual(
+            [connector["id"] for connector in configuration["connectors"]],
+            ["keycloak"],
+        )
 
     def test_connector_secrets_stay_environment_references(self):
         """Credentials belong in a Secret, never in the rendered ConfigMap."""
@@ -197,16 +200,16 @@ class DexConnectorTest(unittest.TestCase):
             if manifest.get("kind") == "Deployment"
         )
         pod = deployment["spec"]["template"]["spec"]
-        mount = next(
-            m
-            for m in pod["containers"][0]["volumeMounts"]
-            if m["mountPath"] == "/etc/dex/certificate-authorities"
+        certificate_authority_volume_mount = next(
+            volume_mount
+            for volume_mount in pod["containers"][0]["volumeMounts"]
+            if volume_mount["mountPath"] == "/etc/dex/certificate-authorities"
         )
-        self.assertTrue(mount["readOnly"])
+        self.assertTrue(certificate_authority_volume_mount["readOnly"])
         volume = next(
-            v
-            for v in pod["volumes"]
-            if v["name"] == "connector-certificate-authorities"
+            volume
+            for volume in pod["volumes"]
+            if volume["name"] == "connector-certificate-authorities"
         )
         self.assertEqual(
             volume["secret"]["secretName"], "corporate-certificate-authority"
@@ -221,10 +224,13 @@ class DexConnectorTest(unittest.TestCase):
             for manifest in self.manifests(result.stdout)
             if manifest.get("kind") == "Deployment"
         )
-        volumes = [v["name"] for v in deployment["spec"]["template"]["spec"]["volumes"]]
+        volumes = [
+            volume["name"]
+            for volume in deployment["spec"]["template"]["spec"]["volumes"]
+        ]
         self.assertEqual(volumes, ["config"])
 
-    def test_root_ca_path_without_the_secret_fails(self):
+    def test_root_certificate_authority_path_without_the_secret_fails(self):
         """Otherwise Dex starts and cannot read the certificate it was told to."""
         marker = "      redirectURI: https://kubeflow.example.com/dex/callback\n"
         self.assertIn(marker, KEYCLOAK_VALUES, "test fixture drifted")
@@ -326,19 +332,40 @@ class DexConnectorTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_a_non_normalized_root_ca_path_is_rejected(self):
-        """/etc/dex/./certificate-authorities resolves into the mount."""
+    def test_a_non_normalized_root_certificate_authority_path_is_rejected(self):
+        """/etc/dex/./certificate-authorities resolves into the mount, and a
+        final . or .. segment escapes it without any slash following."""
         marker = "      redirectURI: https://kubeflow.example.com/dex/callback\n"
-        values = KEYCLOAK_VALUES.replace(
-            marker,
-            marker
-            + "      rootCAs:\n"
-            + "      - /etc/dex/./certificate-authorities/ca.crt\n",
-        )
-        result = self.render(values)
+        for path in (
+            "/etc/dex/./certificate-authorities/ca.crt",
+            "/etc/dex/certificate-authorities/../ca.crt",
+            "/etc/dex/certificate-authorities/.",
+            "/etc/dex/certificate-authorities/..",
+        ):
+            with self.subTest(path=path):
+                values = KEYCLOAK_VALUES.replace(
+                    marker, marker + "      rootCAs:\n" + f"      - {path}\n"
+                )
+                result = self.render(values)
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("not a normalized path", result.stderr)
+
+    def test_a_quoted_password_database_flag_is_rejected(self):
+        """A quoted "false" is a truthy string to the template while the
+        ConfigMap writes the boolean false; Dex would then start with neither
+        a password database nor a connector."""
+        result = self.render(None, "--set-string", "config.enablePasswordDB=false")
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("not a normalized path", result.stderr)
+        self.assertIn("config.enablePasswordDB must be a boolean", result.stderr)
+
+    def test_null_connectors_are_rejected(self):
+        """The contract is a list; null would silently render no connectors."""
+        result = self.render(None, "--set", "config.connectors=null")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("config.connectors must be a list", result.stderr)
 
     def test_disabled_dex_does_not_validate_unused_values(self):
         result = self.render(
