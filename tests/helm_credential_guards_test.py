@@ -70,6 +70,25 @@ class CredentialGuardTest(unittest.TestCase):
             "credentials.clientSecret is still the placeholder", result.stderr
         )
 
+    def test_dex_default_hash_is_rejected_once_the_client_secret_is_set(self):
+        """The client secret guard fails first; this reaches the hash guard."""
+        result = self.render_dex("oidcClient.secret=a-real-secret")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("staticPassword.hash is still the placeholder", result.stderr)
+
+    def test_oauth2_proxy_default_cookie_secret_is_rejected_once_the_client_secret_is_set(
+        self,
+    ):
+        """REPLACE_ME_COOKIE_SECRET is 24 raw bytes, so only the exact
+        placeholder check rejects it; the length guard would accept it."""
+        result = self.render_oauth2_proxy("credentials.clientSecret=a-real-secret")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "credentials.cookieSecret is still the placeholder", result.stderr
+        )
+
     def test_disabled_workloads_do_not_need_credentials(self):
         """No Secret is rendered, so the placeholders are unused."""
         dex = self.render_dex(booleans=("dex.enabled=false",))
@@ -130,7 +149,8 @@ class CredentialGuardTest(unittest.TestCase):
             ("123456789012345678901234", "raw 24"),
             ("12345678901234567890123456789012", "raw 32"),
             ("AAECAwQFBgcICQoLDA0ODw", "unpadded URL-safe, decodes to 16"),
-            ("Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFy", "padded, decodes to 24"),
+            ("AAECAwQFBgcICQoLDA0ODw==", "padded URL-safe, decodes to 16"),
+            ("Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFy", "unpadded, decodes to 24"),
             ("aaaa/aaaa/aaaa/a", "raw 16 containing /, so the decoder falls back"),
         )
         for secret, description in accepted:
@@ -161,7 +181,7 @@ class CredentialGuardTest(unittest.TestCase):
 
     def test_bcrypt_cost_must_be_one_go_accepts(self):
         """Go's bcrypt allows 4 to 31; anything else cannot verify a password."""
-        body = "4K/VkmDd1q1Orb3xAt82zu8gk7Ad6ReFR4LCP9UeYE90NLiN9Df72"
+        bcrypt_salt_and_digest = "4K/VkmDd1q1Orb3xAt82zu8gk7Ad6ReFR4LCP9UeYE90NLiN9Df72"
         for cost, valid in (
             ("04", True),
             ("12", True),
@@ -173,7 +193,7 @@ class CredentialGuardTest(unittest.TestCase):
             with self.subTest(cost=cost):
                 result = self.render_dex(
                     "oidcClient.secret=a-real-secret",
-                    f"staticPassword.hash=$2y${cost}${body}",
+                    f"staticPassword.hash=$2y${cost}${bcrypt_salt_and_digest}",
                 )
                 if valid:
                     self.assertEqual(result.returncode, 0, result.stderr)
