@@ -68,7 +68,7 @@ stable.
 ## Comparison
 
 ```bash
-helm lint common/oauth2-proxy/helm
+helm lint common/oauth2-proxy/helm --values common/oauth2-proxy/helm/ci/values-m2m-dex-and-kind.yaml
 python3 tests/run_helm_kustomize_comparison.py oauth2-proxy m2m-dex-and-kind
 ```
 

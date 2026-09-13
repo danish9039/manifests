@@ -160,7 +160,7 @@ counterpart to compare against; they are covered by
 ## Comparison
 
 ```bash
-helm lint common/dex/helm --namespace auth
+helm lint common/dex/helm --namespace auth --values common/dex/helm/ci/values-oauth2-proxy.yaml
 python3 tests/run_helm_kustomize_comparison.py dex oauth2-proxy
 ```
 

@@ -152,6 +152,10 @@ class CredentialGuardTest(unittest.TestCase):
             ("AAECAwQFBgcICQoLDA0ODw==", "padded URL-safe, decodes to 16"),
             ("Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFy", "unpadded, decodes to 24"),
             ("aaaa/aaaa/aaaa/a", "raw 16 containing /, so the decoder falls back"),
+            (
+                "AAECAwQFBgcICQoLDA0ODxAREhMU\nFRYXGBkaGxwdHh8",
+                "URL-safe 32 split by a line feed, which Go's decoder ignores",
+            ),
         )
         for secret, description in accepted:
             with self.subTest(secret=description):
