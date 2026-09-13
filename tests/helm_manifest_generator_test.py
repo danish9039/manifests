@@ -128,7 +128,11 @@ class HelmManifestGeneratorTest(unittest.TestCase):
         self.assertNotIn("example-parameters-", rendered)
 
     def test_orphaned_hand_written_resource_fails(self):
-        resources = [r for r in self.resources() if r["metadata"]["name"] != "example"]
+        resources = [
+            resource
+            for resource in self.resources()
+            if resource["metadata"]["name"] != "example"
+        ]
         with self.assertRaisesRegex(ValueError, "orphaned"):
             engine.generate_payload_contents(resources, configuration())
 
@@ -167,7 +171,9 @@ class HelmManifestGeneratorTest(unittest.TestCase):
 
     def test_missing_definitions_fail_the_per_file_layout_too(self):
         resources = [
-            r for r in self.resources() if r["kind"] != "CustomResourceDefinition"
+            resource
+            for resource in self.resources()
+            if resource["kind"] != "CustomResourceDefinition"
         ]
         per_definition = engine.GeneratorConfiguration(
             **{
@@ -216,10 +222,13 @@ class HelmManifestGeneratorTest(unittest.TestCase):
 
     def test_empty_payload_fails(self):
         resources = [
-            r for r in self.resources() if r["kind"] != "CustomResourceDefinition"
+            resource
+            for resource in self.resources()
+            if resource["kind"] != "CustomResourceDefinition"
         ]
-        with self.assertRaisesRegex(ValueError, "empty"):
+        with self.assertRaisesRegex(ValueError, "empty") as raised:
             engine.generate_payload_contents(resources, configuration())
+        self.assertEqual(str(raised.exception).count(CRDS_PAYLOAD), 1)
 
     # --- content --------------------------------------------------------
 
