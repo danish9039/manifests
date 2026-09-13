@@ -37,11 +37,19 @@ class ChartCustomResourceDefinitionMatchesUpstreamTest(unittest.TestCase):
             line for line in chart_template.splitlines() if not line.startswith("{{-")
         )
         chart = yaml.safe_load(body)
+        # The retention annotation is the one intentional difference; everything
+        # else, apiVersion, kind, labels and other annotations included, must
+        # match the synchronized upstream definition.
+        annotations = dict(chart["metadata"].get("annotations", {}))
+        self.assertEqual(annotations.pop("helm.sh/resource-policy", None), "keep")
+        if annotations:
+            chart["metadata"]["annotations"] = annotations
+        else:
+            chart["metadata"].pop("annotations", None)
 
-        self.assertEqual(chart["metadata"]["name"], upstream["metadata"]["name"])
         self.assertEqual(
-            chart["spec"],
-            upstream["spec"],
+            chart,
+            upstream,
             "common/dex/helm/templates/crds.yaml has drifted from the upstream "
             "CustomResourceDefinition synchronized into "
             "common/dex/base/upstream/crds.yaml. Update the chart template.",
