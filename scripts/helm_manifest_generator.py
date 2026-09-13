@@ -277,7 +277,10 @@ def generate_payload_contents(resources, configuration):
         (configuration.resources_payload_filename, payload_resources),
     )
     empty_payloads = [filename for filename, entries in payloads if not entries]
-    if not crd_resources:
+    # The single-file layout records its empty definition payload through the
+    # loop above; the per-definition layout has no file to record, so name the
+    # directory instead.
+    if configuration.crds_payload_directory and not crd_resources:
         empty_payloads.insert(0, crds_payload_name)
     if empty_payloads:
         raise ValueError(

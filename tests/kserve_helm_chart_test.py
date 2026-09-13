@@ -116,7 +116,12 @@ class KServeHelmChartTest(unittest.TestCase):
         remaining = load_manifests(result.stdout)
 
         self.assertEqual(
-            [m for m in remaining if m["kind"] == "CustomResourceDefinition"], []
+            [
+                manifest
+                for manifest in remaining
+                if manifest["kind"] == "CustomResourceDefinition"
+            ],
+            [],
         )
         self.assertEqual(
             len(remaining), len(self.manifests) - CUSTOM_RESOURCE_DEFINITION_COUNT
@@ -144,7 +149,14 @@ class KServeHelmChartTest(unittest.TestCase):
 
     def test_namespace_is_never_rendered(self):
         """Namespace/kserve belongs to the kubeflow-namespaces chart."""
-        self.assertEqual([m for m in self.manifests if m["kind"] == "Namespace"], [])
+        self.assertEqual(
+            [
+                manifest
+                for manifest in self.manifests
+                if manifest["kind"] == "Namespace"
+            ],
+            [],
+        )
 
     def test_every_namespaced_resource_declares_the_owned_namespace(self):
         namespaces = {
@@ -157,7 +169,10 @@ class KServeHelmChartTest(unittest.TestCase):
 
     def test_intentional_omissions_stay_omitted(self):
         """The restricted Pod Security decisions of the Kustomize component."""
-        identities = {(m["kind"], m["metadata"]["name"]) for m in self.manifests}
+        identities = {
+            (manifest["kind"], manifest["metadata"]["name"])
+            for manifest in self.manifests
+        }
 
         self.assertNotIn(("DaemonSet", "kserve-localmodelnode-agent"), identities)
         self.assertNotIn(
@@ -168,7 +183,8 @@ class KServeHelmChartTest(unittest.TestCase):
             identities,
         )
         self.assertNotIn(
-            "LLMInferenceServiceConfig", {m["kind"] for m in self.manifests}
+            "LLMInferenceServiceConfig",
+            {manifest["kind"] for manifest in self.manifests},
         )
 
     def test_packaged_chart_stays_under_the_release_size_limit(self):
@@ -194,6 +210,7 @@ class KServeHelmChartTest(unittest.TestCase):
         readme = (CHART_PATH / "README.md").read_text()
 
         self.assertIn("--set resources.enabled=false", readme)
+        self.assertIn("--set resources.enabled=true", readme)
         self.assertIn("condition=Established", readme)
 
 

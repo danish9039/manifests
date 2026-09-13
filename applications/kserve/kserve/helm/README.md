@@ -55,8 +55,13 @@ done
 
 helm upgrade kserve ./applications/kserve/kserve/helm \
   --namespace kserve \
+  --set resources.enabled=true \
   --wait --timeout 10m
 ```
+
+The second command states `resources.enabled=true` rather than relying on the
+chart default, so the release does not depend on whether the upgrade reuses
+the first revision's values.
 
 `tests/kserve_helm_install.sh` is this procedure as continuous integration
 runs it, followed by the readiness waits of the Kustomize installer.
