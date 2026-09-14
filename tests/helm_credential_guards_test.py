@@ -111,6 +111,11 @@ class CredentialGuardTest(unittest.TestCase):
         shipped placeholder must not block the external-connector flow."""
         result = self.render_dex(
             "oidcClient.secret=a-real-client-secret",
+            # Without the password database a connector must exist, or the
+            # chart refuses to render a Dex nobody can log in to.
+            "config.connectors[0].type=oidc",
+            "config.connectors[0].id=example",
+            "config.connectors[0].name=Example",
             booleans=("config.enablePasswordDB=false",),
         )
 
