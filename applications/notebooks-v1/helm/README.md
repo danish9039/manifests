@@ -59,10 +59,19 @@ Because they are templates rather than `crds/` content, Helm's `--skip-crds`
 option has no effect on them. Use `customResourceDefinitions.enabled=false` when
 an administrator or another release already owns them.
 
-Regenerate the payloads through the component synchronization workflow:
+Regenerate the payloads from the local Kustomize inputs, or verify them
+without writing:
 
 ```bash
 python3 -m pip install pyyaml "ruamel.yaml==0.19.1"
+python3 scripts/generate-notebooks-v1-helm-manifests.py
+python3 scripts/generate-notebooks-v1-helm-manifests.py --check
+```
+
+Import a new upstream release, which also regenerates, through the component
+synchronization workflow:
+
+```bash
 KUBEFLOW_SYNCHRONIZE_NO_COMMIT=true \
   ./scripts/synchronize-notebooks-v1-manifests.sh
 ```
@@ -89,4 +98,3 @@ python3 tests/notebooks_helm_chart_test.py
 How this chart is compared, including every declared allowance, is in
 [`ci/comparison.yaml`](ci/comparison.yaml); the descriptor format is documented in
 [`tests/README.md`](../../../tests/README.md).
-

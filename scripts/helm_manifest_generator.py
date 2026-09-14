@@ -12,13 +12,16 @@ through the template renderer, so Go template delimiters that upstream manifests
 legitimately contain survive verbatim.
 """
 
+import argparse
 import copy
 import io
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import uuid
 
@@ -319,7 +322,12 @@ def write_payloads_atomically(output_directory, payloads):
                 os.replace(backup_directory, output_directory)
 
 
-def generate_manifests(repository_root, configuration):
+def render_manifests(repository_root, configuration):
+    """Build the Kustomize inputs and return (resource count, {filename: text}).
+
+    Nothing is written; generate_manifests and check_manifests share this step
+    so the freshness check sees exactly the bytes generation would write.
+    """
     repository_root = Path(repository_root).resolve()
     result = subprocess.run(
         ["kustomize", "build", str(configuration.kustomize_path)],
@@ -334,6 +342,112 @@ def generate_manifests(repository_root, configuration):
         )
 
     resources = parse_resources(result.stdout)
-    payloads = generate_payload_contents(resources, configuration)
+    return len(resources), generate_payload_contents(resources, configuration)
+
+
+def generate_manifests(repository_root, configuration):
+    repository_root = Path(repository_root).resolve()
+    resource_count, payloads = render_manifests(repository_root, configuration)
     write_payloads_atomically(repository_root / configuration.output_path, payloads)
-    return len(resources), tuple(payloads)
+    return resource_count, tuple(payloads)
+
+
+def check_manifests(repository_root, configuration):
+    """Compare what generation would write with what the output directory holds.
+
+    Returns a sorted list of (status, relative path) where status is "stale"
+    (bytes differ), "missing" (would be generated, absent on disk) or "extra"
+    (present on disk, would not be generated; generation deletes such a file).
+    An empty list means the committed payloads are fresh. Bytes are compared,
+    not decoded text, so a line-ending change is a difference.
+    """
+    repository_root = Path(repository_root).resolve()
+    output_directory = repository_root / configuration.output_path
+    _, payloads = render_manifests(repository_root, configuration)
+    expected = {
+        Path(filename): contents.encode("utf-8")
+        for filename, contents in payloads.items()
+    }
+
+    actual = set()
+    if output_directory.is_dir():
+        actual = {
+            path.relative_to(output_directory)
+            for path in output_directory.rglob("*")
+            if not path.is_dir()
+        }
+
+    differences = []
+    for relative_path, contents in expected.items():
+        if relative_path not in actual:
+            differences.append(("missing", relative_path.as_posix()))
+        elif (output_directory / relative_path).read_bytes() != contents:
+            differences.append(("stale", relative_path.as_posix()))
+    for relative_path in actual - set(expected):
+        differences.append(("extra", relative_path.as_posix()))
+    return sorted(differences, key=lambda difference: difference[1])
+
+
+def command_line(configuration, description, default_repository_root, argv=None):
+    """Shared entry point of every generator script: generate, or --check.
+
+    Without --check the payloads are regenerated in place. With --check nothing
+    is written; every stale, missing or extra file is listed with the local
+    command that repairs it, and the exit status is 1. Exit status is the
+    contract; the messages are for people.
+    """
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument(
+        "--repository-root",
+        type=Path,
+        default=None,
+        help="Path to the kubeflow/community-distribution repository.",
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Report payloads that regeneration would change, without writing.",
+    )
+    arguments = parser.parse_args(argv)
+    repository_root = arguments.repository_root or default_repository_root
+    # The repair is the generator itself, run from the repository root. The
+    # synchronization script is a different operation: it imports upstream.
+    repair = ["python3", configuration.generator_script]
+    if arguments.repository_root is not None:
+        repair += ["--repository-root", str(arguments.repository_root)]
+    repair = shlex.join(repair)
+
+    try:
+        if arguments.check:
+            differences = check_manifests(repository_root, configuration)
+        else:
+            resource_count, payload_filenames = generate_manifests(
+                repository_root, configuration
+            )
+    except Exception as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+
+    if not arguments.check:
+        print(
+            f"Generated {resource_count} {configuration.component_name} resources "
+            f"across {len(payload_filenames)} files."
+        )
+        return 0
+
+    if differences:
+        print(
+            f"ERROR: {configuration.component_name} payloads in "
+            f"{configuration.output_path} are not what "
+            f"{configuration.generator_script} generates:",
+            file=sys.stderr,
+        )
+        for status, filename in differences:
+            print(f"  {status:8} {filename}", file=sys.stderr)
+        print(f"Regenerate with: {repair}", file=sys.stderr)
+        return 1
+    print(
+        f"{configuration.component_name} payloads in {configuration.output_path} "
+        "are fresh."
+    )
+    return 0

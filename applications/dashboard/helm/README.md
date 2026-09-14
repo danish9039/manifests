@@ -51,7 +51,9 @@ Nobody maintains the generated payloads by hand. They are output, not source.
 Three mechanisms keep that honest, and each fails loudly rather than drifting:
 
 - **Regeneration is idempotent.** The idempotence job re-runs the synchronization
-  script and fails if the tree changes, so a hand-edited payload is caught.
+  script and fails if the tree changes, and `tests/helm_payload_freshness_test.py`
+  runs the generator's `--check` on every pull request, so a hand-edited or stale
+  payload is caught.
 - **Parity is the drift detector.** Every scenario compares the committed chart
   against a fresh `kustomize build`. If an upstream release changes a resource
   and the chart does not follow, the comparison fails.
@@ -69,10 +71,17 @@ So at release *n + 10* the payloads are whatever `kustomize build` produced at
 that release, and the only manual surface is those seven templates — each one
 checked against Kustomize by the parity job on every run.
 
-Regenerate with:
+Regenerate from the local Kustomize inputs, or verify without writing:
 
 ```bash
 python3 -m pip install pyyaml "ruamel.yaml==0.19.1"
+python3 scripts/generate-dashboard-helm-manifests.py
+python3 scripts/generate-dashboard-helm-manifests.py --check
+```
+
+Import a new upstream release, which also regenerates, with:
+
+```bash
 KUBEFLOW_SYNCHRONIZE_NO_COMMIT=true \
   ./scripts/synchronize-dashboard-manifests.sh
 ```
@@ -211,4 +220,3 @@ python3 tests/dashboard_helm_manifest_generator_test.py
 How this chart is compared, including every declared allowance, is in
 [`ci/comparison.yaml`](ci/comparison.yaml); the descriptor format is documented in
 [`tests/README.md`](../../../tests/README.md).
-
