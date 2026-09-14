@@ -33,8 +33,15 @@ class ChartCustomResourceDefinitionMatchesUpstreamTest(unittest.TestCase):
         upstream = yaml.safe_load(UPSTREAM_CUSTOM_RESOURCE_DEFINITION.read_text())
         chart_template = (CHART_DIRECTORY / "templates" / "crds.yaml").read_text()
 
-        body = "\n".join(
-            line for line in chart_template.splitlines() if not line.startswith("{{-")
+        # Only the outer gate may be Helm code. Stripping every directive would
+        # let a conditional inside the definition hide part of the schema from
+        # this comparison while the rendered definition differs.
+        lines = chart_template.splitlines()
+        self.assertEqual(lines[0], "{{- if .Values.crds.enabled }}")
+        self.assertEqual(lines[-1], "{{- end }}")
+        body = "\n".join(lines[1:-1])
+        self.assertNotIn(
+            "{{", body, "templates/crds.yaml must contain only the outer gate"
         )
         chart = yaml.safe_load(body)
         # The retention annotation is the one intentional difference; everything
