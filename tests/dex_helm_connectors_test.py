@@ -18,6 +18,12 @@ import yaml
 ROOT_DIRECTORY = Path(__file__).resolve().parents[1]
 CHART_DIRECTORY = ROOT_DIRECTORY / "common" / "dex" / "helm"
 HELM_BINARY = os.environ.get("HELM_BINARY", "helm")
+# Real-shaped credentials. The chart rejects the REPLACE_ME placeholders, so
+# every render in this file has to supply something valid first.
+VALID_OIDC_CLIENT_SECRET = "pUBnBOY80SnXgjibTYM9ZWNzY2xreNGQok"
+VALID_STATIC_PASSWORD_HASH = (
+    "$2y$12$4K/VkmDd1q1Orb3xAt82zu8gk7Ad6ReFR4LCP9UeYE90NLiN9Df72"
+)
 
 KEYCLOAK_VALUES = textwrap.dedent("""\
     config:
@@ -53,6 +59,10 @@ class DexConnectorTest(unittest.TestCase):
             str(CHART_DIRECTORY),
             "--namespace",
             "auth",
+            "--set-string",
+            f"oidcClient.secret={VALID_OIDC_CLIENT_SECRET}",
+            "--set-string",
+            f"staticPassword.hash={VALID_STATIC_PASSWORD_HASH}",
         ]
         values_file = None
         if values_content is not None:
