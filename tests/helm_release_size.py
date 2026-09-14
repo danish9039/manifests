@@ -232,17 +232,27 @@ def verdict(encoded_bytes):
 
 
 def format_table(measurements):
-    width = max(len(m.component) for m in measurements) if measurements else 9
-    scenario_width = max(len(m.scenario) for m in measurements) if measurements else 8
+    width = (
+        max(len(measurement.component) for measurement in measurements)
+        if measurements
+        else 9
+    )
+    scenario_width = (
+        max(len(measurement.scenario) for measurement in measurements)
+        if measurements
+        else 8
+    )
     lines = [
         f"{'component':<{width}}  {'scenario':<{scenario_width}}  "
         f"{'stored bytes':>12}  {'of limit':>8}  verdict"
     ]
-    for m in measurements:
+    for measurement in measurements:
         lines.append(
-            f"{m.component:<{width}}  {m.scenario:<{scenario_width}}  "
-            f"{m.encoded_bytes:>12,}  {m.encoded_bytes / MAX_SECRET_BYTES:>7.1%}  "
-            f"{verdict(m.encoded_bytes)}"
+            f"{measurement.component:<{width}}  "
+            f"{measurement.scenario:<{scenario_width}}  "
+            f"{measurement.encoded_bytes:>12,}  "
+            f"{measurement.encoded_bytes / MAX_SECRET_BYTES:>7.1%}  "
+            f"{verdict(measurement.encoded_bytes)}"
         )
     return "\n".join(lines)
 
