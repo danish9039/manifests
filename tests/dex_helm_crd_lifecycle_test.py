@@ -16,6 +16,12 @@ UPSTREAM_CUSTOM_RESOURCE_DEFINITION = (
 HELM_BINARY = os.environ.get("HELM_BINARY", "helm")
 CUSTOM_RESOURCE_DEFINITION_NAME = "authcodes.dex.coreos.com"
 RETENTION_ANNOTATION = "helm.sh/resource-policy"
+# Fixture credentials shared with the comparison values files; the credential
+# guards refuse to render the shipped placeholders.
+VALID_OIDC_CLIENT_SECRET = "pUBnBOY80SnXgjibTYM9ZWNzY2xreNGQok"
+VALID_STATIC_PASSWORD_HASH = (
+    "$2y$12$4K/VkmDd1q1Orb3xAt82zu8gk7Ad6ReFR4LCP9UeYE90NLiN9Df72"
+)
 
 
 def load_custom_resource_definitions(documents):
@@ -80,6 +86,10 @@ class DexCustomResourceDefinitionLifecycleTest(unittest.TestCase):
             str(CHART_DIRECTORY),
             "--namespace",
             "auth",
+            "--set-string",
+            f"oidcClient.secret={VALID_OIDC_CLIENT_SECRET}",
+            "--set-string",
+            f"staticPassword.hash={VALID_STATIC_PASSWORD_HASH}",
         ]
         if include_custom_resource_definitions:
             command.append("--include-crds")
