@@ -24,6 +24,30 @@ and pins the Helm version; check `helm version --short` against the version in
 `.github/workflows/helm-kustomize-comparison.yml` before treating a local
 failure as real.
 
+## Helm release storage size
+
+Helm stores every release revision in one Kubernetes Secret holding
+`base64(gzip(json(release)))`, and the release JSON embeds the whole chart,
+including payloads read with `.Files.Get`, next to the rendered manifest.
+Kubernetes refuses a Secret above 1,048,576 bytes, so a chart that lints,
+packages and renders can still be impossible to install, and a template
+switch that renders less does not help. Every chart with a descriptor is
+measured for every scenario from a client-generated release record
+(`helm install --dry-run=client --output=json`), encoded by the Go helper in
+`tests/helm-release-size-encoder` exactly as Helm's storage driver encodes it.
+
+```bash
+python3 tests/helm_release_size.py            # every chart, every scenario
+python3 tests/helm_release_size.py istio      # one component
+python3 tests/helm_release_size_test.py -v    # the guard and its fixtures
+```
+
+Rows above 80 % of the limit are reported as warnings; a row above the limit
+fails. The record is generated without a cluster: templates that use
+`lookup`, generate credentials or certificates, or depend on cluster
+capabilities can render differently on a live installation, so the guard does
+not replace installing and upgrading the chart on a cluster.
+
 ## The comparison descriptor: `<chart>/ci/comparison.yaml`
 
 Components are discovered, not registered. Every chart declares how it is
