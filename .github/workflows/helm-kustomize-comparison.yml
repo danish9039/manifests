@@ -110,6 +110,7 @@ jobs:
         python tests/dex_helm_rollout_checksums_test.py
         python tests/dex_helm_connectors_test.py
         python tests/helm_credential_guards_test.py
+        python tests/dex_helm_crd_lifecycle_test.py
     - name: Test Istio Helm behavior
       run: |
         python tests/istio_helm_chart_test.py
