@@ -61,6 +61,7 @@ import yaml
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 ENCODER_SOURCE = Path(__file__).with_name("helm-release-size-encoder")
 HARNESS_PATH = Path(__file__).with_name("run_helm_kustomize_comparison.py")
+WORKFLOW_PATH = REPOSITORY_ROOT / ".github/workflows/helm-kustomize-comparison.yml"
 _HARNESS_SPEC = importlib.util.spec_from_file_location(
     "run_helm_kustomize_comparison", HARNESS_PATH
 )
@@ -103,8 +104,66 @@ def require_helm_major_version(major):
     return version
 
 
+def workflow_helm_version():
+    """Return the Helm version the comparison workflow installs.
+
+    Read from the workflow itself, so the pin has exactly one home.
+    """
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
+    versions = {
+        step["with"]["version"]
+        for job in workflow["jobs"].values()
+        for step in job.get("steps", [])
+        if str(step.get("uses", "")).startswith("azure/setup-helm@")
+    }
+    if len(versions) != 1:
+        raise RuntimeError(
+            f"{WORKFLOW_PATH.name} pins {len(versions)} Helm versions; expected one"
+        )
+    return versions.pop()
+
+
+def pinned_go_version():
+    """Return the Go release go.mod pins, the release Helm is built with."""
+    for line in (ENCODER_SOURCE / "go.mod").read_text().splitlines():
+        if line.startswith("go "):
+            return line.split()[1]
+    raise RuntimeError(f"{ENCODER_SOURCE / 'go.mod'} declares no go directive")
+
+
+def go_environment():
+    """Make every go command use exactly the pinned release.
+
+    GOTOOLCHAIN=go<version> selects that release even when a newer or older
+    Go is installed, downloading it once if necessary, so the encoder is
+    compiled with the same compress/gzip that Helm carries wherever it runs.
+    """
+    environment = dict(os.environ)
+    environment["GOTOOLCHAIN"] = "go" + pinned_go_version()
+    return environment
+
+
 def go_version():
-    return run(["go", "version"]).decode().strip()
+    return run(["go", "version"], env=go_environment()).decode().strip()
+
+
+def toolchain_report():
+    """Describe the toolchain in use and whether it matches the workflow.
+
+    The encoder always runs on the pinned Go release. Helm is whatever is on
+    PATH, so a version other than the workflow's is reported and the
+    measurement described as approximate: another Helm release can serialise
+    the record differently.
+    """
+    installed = require_helm_major_version(REQUIRED_HELM_MAJOR_VERSION)
+    pinned = workflow_helm_version()
+    report = f"helm {installed}, {go_version()}"
+    if installed != pinned:
+        report += (
+            f"\nWARNING: the workflow pins Helm {pinned}; this measurement comes "
+            f"from Helm {installed} and is approximate"
+        )
+    return report
 
 
 def helm_environment(home):
@@ -132,7 +191,11 @@ def build_encoder(directory):
             "Go release named in its go.mod"
         )
     binary = Path(directory) / "helm-release-size-encoder"
-    run(["go", "build", "-o", str(binary), "."], cwd=ENCODER_SOURCE)
+    run(
+        ["go", "build", "-o", str(binary), "."],
+        cwd=ENCODER_SOURCE,
+        env=go_environment(),
+    )
     return binary
 
 
@@ -276,9 +339,7 @@ def main():
     )
     arguments = parser.parse_args()
 
-    print(
-        f"helm {require_helm_major_version(REQUIRED_HELM_MAJOR_VERSION)}, {go_version()}"
-    )
+    print(toolchain_report())
     descriptors = discover_units()
     if arguments.component:
         unknown = set(arguments.component) - set(descriptors)

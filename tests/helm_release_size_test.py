@@ -86,7 +86,7 @@ def rendered_objects(release_record):
 class HelmReleaseSizeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.helm = sizing.require_helm_major_version(sizing.REQUIRED_HELM_MAJOR_VERSION)
+        cls.helm = sizing.toolchain_report()
         cls.temporary = tempfile.TemporaryDirectory()
         root = Path(cls.temporary.name)
         cls.encoder = sizing.build_encoder(root)
@@ -127,7 +127,7 @@ class HelmReleaseSizeTest(unittest.TestCase):
             descriptors, self.encoder, self.work / "charts", self.environment
         )
 
-        print(f"\nhelm {self.helm}\n{sizing.format_table(measurements)}")
+        print(f"\n{self.helm}\n{sizing.format_table(measurements)}")
         self.assertEqual(len(measurements), expected)
         failures = [
             sizing.explain(measurement)
@@ -151,6 +151,20 @@ class HelmReleaseSizeTest(unittest.TestCase):
         self.assertIn("kubeflow-platform", result.stdout)
         self.assertIn("1 charts measured", result.stdout)
         self.assertNotIn("FAIL", result.stdout + result.stderr)
+
+    def test_encoder_is_built_with_the_pinned_go_release(self):
+        """The workflow and a developer must compress with the same Go."""
+        pinned = sizing.pinned_go_version()
+
+        version = subprocess.run(
+            ["go", "version", str(self.encoder)], capture_output=True, text=True
+        )
+
+        self.assertEqual(version.returncode, 0, version.stderr)
+        self.assertIn(f"go{pinned}", version.stdout.split())
+
+    def test_the_workflow_pins_one_helm_version(self):
+        self.assertRegex(sizing.workflow_helm_version(), r"^v4\.\d+\.\d+$")
 
     def test_encoder_rejects_a_rendered_manifest(self):
         chart = write_fixture_chart(self.work / "reject", 1_000)
