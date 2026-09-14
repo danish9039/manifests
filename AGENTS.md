@@ -93,6 +93,7 @@ The expectation for the contributor is that he must understand all changes he is
 - The full end-to-end installation is validated by `full_kubeflow_integration_test.yaml`; individual components are validated by their dedicated workflow.
 - The Helm charts are checked for parity against the Kustomize manifests through `tests/run_helm_kustomize_comparison.py` and its `helm-kustomize-comparison.yml` workflow.
 - The same workflow measures, for every chart that declares `ci/comparison.yaml` and every one of its scenarios, the release record Helm would store (`tests/helm_release_size_test.py`, with the record from `helm install --dry-run=client --output=json` encoded by `tests/helm-release-size-encoder` exactly as Helm's storage driver encodes it). The record must stay below the 1,048,576 byte Kubernetes Secret limit, because a chart that lints, packages and renders can still be impossible to install; package and manifest sizes do not predict it.
+- A component whose resources form several releases ships sibling charts named `helm*` beside its Kustomize sources; sibling charts that split one baseline declare a `partition` group in `ci/comparison.yaml`, and `tests/run_helm_kustomize_comparison.py --partitions` proves from each release's complete rendered output that the group owns the baseline exactly once.
 
 ## Tooling
 
