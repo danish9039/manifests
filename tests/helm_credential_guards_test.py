@@ -173,6 +173,11 @@ class CredentialGuardTest(unittest.TestCase):
                 "standard alphabet: the URL-safe decoder rejects /, "
                 "and the 44 byte raw form is not a key length",
             ),
+            (
+                "AAECAwQFBgcICQoLDA0ODw==\n",
+                "padded then a line feed: the padding is not trailing, so "
+                "oauth2-proxy cannot decode it and rejects the 25 byte raw form",
+            ),
         )
         for secret, description in rejected:
             with self.subTest(secret=description):
