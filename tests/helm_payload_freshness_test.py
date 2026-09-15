@@ -13,6 +13,7 @@ extra file, and it never modifies the output directory.
 import contextlib
 import importlib.util
 import io
+import os
 import shlex
 import subprocess
 import tempfile
@@ -226,16 +227,23 @@ class FreshnessCheckTest(unittest.TestCase):
         )
         input_path.write_text(input_path.read_text().replace("app: example", "app: x"))
 
-        status, _, stderr = run_command_line(
-            root, "--check", "--repository-root", str(root)
-        )
+        # A relative root, as typed from the parent directory: the advertised
+        # repair must still work from the repository root itself.
+        previous_directory = Path.cwd()
+        os.chdir(self.root)
+        try:
+            status, _, stderr = run_command_line(
+                root, "--check", "--repository-root", "repository with spaces"
+            )
+        finally:
+            os.chdir(previous_directory)
         self.assertEqual(status, 1)
         advertised = next(
             line.split(": ", 1)[1]
             for line in stderr.splitlines()
             if line.startswith("Regenerate with: ")
         )
-        self.assertIn("--repository-root", advertised)
+        self.assertIn(f"--repository-root {shlex.quote(str(root))}", advertised)
 
         repaired = subprocess.run(
             shlex.split(advertised), cwd=root, capture_output=True, text=True

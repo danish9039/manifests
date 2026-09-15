@@ -412,9 +412,12 @@ def command_line(configuration, description, default_repository_root, argv=None)
     repository_root = arguments.repository_root or default_repository_root
     # The repair is the generator itself, run from the repository root. The
     # synchronization script is a different operation: it imports upstream.
+    # The repair is quoted for a shell and names the resolved root, because it
+    # is meant to be run from the repository root, where a relative path typed
+    # elsewhere would point at a different tree.
     repair = ["python3", configuration.generator_script]
     if arguments.repository_root is not None:
-        repair += ["--repository-root", str(arguments.repository_root)]
+        repair += ["--repository-root", str(Path(arguments.repository_root).resolve())]
     repair = shlex.join(repair)
 
     try:
