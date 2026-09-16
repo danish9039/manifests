@@ -132,3 +132,7 @@ jobs:
         cache: false
     - name: Test Helm release storage size
       run: python tests/helm_release_size_test.py
+    - name: Check that the generated Helm payloads are fresh
+      # Every generator's --check mode; it renders local inputs and writes
+      # nothing, so a stale committed payload fails here whatever changed.
+      run: python tests/helm_payload_freshness_test.py

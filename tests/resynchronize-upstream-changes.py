@@ -18,6 +18,7 @@ path_to_synchronization_script = {
     "applications/kserve/kserve/upstream": "scripts/synchronize-kserve-kserve-manifests.sh",
     "applications/kserve/kserve-ui/upstream": "scripts/synchronize-kserve-ui-manifests.sh",
     "applications/notebooks-v1/upstream": "scripts/synchronize-notebooks-v1-manifests.sh",
+    "applications/notebooks-v1/overlays/istio": "scripts/synchronize-notebooks-v1-manifests.sh",
     "applications/notebooks-v1/helm/Chart.yaml": "scripts/synchronize-notebooks-v1-manifests.sh",
     "applications/notebooks-v1/helm/kustomize": "scripts/synchronize-notebooks-v1-manifests.sh",
     "applications/notebooks-v1/helm/manifests": "scripts/synchronize-notebooks-v1-manifests.sh",

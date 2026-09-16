@@ -6,7 +6,6 @@ definition retention, deterministic rendering and atomic replacement live in
 scripts/helm_manifest_generator.py so every component shares one engine.
 """
 
-import argparse
 import importlib.util
 import sys
 
@@ -61,34 +60,12 @@ CONFIGURATION = engine.GeneratorConfiguration(
 )
 
 
-def parse_arguments():
-    parser = argparse.ArgumentParser(
-        description="Generate payloads for the Kubeflow Dashboard Helm chart."
-    )
-    parser.add_argument(
-        "--repository-root",
-        type=Path,
-        default=Path(__file__).resolve().parents[1],
-        help="Path to the kubeflow/community-distribution repository.",
-    )
-    return parser.parse_args()
-
-
 def main():
-    arguments = parse_arguments()
-    try:
-        resource_count, payload_filenames = engine.generate_manifests(
-            arguments.repository_root, CONFIGURATION
-        )
-    except Exception as error:
-        print(f"ERROR: {error}", file=sys.stderr)
-        return 1
-
-    print(
-        f"Generated {resource_count} Dashboard resources across "
-        f"{len(payload_filenames)} files."
+    return engine.command_line(
+        CONFIGURATION,
+        description="Generate payloads for the Kubeflow Dashboard Helm chart.",
+        default_repository_root=Path(__file__).resolve().parents[1],
     )
-    return 0
 
 
 if __name__ == "__main__":

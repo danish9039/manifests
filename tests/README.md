@@ -48,6 +48,28 @@ fails. The record is generated without a cluster: templates that use
 capabilities can render differently on a live installation, so the guard does
 not replace installing and upgrading the chart on a cluster.
 
+## Generated payload freshness
+
+The Dashboard and Notebooks charts read their resources from committed payloads
+under `<chart>/manifests/`, written by `scripts/generate-<component>-helm-manifests.py`
+from a local `kustomize build`. Parity compares those payloads semantically, and
+the upstream replay reruns a synchronization script only for changed paths it
+knows about; neither proves that the committed bytes are the generator's current
+output. Every generator therefore has a `--check` mode that renders the local
+inputs, compares bytes and file sets with the committed directory, writes
+nothing, and exits 1 listing each stale, missing or extra file. The repair is
+the generator itself, not the synchronization script, which imports upstream:
+
+```bash
+python3 scripts/generate-dashboard-helm-manifests.py --check
+python3 scripts/generate-notebooks-v1-helm-manifests.py --check
+python3 scripts/generate-dashboard-helm-manifests.py        # regenerate
+python3 tests/helm_payload_freshness_test.py -v             # the check and its fixtures
+```
+
+Continuous integration runs the test in the `Test chart behavior` job for every
+generator matching `scripts/generate-*-helm-manifests.py`.
+
 ## The comparison descriptor: `<chart>/ci/comparison.yaml`
 
 Components are discovered, not registered. Every chart declares how it is
