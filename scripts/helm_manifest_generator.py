@@ -7,6 +7,11 @@ documents to extract. Everything else - Kubernetes identity validation,
 duplicate detection, custom resource definition retention, deterministic
 rendering and atomic replacement - is component independent and lives here.
 
+A resource that reaches a payload keeps the content Kustomize rendered, with two
+controlled transforms: every custom resource definition receives the
+helm.sh/resource-policy: keep annotation, and an aggregated ClusterRole loses its
+empty rules field, which the aggregation controller owns.
+
 Helm loads the generated payloads with .Files.Get, which does not send content
 through the template renderer, so Go template delimiters that upstream manifests
 legitimately contain survive verbatim.
@@ -33,6 +38,8 @@ from ruamel.yaml import YAML
 
 CRD_KIND = "CustomResourceDefinition"
 CRD_RETENTION_ANNOTATION = "helm.sh/resource-policy"
+CLUSTER_ROLE_API_GROUP = "rbac.authorization.k8s.io"
+CLUSTER_ROLE_KIND = "ClusterRole"
 KUSTOMIZE_HASH_PATTERN = r"[a-z0-9]{10}"
 DOCUMENTS_DIRECTORY = "documents"
 DEFAULT_DIRECTORY_MODE = 0o755
@@ -137,6 +144,39 @@ def add_crd_retention(resource):
     return retained_resource
 
 
+def omit_aggregated_cluster_role_rules(resource):
+    """Omit the empty rules field of an aggregated ClusterRole.
+
+    The aggregation controller owns the rules of a ClusterRole that carries an
+    aggregationRule. A manifest that sets the field, even to an empty list,
+    claims it under server-side apply, so every later helm upgrade fails with a
+    conflict against clusterrole-aggregation-controller. Kubernetes documents
+    that such a manifest omits the field. Every other resource is returned as it
+    is; the input is never changed.
+    """
+    api_group, kind, _, name = kubernetes_object_identity(resource)
+    if api_group != CLUSTER_ROLE_API_GROUP or kind != CLUSTER_ROLE_KIND:
+        return resource
+    aggregation_rule = resource.get("aggregationRule")
+    if not isinstance(aggregation_rule, Mapping):
+        return resource
+    selectors = aggregation_rule.get("clusterRoleSelectors")
+    if not isinstance(selectors, list) or not selectors:
+        return resource
+    if "rules" not in resource:
+        return resource
+    if resource["rules"]:
+        raise ValueError(
+            f"aggregated ClusterRole {name} has nonempty rules; hand-authored "
+            "rules on an aggregated ClusterRole are overwritten by the "
+            "aggregation controller, so they belong in a ClusterRole that the "
+            "aggregationRule selects"
+        )
+    aggregated_role = copy.deepcopy(resource)
+    del aggregated_role["rules"]
+    return aggregated_role
+
+
 def render_payload(resources, header):
     yaml = YAML()
     yaml.default_flow_style = False
@@ -208,6 +248,7 @@ def generate_payload_contents(resources, configuration):
             documents.update(extract_documents(resource, configuration))
             continue
 
+        resource = omit_aggregated_cluster_role_rules(resource)
         if resource["kind"] == CRD_KIND:
             crd_resources.append(add_crd_retention(resource))
         else:

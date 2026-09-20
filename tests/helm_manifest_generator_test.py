@@ -28,6 +28,11 @@ _SPEC.loader.exec_module(engine)
 CRDS_PAYLOAD = "platform-crds.yaml"
 RESOURCES_PAYLOAD = "platform-resources.yaml"
 DOCUMENT = "documents/example.json"
+AGGREGATE_TO = "rbac.authorization.kubeflow.org/aggregate-to-kubeflow-"
+AGGREGATION_RULE = {
+    "clusterRoleSelectors": [{"matchLabels": {AGGREGATE_TO + "example-edit": "true"}}]
+}
+RULES = [{"apiGroups": ["kubeflow.org"], "resources": ["examples"], "verbs": ["get"]}]
 
 
 def configuration():
@@ -216,6 +221,155 @@ class HelmManifestGeneratorTest(unittest.TestCase):
             engine.generate_payload_contents(resources, configuration()),
             engine.generate_payload_contents(resources, configuration()),
         )
+
+    # --- aggregated ClusterRoles ----------------------------------------
+
+    def cluster_role(self, name, aggregate_to, **fields):
+        role = self.resource(
+            name,
+            kind="ClusterRole",
+            api_version="rbac.authorization.k8s.io/v1",
+            namespace=None,
+        )
+        role["metadata"]["labels"] = {AGGREGATE_TO + aggregate_to: "true"}
+        role.update(fields)
+        return role
+
+    def aggregated_cluster_role(self, name="example-edit", **fields):
+        return self.cluster_role(
+            name, "edit", aggregationRule=copy.deepcopy(AGGREGATION_RULE), **fields
+        )
+
+    def rendered_resource(self, resource):
+        """Return the payload text and the parsed payload copy of one resource."""
+        payloads = engine.generate_payload_contents(
+            [*self.resources(), resource], configuration()
+        )
+        name = resource["metadata"]["name"]
+        parsed = next(
+            entry
+            for entry in self.yaml.load_all(payloads[RESOURCES_PAYLOAD])
+            if entry["metadata"]["name"] == name
+        )
+        return payloads[RESOURCES_PAYLOAD], parsed
+
+    def test_empty_rules_of_an_aggregated_cluster_role_are_omitted(self):
+        for api_version in [
+            "rbac.authorization.k8s.io/v1",
+            "rbac.authorization.k8s.io/v1beta1",
+        ]:
+            for rules in [[], None]:
+                role = self.aggregated_cluster_role(rules=rules)
+                role["apiVersion"] = api_version
+                original = copy.deepcopy(role)
+                with self.subTest(api_version=api_version, rules=rules):
+                    rendered, parsed = self.rendered_resource(role)
+                    self.assertNotIn("rules", parsed)
+                    self.assertNotIn("\nrules:", rendered)
+                    self.assertEqual(role, original)
+
+    def test_absent_rules_of_an_aggregated_cluster_role_stay_absent(self):
+        absent, _ = self.rendered_resource(self.aggregated_cluster_role())
+        empty, _ = self.rendered_resource(self.aggregated_cluster_role(rules=[]))
+        self.assertNotIn("\nrules:", absent)
+        self.assertEqual(absent, empty)
+
+    def test_aggregated_cluster_role_keeps_everything_except_rules(self):
+        kept = (
+            "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n"
+            f"      {AGGREGATE_TO}example-edit: 'true'\n"
+            "apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\n"
+            "metadata:\n  annotations:\n    example.kubeflow.org/owner: example\n"
+            f"  labels:\n    {AGGREGATE_TO}edit: 'true'\n  name: example-edit\n"
+        )
+        role = engine.parse_resources(kept + "rules: []\n")[0]
+        rendered, _ = self.rendered_resource(role)
+        self.assertTrue(rendered.endswith("---\n" + kept))
+
+    def test_nonempty_rules_of_an_aggregated_cluster_role_fail(self):
+        role = self.aggregated_cluster_role(
+            name="example-hand-authored", rules=copy.deepcopy(RULES)
+        )
+        with self.assertRaisesRegex(
+            ValueError, "example-hand-authored has nonempty rules.*overwritten"
+        ):
+            engine.generate_payload_contents([*self.resources(), role], configuration())
+
+    def test_resources_that_are_not_aggregated_cluster_roles_are_unchanged(self):
+        aggregation_rule = copy.deepcopy(AGGREGATION_RULE)
+        cases = {
+            "ordinary ClusterRole with empty rules": self.cluster_role(
+                "example-empty", "edit", rules=[]
+            ),
+            "ClusterRole that contributes through its labels": self.cluster_role(
+                "example-contributor", "example-edit", rules=copy.deepcopy(RULES)
+            ),
+            "namespaced Role": {
+                **self.resource(
+                    "example-role",
+                    kind="Role",
+                    api_version="rbac.authorization.k8s.io/v1",
+                ),
+                "aggregationRule": aggregation_rule,
+                "rules": [],
+            },
+            "ClusterRole of another API group": {
+                **self.aggregated_cluster_role("example-other-group", rules=[]),
+                "apiVersion": "example.kubeflow.org/v1",
+            },
+            "aggregationRule without selectors": self.cluster_role(
+                "example-no-selectors", "edit", aggregationRule={}, rules=[]
+            ),
+            "aggregationRule with an empty selector list": self.cluster_role(
+                "example-empty-selectors",
+                "edit",
+                aggregationRule={"clusterRoleSelectors": []},
+                rules=[],
+            ),
+            "aggregationRule that is not a mapping": self.cluster_role(
+                "example-null-aggregation", "edit", aggregationRule=None, rules=[]
+            ),
+        }
+        for description, resource in cases.items():
+            original = copy.deepcopy(resource)
+            with self.subTest(description):
+                self.assertIs(
+                    engine.omit_aggregated_cluster_role_rules(resource), resource
+                )
+                rendered, parsed = self.rendered_resource(resource)
+                self.assertEqual(parsed, original)
+                self.assertEqual(resource, original)
+                self.assertEqual(
+                    rendered,
+                    engine.render_payload(
+                        [self.resources()[-1], original],
+                        configuration().generated_header(),
+                    ),
+                )
+
+    def test_generating_from_generated_payloads_changes_nothing(self):
+        generated = engine.GeneratorConfiguration(
+            **{
+                **configuration().__dict__,
+                "hand_written_resources": (),
+                "extracted_documents": (),
+            }
+        )
+        resources = [
+            *self.resources(),
+            self.aggregated_cluster_role(rules=[]),
+            self.cluster_role("example-empty", "edit", rules=[]),
+        ]
+        first = engine.generate_payload_contents(resources, generated)
+        second = engine.generate_payload_contents(
+            [
+                resource
+                for payload in (first[CRDS_PAYLOAD], first[RESOURCES_PAYLOAD])
+                for resource in engine.parse_resources(payload)
+            ],
+            generated,
+        )
+        self.assertEqual(first, second)
 
     # --- atomic replacement ---------------------------------------------
 
