@@ -44,6 +44,21 @@ RANDOM_FIELDS = {
         ("Secret", "katib-postgres-secrets", "data", "POSTGRES_PASSWORD"),
     },
 }
+# The aggregation controller owns the rules of a ClusterRole that has an
+# aggregationRule. A manifest that ships the field, even as an empty list, claims
+# it with server-side apply, and the next helm upgrade conflicts with that
+# controller.
+AGGREGATED_ROLE = "kubeflow-katib-admin"
+AGGREGATED_ROLE_LABELS = {
+    "rbac.authorization.kubeflow.org/aggregate-to-kubeflow-admin": "true",
+}
+AGGREGATED_ROLE_SELECTORS = [
+    {
+        "matchLabels": {
+            "rbac.authorization.kubeflow.org/aggregate-to-kubeflow-katib-admin": "true",
+        }
+    }
+]
 # The chart labels its CustomResourceDefinitions; upstream does not.
 DEFINITION_LABELS_ALLOWED_TO_DIFFER = {
     "app.kubernetes.io/name",
@@ -101,6 +116,16 @@ def differing_fields(first_render, second_render):
         for identity in first
         for path in first[identity].keys() | second[identity].keys()
         if first[identity].get(path) != second[identity].get(path)
+    }
+
+
+def aggregated_cluster_roles(rendered):
+    return {
+        manifest["metadata"]["name"]: manifest
+        for manifest in load_manifests(rendered)
+        if manifest["kind"] == "ClusterRole"
+        and manifest["apiVersion"].startswith("rbac.authorization.k8s.io/")
+        and "aggregationRule" in manifest
     }
 
 
@@ -194,6 +219,29 @@ class KatibHelmChartTest(unittest.TestCase):
                     without_allowed_labels(chart_definition),
                     without_allowed_labels(upstream_definitions[name]),
                 )
+
+    def test_aggregated_cluster_roles_omit_rules(self):
+        for values_file in [None, *VALUES_FILES]:
+            with self.subTest(values_file=values_file):
+                result = render_chart(values_file)
+
+                self.assertEqual(result.returncode, 0, result.stderr)
+                for name, role in aggregated_cluster_roles(result.stdout).items():
+                    self.assertNotIn("rules", role, name)
+
+        platform = render_chart(PLATFORM_VALUES_FILE)
+
+        self.assertEqual(platform.returncode, 0, platform.stderr)
+        platform_roles = aggregated_cluster_roles(platform.stdout)
+        self.assertIn(AGGREGATED_ROLE, platform_roles)
+        self.assertEqual(
+            platform_roles[AGGREGATED_ROLE]["metadata"]["labels"],
+            AGGREGATED_ROLE_LABELS,
+        )
+        self.assertEqual(
+            platform_roles[AGGREGATED_ROLE]["aggregationRule"],
+            {"clusterRoleSelectors": AGGREGATED_ROLE_SELECTORS},
+        )
 
 
 if __name__ == "__main__":
