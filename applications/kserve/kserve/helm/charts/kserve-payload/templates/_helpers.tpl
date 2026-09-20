@@ -22,8 +22,8 @@ validating webhook clusterservingruntime.serving.kserve.io has failurePolicy:
 Fail and is served by the kserve-controller-manager Deployment of the same
 payload, so the API server rejects every ClusterServingRuntime until that
 Deployment is ready. The second release revision therefore leaves them out.
-The payload is filtered here, document by document, so the generated file
-stays one verbatim copy of the Kustomize output.
+The payload is filtered here, document by document, so the generator keeps
+writing one payload file and this phase adds no second copy of it.
 */}}
 {{- define "kserve.generatedPayloadWithoutClusterServingRuntimes" -}}
 {{- $documents := list -}}
