@@ -212,6 +212,26 @@ class HelmManifestGeneratorTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "stale"):
             engine.generate_payload_contents(self.resources(), excluding)
 
+    def test_per_file_layout_omits_aggregated_rules_and_keeps_exclusions(self):
+        per_definition = engine.GeneratorConfiguration(
+            **{
+                **configuration().__dict__,
+                "crds_payload_directory": "custom-resource-definitions",
+                "excluded_resources": (("ClusterRole", "example-excluded"),),
+            }
+        )
+        resources = [
+            *self.resources(),
+            self.aggregated_cluster_role(rules=[]),
+            self.aggregated_cluster_role(name="example-excluded", rules=[]),
+        ]
+
+        payloads = engine.generate_payload_contents(resources, per_definition)
+
+        self.assertIn("\n  name: example-edit\n", payloads[RESOURCES_PAYLOAD])
+        self.assertNotIn("\nrules:", payloads[RESOURCES_PAYLOAD])
+        self.assertNotIn("example-excluded", "".join(payloads.values()))
+
     def test_generated_name_prefix_requires_a_valid_kustomize_hash(self):
         resources = self.resources()
         for resource in resources:
