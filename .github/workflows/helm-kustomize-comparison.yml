@@ -128,6 +128,8 @@ jobs:
       run: python tests/dashboard_helm_chart_test.py
     - name: Test Notebooks Helm behavior
       run: python tests/notebooks_helm_chart_test.py
+    - name: Test Workspaces Helm behavior
+      run: python tests/workspaces_helm_chart_test.py
     - name: Test Dashboard manifest generation
       run: |
         python tests/helm_manifest_generator_test.py
