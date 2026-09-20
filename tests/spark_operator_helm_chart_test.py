@@ -617,5 +617,35 @@ class SparkOperatorSynchronizationTest(unittest.TestCase):
         self.assertFalse((CHART_DIRECTORY / "crds").exists())
 
 
+def main():
+    """Run the suite and state the outcome so that a skip cannot read as a pass.
+
+    unittest prints "OK (skipped=1)" and exits 0 when setUpClass skips, although
+    that one entry stands for every test of the class. The summary counts the
+    tests, and a run with skipped tests exits 2: not failed, and not passed.
+    """
+    program = unittest.main(exit=False)
+    result = program.result
+    class_size = len(unittest.TestLoader().getTestCaseNames(SparkOperatorHelmChartTest))
+    skipped = sum(
+        1 if isinstance(test, unittest.TestCase) else class_size
+        for test, _ in result.skipped
+    )
+    print(
+        f"Spark Operator Helm chart tests: {result.testsRun} ran, "
+        f"{skipped} skipped, {len(result.failures)} failed, "
+        f"{len(result.errors)} errors.",
+        file=sys.stderr,
+    )
+    if not result.wasSuccessful():
+        sys.exit(1)
+    if skipped:
+        print(
+            f"INCOMPLETE: {skipped} tests were skipped, so this run is not a pass.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+
 if __name__ == "__main__":
-    unittest.main()
+    main()
