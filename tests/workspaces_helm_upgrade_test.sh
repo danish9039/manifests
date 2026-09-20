@@ -18,7 +18,8 @@
 # ClusterRoles kubeflow-workspaces-admin, -edit and -view must carry rules
 # without helm among the managers of .rules, which belongs to the aggregation
 # controller. A ServiceAccount bound to kubeflow-workspaces-edit must still be
-# allowed to create a Workspace in its namespace.
+# allowed to create a Workspace in its namespace, and must still not be allowed
+# to read a Secret there.
 set -euxo pipefail
 
 CHANGED_CHART="${WORKSPACES_UPGRADE_CHART:?set it to a copy of applications/workspaces/helm with a changed payload}"
@@ -49,6 +50,7 @@ assert_release_and_aggregated_roles() {
   local expected_revision="$2"
   local role
   local role_file
+  local secret_answer
   helm history "${RELEASE_NAME}" --namespace "${RELEASE_NAMESPACE}" \
     | tee "${EVIDENCE_DIRECTORY}/${label}-history.txt"
   helm status "${RELEASE_NAME}" --namespace "${RELEASE_NAMESPACE}" -o json \
@@ -67,6 +69,11 @@ assert_release_and_aggregated_roles() {
   kubectl auth can-i create workspaces.kubeflow.org \
     --as="system:serviceaccount:${AUTHORIZATION_NAMESPACE}:${EDITOR_SERVICE_ACCOUNT}" \
     -n "${AUTHORIZATION_NAMESPACE}" | grep -qx yes
+  # kubectl auth can-i exits with 1 when the answer is no.
+  secret_answer="$(kubectl auth can-i get secrets \
+    --as="system:serviceaccount:${AUTHORIZATION_NAMESPACE}:${EDITOR_SERVICE_ACCOUNT}" \
+    -n "${AUTHORIZATION_NAMESPACE}" || true)"
+  [[ "${secret_answer}" == "no" ]]
 }
 
 render_chart "${CHART}" >"${EVIDENCE_DIRECTORY}/chart-render.yaml"
