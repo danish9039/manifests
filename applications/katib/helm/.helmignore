@@ -45,4 +45,4 @@ requirements.lock
 tests/results/
 *.log
 # Documentation source
-*.md.gotmpl 
+*.md.gotmpl
