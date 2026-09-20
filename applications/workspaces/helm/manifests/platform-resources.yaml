@@ -168,7 +168,6 @@ metadata:
     app.kubernetes.io/part-of: kubeflow-workspaces
     rbac.authorization.kubeflow.org/aggregate-to-kubeflow-admin: 'true'
   name: kubeflow-workspaces-admin
-rules: []
 ---
 aggregationRule:
   clusterRoleSelectors:
@@ -186,7 +185,6 @@ metadata:
     rbac.authorization.kubeflow.org/aggregate-to-kubeflow-edit: 'true'
     rbac.authorization.kubeflow.org/aggregate-to-kubeflow-workspaces-admin: 'true'
   name: kubeflow-workspaces-edit
-rules: []
 ---
 aggregationRule:
   clusterRoleSelectors:
@@ -204,7 +202,6 @@ metadata:
     rbac.authorization.kubeflow.org/aggregate-to-kubeflow-view: 'true'
     rbac.authorization.kubeflow.org/aggregate-to-kubeflow-workspaces-edit: 'true'
   name: kubeflow-workspaces-view
-rules: []
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
