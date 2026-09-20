@@ -8,14 +8,15 @@ Katib is a Kubernetes-native project for automated machine learning (AutoML). Ka
 
 ## Status
 
-This chart is a relocation draft: **render equivalence verified; live upgrade unverified**.
+This chart is a relocation draft.
 
 The hand-written chart moved from `experimental/helm/charts/katib` to
 `applications/katib/helm`, next to its Kustomize component. The chart name, the
 release name `katib`, the namespace `kubeflow`, the templates, the values keys
-and the definitions in `crds/` are unchanged. Every values file renders the
-same resources from both paths. An upgrade of a running release from the old
-path to this path is not yet verified on a cluster.
+and the definitions in `crds/` are unchanged, and every values file renders the
+same resources from both paths. The chart at the old path was experimental, so
+this chart neither documents nor tests an upgrade of a release that was
+installed from the old path.
 
 ## Prerequisites
 
@@ -71,23 +72,6 @@ helm install katib applications/katib/helm --namespace kubeflow \
   --values applications/katib/helm/ci/values-kubeflow.yaml \
   --wait --timeout 5m
 ```
-
-## Upgrade from the experimental path
-
-A release installed from `experimental/helm/charts/katib` keeps its release
-name and namespace, so no ownership transfer is needed. Upgrade with the same
-values as at installation:
-
-```bash
-helm upgrade katib applications/katib/helm --namespace kubeflow \
-  --values applications/katib/helm/ci/values-kubeflow.yaml   # plus the administrator's own values files
-```
-
-Pass every values file explicitly. Do not rely on `--reuse-values` across a
-chart change.
-
-This is not an application upgrade. The chart at the experimental path declared
-`appVersion: 0.16.0` and already ran the `v0.19.0` images.
 
 ## CustomResourceDefinitions
 
