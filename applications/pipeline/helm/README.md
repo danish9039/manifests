@@ -1,14 +1,17 @@
 # Kubeflow Pipelines Helm Chart
 
-> Draft: credential and data-retention configuration is unresolved; not
-> administrator-ready. See [Credentials](#credentials) and
+> Draft: credential and data-retention configuration is unresolved, and
+> `helm upgrade` of an installed release is not yet verified on a cluster; not
+> administrator-ready. See [Upgrade](#upgrade), [Credentials](#credentials) and
 > [Storage and uninstallation](#storage-and-uninstallation).
 
 This chart renders the current Kubeflow Pipelines Kustomize resources with
 Helm. Kustomize remains the source of truth. The payloads under `manifests/`
-are generated from the two supported platform scenarios, and small templates
-load them with `.Files.Get`. Helm does not evaluate that content as a template,
-so Go template delimiters inside upstream manifests are emitted literally.
+are generated from the two supported platform scenarios, with the two
+controlled transforms named under [Regeneration](#regeneration), and small
+templates load them with `.Files.Get`. Helm does not evaluate that content as a
+template, so Go template delimiters inside upstream manifests are emitted
+literally.
 
 The packaged Kubeflow Pipelines release is the `appVersion` of `Chart.yaml`.
 The values of the chart are `scenario`, `crds.enabled`, and `install.enabled`.
@@ -70,6 +73,16 @@ For Kubernetes-native pipeline definitions, use
 
 `tests/pipelines_helm_install.sh <scenario>` runs the same three steps and then
 waits for every Deployment of the release. The scenario argument is required.
+
+## Upgrade
+
+While the payload shipped `rules: []` for the aggregated ClusterRoles
+`kubeflow-pipelines-edit` and `kubeflow-pipelines-view`, an unchanged
+`helm upgrade` of the installed release failed on these two ClusterRoles with
+`conflict with "clusterrole-aggregation-controller": .rules` (observed on
+2026-09-20 with Helm 4.2.2 and Kubernetes 1.36.1). The generator now omits that
+field, see [Regeneration](#regeneration); a `helm upgrade` with the regenerated
+payload is not yet verified on a cluster.
 
 ## Credentials
 
@@ -134,6 +147,21 @@ python3 scripts/generate-pipelines-helm-manifests.py
 The generator renders both supported Kustomize paths, stores identical
 resources once, separates CustomResourceDefinitions from ordinary resources,
 and writes scenario-specific differences under `manifests/`.
+
+The payload resources are those of `kustomize build` with exactly two
+controlled transforms, applied when a payload is written:
+
+- Every CustomResourceDefinition gains the annotation
+  `helm.sh/resource-policy: keep`.
+- Every aggregated ClusterRole loses its empty `rules` field, because the
+  aggregation controller owns that field and Helm must not claim it. A
+  ClusterRole is aggregated when its API group is `rbac.authorization.k8s.io`
+  and its `aggregationRule` has at least one `clusterRoleSelectors` entry; a
+  name or a label does not decide it. The `aggregationRule`, the labels, and
+  the rules of every contributing ClusterRole are unchanged. Nonempty rules of
+  an aggregated ClusterRole fail the generation instead of being discarded. The
+  Kustomize baseline keeps `rules: []`, which the comparison treats as equal
+  to the omitted field.
 
 To verify that the committed payloads are what the generator produces, without
 writing anything:

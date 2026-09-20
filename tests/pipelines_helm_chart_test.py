@@ -175,6 +175,36 @@ class PipelinesHelmChartLifecycleTest(unittest.TestCase):
             resource_identifiers,
         )
 
+    def test_no_aggregated_cluster_role_carries_rules_in_either_scenario(self):
+        """The aggregation controller owns the rules of an aggregated
+        ClusterRole. A release that ships even `rules: []` claims that field
+        with Helm 4 server-side apply, and every later `helm upgrade` fails
+        with a conflict with clusterrole-aggregation-controller."""
+        for values_file in (
+            "ci/values-platform-database.yaml",
+            "ci/values-platform-k8s-native.yaml",
+        ):
+            with self.subTest(values_file=values_file):
+                result = render_chart("--values", str(CHART_DIRECTORY / values_file))
+
+                self.assertEqual(result.returncode, 0, result.stderr)
+                aggregated_cluster_roles = {
+                    resource["metadata"]["name"]: resource
+                    for resource in load_rendered_resources(result.stdout)
+                    if resource["kind"] == "ClusterRole"
+                    and resource["apiVersion"].startswith("rbac.authorization.k8s.io/")
+                    and "aggregationRule" in resource
+                }
+                self.assertEqual(
+                    set(aggregated_cluster_roles),
+                    {"kubeflow-pipelines-edit", "kubeflow-pipelines-view"},
+                )
+                for name, resource in aggregated_cluster_roles.items():
+                    self.assertNotIn("rules", resource, name)
+                    self.assertTrue(
+                        resource["aggregationRule"]["clusterRoleSelectors"], name
+                    )
+
     def test_explicit_empty_scenario_defaults_to_database(self):
         result = render_chart(
             "--set-string",
