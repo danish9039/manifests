@@ -13,7 +13,10 @@ CHART_DIRECTORY = REPOSITORY_ROOT / "applications/pipeline/helm"
 HELM_BINARY = os.environ.get("HELM_BINARY", "helm")
 
 
-def render_chart(*additional_arguments: str) -> subprocess.CompletedProcess[str]:
+def render_chart(
+    *additional_arguments: str,
+    namespace: str = "kubeflow",
+) -> subprocess.CompletedProcess[str]:
     environment = os.environ.copy()
     environment["HELM_PLUGINS"] = str(REPOSITORY_ROOT / ".nonexistent-helm-plugins")
     return subprocess.run(
@@ -23,7 +26,7 @@ def render_chart(*additional_arguments: str) -> subprocess.CompletedProcess[str]
             "kubeflow-pipelines",
             str(CHART_DIRECTORY),
             "--namespace",
-            "kubeflow",
+            namespace,
             *additional_arguments,
         ],
         cwd=REPOSITORY_ROOT,
@@ -202,6 +205,29 @@ class PipelinesHelmChartLifecycleTest(unittest.TestCase):
             "supported values: platform-database, platform-k8s-native",
             result.stderr,
         )
+
+    def test_foreign_namespace_fails_for_every_scenario(self):
+        for values_file in (
+            None,
+            "ci/values-platform-database.yaml",
+            "ci/values-platform-k8s-native.yaml",
+        ):
+            with self.subTest(values_file=values_file):
+                arguments = (
+                    ["--values", str(CHART_DIRECTORY / values_file)]
+                    if values_file
+                    else []
+                )
+
+                result = render_chart(*arguments, namespace="default")
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+                self.assertIn(
+                    "Kubeflow Pipelines chart must be installed into the "
+                    "kubeflow namespace",
+                    result.stderr,
+                )
 
     def test_install_requires_crds(self):
         result = render_chart(
