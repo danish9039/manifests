@@ -93,13 +93,30 @@ This is not an application upgrade. The chart at the experimental path declared
 
 The `experiments`, `suggestions` and `trials` CustomResourceDefinitions are in
 `crds/`. Helm installs them once and never upgrades or deletes them, and they
-survive `helm uninstall`. When a Katib release changes a schema, apply the
-definitions of the chart version that is about to be installed, before
-`helm upgrade`:
+survive `helm uninstall`. When a Katib release changes a schema, the
+definitions of the chart version that is about to be installed have to be
+applied before `helm upgrade`. The intended command is:
 
 ```bash
 helm show crds applications/katib/helm | kubectl apply --server-side -f -
 ```
+
+Observed with Helm 4.2.2 on Kubernetes 1.36.1, on definitions that
+`helm install` created from `crds/`:
+
+- With unchanged definitions the command succeeds. `kubectl` becomes a second
+  field manager of the three definitions, next to `helm`.
+- With a changed definition the command fails for that definition and leaves it
+  unchanged. Helm 4 creates the definitions with server-side apply, so the field
+  manager `helm` owns `.spec.versions`. One added `additionalPrinterColumns`
+  entry in the `trials` definition produced:
+
+  ```text
+  error: Apply failed with 1 conflict: conflict with "helm": .spec.versions
+  ```
+
+How an administrator updates a changed definition is an open decision. This
+chart does not provide a verified procedure for it yet.
 
 ## Database credentials
 
