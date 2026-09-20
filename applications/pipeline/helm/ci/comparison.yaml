@@ -9,8 +9,10 @@ retainedCustomResourceDefinitions:
     The generator annotates every CustomResourceDefinition payload with
     helm.sh/resource-policy: keep, so helm uninstall retains the definitions
     that the selected scenario installed (the names below are the union of
-    both scenarios) and therefore the custom resource objects of those kinds.
-    Database records and stored artifacts are not protected by the annotation.
+    both scenarios). Custom resource objects that the release does not render,
+    for example the Workflow objects of pipeline runs, remain with them; the
+    custom resource objects that the release renders are deleted. Database
+    records and stored artifacts are not protected by the annotation.
   names:
   - applications.app.k8s.io
   - clusterworkflowtemplates.argoproj.io
