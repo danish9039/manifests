@@ -4,8 +4,8 @@ on:
   # Runs only when a chart, a Helm installation script, or this workflow
   # changes, so the second full-platform job does not load every pull request
   # or push. The in-place replacement of the Kustomize gate is a later,
-  # separate decision. The workflow includes the experimental Katib chart
-  # and co-located Ray wrapper; other experimental charts remain outside it.
+  # separate decision. Every chart this workflow installs is co-located with
+  # its component; the charts under experimental/helm are not exercised here.
   # The dedicated Knative Helm installers preserve the Istio resources
   # already owned by their Helm releases.
   push:
@@ -17,7 +17,6 @@ on:
     - common/knative/knative-eventing/**
     - applications/*/helm*/**
     - applications/*/*/helm*/**
-    - experimental/helm/charts/katib/**
     - experimental/ray/**
     - tests/ray_helm_lifecycle.sh
     - tests/hub_helm_lifecycle_test.sh
@@ -42,7 +41,6 @@ on:
     - common/knative/knative-eventing/**
     - applications/*/helm*/**
     - applications/*/*/helm*/**
-    - experimental/helm/charts/katib/**
     - experimental/ray/**
     - tests/ray_helm_lifecycle.sh
     - tests/hub_helm_lifecycle_test.sh
