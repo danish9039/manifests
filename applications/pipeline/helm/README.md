@@ -86,13 +86,32 @@ database and the artifact service agree with a changed Secret.
 `helm uninstall` deletes the chart-owned PersistentVolumeClaims
 `mysql-pv-claim` and `seaweedfs-pvc`. Whether the backing data is deleted
 depends on the reclaim policy of the PersistentVolume and the StorageClass.
-The chart gives no data retention guarantee.
+The chart gives no data retention guarantee. With the reclaim policy `Delete`,
+observed on a kind cluster with its default `standard` StorageClass, both
+PersistentVolumes and their data were deleted together with the claims, and
+the reinstalled release started with new volumes and no run or experiment
+records.
 
 The CustomResourceDefinitions carry `helm.sh/resource-policy: keep`, so
 `helm uninstall` retains the definitions installed by the selected scenario
-(14 for `platform-database`, 15 for `platform-k8s-native`) and therefore the
-custom resource objects of those kinds. Database records and stored artifacts are not protected
-by that annotation.
+(14 for `platform-database`, 15 for `platform-k8s-native`), and a later
+installation of the same scenario adopts them. Custom resource objects of those
+kinds that the release does not render remain, for example the `Workflow`
+objects of pipeline runs in a profile namespace. The two custom resource
+objects that the release renders, `Application/kubeflow` and
+`DecoratorController/kubeflow-pipelines-profile-controller`, are deleted.
+Database records and stored artifacts are not protected by that annotation.
+
+Objects that the release does not render also remain after `helm uninstall`:
+the Secret `webhook-server-tls`, which cert-manager issues for
+`Certificate/kfp-cache-cert`, and the ConfigMaps and the Secret
+`mlpipeline-minio-artifact` that the Pipelines profile controller created in
+a profile namespace. When the artifact store volume was deleted, that
+retained Secret held an access key that the new artifact store did not know.
+A pipeline run in the existing profile namespace then failed with
+`The access key ID you provided does not exist in our records`, and a run
+succeeded again only after that Secret had been deleted and the Pipelines
+profile controller had created a new one.
 
 ## Kustomize Mapping
 
