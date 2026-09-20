@@ -187,6 +187,20 @@ handover to the named field manager and a reinstallation with `--skip-crds`.
    Without it, `helm install` applies the bundled definitions again as the field
    manager `helm`.
 
+   Observed on the Spark Operator chart of this repository, which keeps its
+   definitions in a `crds/` directory as well (2026-09-21, Helm 4.2.2, field
+   manager `kubeflow-crd-maintenance`). This chart has not run the same test:
+
+   - When the bundled definitions differed from the administrator-managed ones,
+     a plain `helm install` failed in under one second and left no release:
+     `conflict with "kubeflow-crd-maintenance": .spec.versions`.
+   - When the bundled definitions were equal, a plain `helm install` succeeded
+     silently, and `helm` owned `.spec.versions` again, shared with the
+     administrator field manager. The next unforced change then conflicted with
+     `helm` again.
+   - `helm install --skip-crds` succeeded and left the definitions, their field
+     managers and the existing custom resource objects unchanged.
+
 Never delete and recreate the definitions to settle ownership. That deletes
 every Experiment, Suggestion and Trial, and the Katib finalizers
 (`update-prometheus-metrics`, `clean-metrics-in-db`) block the deletion while no
