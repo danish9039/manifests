@@ -121,9 +121,13 @@ so it fails restricted Pod Security admission in `kubeflow`.
 Apply a definition change from a new release manually:
 
 ```bash
-kubectl apply --server-side --force-conflicts \
-  -f https://github.com/kubeflow/spark-operator/tree/v2.5.2/charts/spark-operator-chart/crds
+helm show crds spark-operator \
+  --repo https://kubeflow.github.io/spark-operator --version 2.5.2 \
+  | kubectl apply --server-side -f -
 ```
+
+`helm show crds` prints the three definitions of the pinned chart version, so the
+command needs no checkout and no file listing.
 
 ## How this chart is kept up to date
 
@@ -133,9 +137,15 @@ and drives everything from it: the rendered Kustomize baseline, the chart
 pinned exactly rather than to a range, because the comparison below only proves
 something if both sides render the same upstream chart version.
 
-Before committing, that script runs `helm lint` and the full Helm and Kustomize
-comparison, so a release that changes something the chart configures fails the
-synchronization run rather than landing silently.
+The baseline is Helm output, so the script requires exactly the Helm version that
+`.github/workflows/helm-kustomize-comparison.yml` pins and stops before changing
+any file when another version is installed.
+
+Before committing, that script runs `helm lint`. Parity runs in continuous
+integration: the Helm and Kustomize comparison workflow compares the chart with
+the baseline on the pull request that the synchronization opens, so a release
+that changes something the chart configures fails there rather than landing
+silently.
 
 ## Kustomize Mapping
 
@@ -146,7 +156,7 @@ synchronization run rather than landing silently.
 ```bash
 helm lint applications/spark/spark-operator/helm --namespace kubeflow
 python3 tests/run_helm_kustomize_comparison.py spark-operator --all-scenarios
-python3 tests/test_spark_operator_helm_chart.py
+python3 tests/spark_operator_helm_chart_test.py
 ```
 
 Both sides of that comparison render the same upstream chart, so agreement is
