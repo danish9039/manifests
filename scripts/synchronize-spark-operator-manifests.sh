@@ -3,6 +3,11 @@
 SCRIPT_DIRECTORY=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 source "${SCRIPT_DIRECTORY}/library.sh"
 setup_error_handling
+# The Kustomize baseline resources.yaml is Helm output, so it is rendered with
+# exactly the Helm version that the comparison workflow pins. This runs before
+# any file is changed.
+HELM_VERSION="v4.2.2"
+require_helm_version "$HELM_VERSION"
 COMPONENT_NAME="spark-operator"
 REPOSITORY_NAME="kubeflow/spark-operator"
 REPOSITORY_URL="https://github.com/kubeflow/spark-operator.git"
@@ -33,10 +38,15 @@ update_spark_operator_helm_chart() {
 
     # The wrapper depends on exactly the chart version this baseline was
     # rendered from. A range would let two installations render differently and
-    # the parity comparison would stop proving anything.
-    sed -i "s|  version: \"[0-9][^\"]*\"|  version: \"${COMMIT#v}\"|g" \
+    # the parity comparison would stop proving anything. The expression is
+    # anchored to the spark-operator dependency entry, so no other version
+    # field in Chart.yaml can be rewritten.
+    sed -i "/^- name: spark-operator\$/,/^  repository:/ s|^  version: .*|  version: \"${COMMIT#v}\"|" \
       "$CHART_DIRECTORY/Chart.yaml"
-    sed -i "s|upstream Spark Operator \`v[^\`]*\`|upstream Spark Operator \`${COMMIT}\`|g" \
+    # Every version string in the chart README follows COMMIT.
+    sed -i \
+      -e "s|upstream Spark Operator \`v[^\`]*\`|upstream Spark Operator \`${COMMIT}\`|g" \
+      -e "s|--version [0-9][^ ]*|--version ${COMMIT#v}|g" \
       "$CHART_DIRECTORY/README.md"
 }
 
@@ -50,9 +60,7 @@ validate_spark_operator_helm_chart() {
     # Parity is compared in continuous integration, by the
     # "Compare ${COMPONENT_NAME}" job, with its pinned Helm version.
 
-    # The dependency archive is a build artifact and is never committed. Remove
-    # it after the comparison, which resolves the dependency again and would
-    # otherwise leave a fresh copy behind.
+    # The dependency archive is a build artifact and is never committed.
     rm -f "$CHART_DIRECTORY"/charts/*.tgz
     rmdir "$CHART_DIRECTORY/charts" 2>/dev/null || true
 }
@@ -69,8 +77,9 @@ validate_spark_operator_helm_chart
 update_readme "$MANIFESTS_DIRECTORY" "$SOURCE_TEXT" "$DESTINATION_TEXT"
 
 # An upstream release that changes a resource the chart configures makes the
-# comparison above fail until the chart follows, so the component-owned chart
-# paths belong to a synchronization change and are staged with it.
+# comparison in continuous integration fail until the chart follows, so the
+# component-owned chart paths belong to a synchronization change and are staged
+# with it.
 commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" \
   "${DESTINATION_MANIFESTS_PATH}" \
   "${CHART_PATH}/Chart.yaml" \

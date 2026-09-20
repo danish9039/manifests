@@ -18,6 +18,20 @@ require_helm_major_version() {
   fi
 }
 
+# A Kustomize baseline that is itself Helm output can change between Helm minor
+# versions, so its synchronization script requires the exact version that the
+# comparison workflow pins. Helm appends build metadata to some builds
+# (v4.2.2+g1234567); build metadata does not change the version.
+require_helm_version() {
+  local required="$1"
+  local version
+  version="$(helm version --template '{{.Version}}')"
+  if [[ "${version%%+*}" != "$required" ]]; then
+    echo "ERROR: Helm $required required to match the comparison workflow, found $version." >&2
+    exit 1
+  fi
+}
+
 # Check if the git repository has uncommitted changes
 check_uncommitted_changes() {
   if [ -n "$(git status --porcelain)" ]; then
