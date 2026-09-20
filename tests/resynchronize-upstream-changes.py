@@ -15,6 +15,9 @@ path_to_synchronization_script = {
     "applications/dashboard/helm/manifests": "scripts/synchronize-dashboard-manifests.sh",
     "applications/hub/upstream": "scripts/synchronize-hub-manifests.sh",
     "applications/katib/upstream": "scripts/synchronize-katib-manifests.sh",
+    "applications/katib/helm/Chart.yaml": "scripts/synchronize-katib-manifests.sh",
+    "applications/katib/helm/values.yaml": "scripts/synchronize-katib-manifests.sh",
+    "applications/katib/helm/ci": "scripts/synchronize-katib-manifests.sh",
     # The KServe chart payloads are generated from the whole component, so any
     # change under it regenerates them.
     "applications/kserve/kserve": "scripts/synchronize-kserve-kserve-manifests.sh",
