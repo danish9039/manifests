@@ -4,7 +4,7 @@
 global:
   namespace: kubeflow
   imageTag: v0.19.0
-  
+
   # Enable kustomize compatibility mode
   kustomizeMode:
     omitDefaultImagePullPolicy: true
@@ -37,21 +37,21 @@ openshift:
 
 # Pod Security Standards
 podSecurityStandards:
-  enforced: false 
+  enforced: false
 
 # Webhook with OpenShift service certificates
 webhook:
   enabled: true
-  
+
   # Disable cert-manager since we're using OpenShift
   certManager:
     enabled: false
-  
+
   validating:
     enabled: true
     annotations:
       service.beta.openshift.io/inject-cabundle: "true"
-  
+
   mutating:
     enabled: true
     annotations:
@@ -59,13 +59,13 @@ webhook:
 
 # Security policies
 networkPolicy:
-  enabled: false  
+  enabled: false
 
 monitoring:
   prometheus:
     enabled: true
 
-# Override config for OpenShift scenario 
+# Override config for OpenShift scenario
 config:
   katibConfig: |
     apiVersion: config.kubeflow.org/v1beta1

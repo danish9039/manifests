@@ -4,7 +4,7 @@
 global:
   namespace: kubeflow
   imageTag: v0.19.0
-  
+
   # Enable kustomize compatibility mode
   kustomizeMode:
     omitDefaultImagePullPolicy: true
@@ -33,17 +33,17 @@ mysql:
 # Webhook with cert-manager
 webhook:
   enabled: true
-  
+
   certManager:
     enabled: true
     injectCaFrom: true
-    
+
     issuerRef:
       createSelfSigned: true
       kind: Issuer
       name: ""
       group: ""
-    
+
     certificate:
       subject: {}
       privateKey: {}
@@ -53,12 +53,12 @@ webhook:
     # Match Kustomize Certificate settings
     duration: 8760h  # 1 year
     renewBefore: 720h  # 30 days
-  
+
   validating:
     enabled: true
     annotations:
       cert-manager.io/inject-ca-from: kubeflow/katib-webhook-cert
-  
+
   mutating:
     enabled: true
     annotations:
@@ -134,4 +134,4 @@ config:
 rbac:
   create: true
   kubeflow:
-    enabled: false  # Disable Kubeflow-specific RBAC for cert-manager scenario 
+    enabled: false  # Disable Kubeflow-specific RBAC for cert-manager scenario

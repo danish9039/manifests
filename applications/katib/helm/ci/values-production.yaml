@@ -166,4 +166,4 @@ podSecurityStandards:
 
 # Namespace creation
 namespaceCreate:
-  enabled: true 
+  enabled: true
