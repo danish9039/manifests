@@ -4,9 +4,9 @@ name: katib
 
 description: A Helm chart for Katib - AutoML on Kubernetes
 
-version: 0.16.0
+version: 0.17.0
 
-appVersion: 0.16.0
+appVersion: "v0.19.0"
 
 keywords:
 - automl
@@ -15,11 +15,12 @@ keywords:
 - kubeflow
 - katib
 
-home: https://github.com/kubeflow/katib
+home: https://github.com/kubeflow/community-distribution
 
 icon: https://github.com/kubeflow/katib/blob/master/docs/images/logo.png
 
 sources:
+- https://github.com/kubeflow/community-distribution/tree/master/applications/katib
 - https://github.com/kubeflow/katib
 
 annotations:
