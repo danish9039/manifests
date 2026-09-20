@@ -157,8 +157,8 @@ jobs:
         ./tests/hub_helm_install.sh registry "$RUNNER_TEMP/hub-registry-values.yaml"
         ./tests/hub_helm_install.sh catalog "$RUNNER_TEMP/hub-catalog-values.yaml"
 
-    - name: Install Spark
-      run: chmod u+x tests/*.sh && ./tests/spark_install.sh
+    - name: Install Spark with Helm
+      run: chmod u+x tests/*.sh && ./tests/spark_helm_install.sh
 
     - name: Install Workspaces with Helm
       run: ./tests/workspaces_helm_install.sh
