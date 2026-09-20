@@ -81,8 +81,38 @@ While the payload shipped `rules: []` for the aggregated ClusterRoles
 `helm upgrade` of the installed release failed on these two ClusterRoles with
 `conflict with "clusterrole-aggregation-controller": .rules` (observed on
 2026-09-20 with Helm 4.2.2 and Kubernetes 1.36.1). The generator now omits that
-field, see [Regeneration](#regeneration); a `helm upgrade` with the regenerated
-payload is not yet verified on a cluster.
+field, see [Regeneration](#regeneration).
+
+Observed on 2026-09-21 with Helm 4.2.2 and Kubernetes 1.36.1 on a single-node
+kind cluster, scenario `platform-database`, every command without
+`--force-conflicts`, `--force` or `--take-ownership`:
+
+- On a release that was installed from the payload with `rules: []`, an
+  unchanged `helm upgrade` with that same payload failed again with the
+  conflict above and left a `failed` revision.
+- The upgrade command of [Installation](#installation) with the regenerated
+  payload then succeeded on that release. None of the 135 objects of the
+  release received a new `resourceVersion`, and no pod was replaced or
+  restarted.
+- A second, unchanged `helm upgrade` with the regenerated payload succeeded and
+  again changed no object.
+- `helm rollback` to the revision of the first upgrade with the regenerated
+  payload succeeded and changed no object.
+- In every one of these states `clusterrole-aggregation-controller` was the
+  only owner of `.rules` of both ClusterRoles, and their rules (10 and 4) did
+  not change.
+
+Helm keeps the manifests of earlier revisions. A revision that was stored
+before the regeneration still contains `rules: []`. `helm rollback` to such a
+revision failed with the same conflict. It changed no object of the release,
+but it left the newest revision `failed` and no revision in the state
+`deployed`. The upgrade command of [Installation](#installation) with the
+regenerated payload then succeeded on that release and produced a `deployed`
+revision again.
+
+Not verified on a cluster: an upgrade that changes a workload, an upgrade
+between two chart versions or two application versions, a rollback that changes
+an object, and any upgrade or rollback in the scenario `platform-k8s-native`.
 
 ## Credentials
 
