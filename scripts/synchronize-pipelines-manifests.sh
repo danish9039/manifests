@@ -28,6 +28,13 @@ update_pipelines_helm_chart() {
         "$COMPONENT_VERSION"
 }
 
+validate_pipelines_helm_chart() {
+    # The chart refuses any namespace but kubeflow, so the linter needs it too.
+    helm lint "$HELM_CHART_DIRECTORY" --namespace kubeflow
+    # Parity is compared in continuous integration, by the
+    # "Compare kubeflow-pipelines" job, with its pinned Helm version.
+}
+
 create_branch "$BRANCH_NAME"
 clone_and_checkout \
     "$SOURCE_DIRECTORY" \
@@ -37,6 +44,7 @@ clone_and_checkout \
 copy_manifests "${SOURCE_DIRECTORY}/${REPOSITORY_DIRECTORY}/${SOURCE_MANIFESTS_PATH}" "${MANIFESTS_DIRECTORY}/${DESTINATION_MANIFESTS_PATH}"
 update_readme "$MANIFESTS_DIRECTORY" "$SOURCE_TEXT" "$DESTINATION_TEXT"
 update_pipelines_helm_chart
+validate_pipelines_helm_chart
 commit_changes \
     "$MANIFESTS_DIRECTORY" \
     "Update ${REPOSITORY_NAME} manifests from ${COMPONENT_VERSION}" \

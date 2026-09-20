@@ -89,8 +89,9 @@ depends on the reclaim policy of the PersistentVolume and the StorageClass.
 The chart gives no data retention guarantee.
 
 The CustomResourceDefinitions carry `helm.sh/resource-policy: keep`, so
-`helm uninstall` retains the 16 definitions and therefore the custom resource
-objects of those kinds. Database records and stored artifacts are not protected
+`helm uninstall` retains the definitions installed by the selected scenario
+(14 for `platform-database`, 15 for `platform-k8s-native`) and therefore the
+custom resource objects of those kinds. Database records and stored artifacts are not protected
 by that annotation.
 
 ## Kustomize Mapping
