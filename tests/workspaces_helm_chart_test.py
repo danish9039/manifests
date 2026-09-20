@@ -22,6 +22,19 @@ OWNED_NAMESPACE_LABELS = {
     "pod-security.kubernetes.io/enforce": "restricted",
 }
 DEFINITION_NAMES = {"workspacekinds.kubeflow.org", "workspaces.kubeflow.org"}
+AGGREGATED_ROLE_NAMES = [
+    "kubeflow-workspaces-admin",
+    "kubeflow-workspaces-edit",
+    "kubeflow-workspaces-view",
+]
+AGGREGATION_LABEL_PREFIX = "rbac.authorization.kubeflow.org/aggregate-to-"
+# Everything that documents or runs a Helm command for this chart.
+COMMAND_SOURCES = [
+    CHART_PATH / "README.md",
+    REPOSITORY_ROOT / "tests/workspaces_helm_install.sh",
+    REPOSITORY_ROOT / "tests/workspaces_helm_lifecycle_test.sh",
+    REPOSITORY_ROOT / "tests/workspaces_helm_upgrade_test.sh",
+]
 CLUSTER_SCOPED_KINDS = {
     "ClusterRole",
     "ClusterRoleBinding",
@@ -49,6 +62,22 @@ def render_chart(chart_directory=CHART_PATH, *arguments, namespace=RELEASE_NAMES
 
 def load_manifests(rendered):
     return [document for document in yaml.safe_load_all(rendered) if document]
+
+
+def command_lines(path):
+    """The fenced blocks of a Markdown file, or the lines of a shell script
+    that are not comments."""
+    lines = path.read_text().splitlines()
+    if path.suffix != ".md":
+        return [line for line in lines if not line.lstrip().startswith("#")]
+    commands = []
+    inside_fenced_block = False
+    for line in lines:
+        if line.startswith("```"):
+            inside_fenced_block = not inside_fenced_block
+        elif inside_fenced_block:
+            commands.append(line)
+    return commands
 
 
 class WorkspacesHelmChartTest(unittest.TestCase):
@@ -167,6 +196,47 @@ class WorkspacesHelmChartTest(unittest.TestCase):
         for manifest in self.manifests:
             if manifest["kind"] == "CustomResourceDefinition":
                 self.assertNotIn("conversion", manifest["spec"])
+
+    def test_aggregated_cluster_roles_leave_rules_to_the_aggregation_controller(self):
+        """The aggregation controller owns the rules of a ClusterRole that has
+        an aggregationRule. A chart that declares the field, even as an empty
+        list, conflicts with that controller on helm upgrade."""
+        aggregated_roles = {
+            manifest["metadata"]["name"]: manifest
+            for manifest in self.manifests
+            if manifest["kind"] == "ClusterRole" and "aggregationRule" in manifest
+        }
+
+        for name, role in aggregated_roles.items():
+            with self.subTest(role=name):
+                self.assertNotIn("rules", role)
+        for name in AGGREGATED_ROLE_NAMES:
+            with self.subTest(role=name):
+                self.assertIn(name, aggregated_roles)
+                self.assertEqual(
+                    aggregated_roles[name]["aggregationRule"],
+                    {
+                        "clusterRoleSelectors": [
+                            {
+                                "matchLabels": {
+                                    AGGREGATION_LABEL_PREFIX + name: "true"
+                                }
+                            }
+                        ]
+                    },
+                )
+
+    def test_no_command_passes_a_force_option(self):
+        """helm upgrade and helm rollback have to work without --force-conflicts
+        and --force-replace, which would hide a field that the chart must not
+        declare."""
+        for path in COMMAND_SOURCES:
+            with self.subTest(path=path.name):
+                commands = command_lines(path)
+
+                self.assertTrue(any("helm " in line for line in commands))
+                for line in commands:
+                    self.assertNotIn("--force", line)
 
     def test_chart_renders_exactly_one_namespace_with_the_baseline_labels(self):
         namespaces = [
