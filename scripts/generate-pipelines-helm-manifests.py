@@ -2,8 +2,10 @@
 
 import argparse
 import copy
+import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 
 import yaml
@@ -11,6 +13,9 @@ import yaml
 from pathlib import Path
 from typing import Any
 
+GENERATOR_SCRIPT = "scripts/generate-pipelines-helm-manifests.py"
+DEFAULT_OUTPUT_PATH = Path("applications/pipeline/helm/manifests")
+DEFAULT_KUSTOMIZE_BINARY = "kustomize"
 PLATFORM_DATABASE_KUSTOMIZE_PATH = Path("applications/pipeline/overlays")
 PLATFORM_KUBERNETES_NATIVE_KUSTOMIZE_PATH = Path(
     "applications/pipeline/upstream/env/cert-manager/"
@@ -286,8 +291,80 @@ def render_kustomize_path(
     return load_yaml_resources(result.stdout, str(kustomize_path))
 
 
-def parse_arguments() -> argparse.Namespace:
-    default_repository_root = Path(__file__).resolve().parents[1]
+def render_generated_payloads(
+    repository_root: Path,
+    kustomize_binary: str,
+) -> dict[str, str]:
+    platform_database_resources = render_kustomize_path(
+        repository_root,
+        PLATFORM_DATABASE_KUSTOMIZE_PATH,
+        kustomize_binary,
+    )
+    platform_kubernetes_native_resources = render_kustomize_path(
+        repository_root,
+        PLATFORM_KUBERNETES_NATIVE_KUSTOMIZE_PATH,
+        kustomize_binary,
+    )
+    return build_generated_payloads(
+        platform_database_resources,
+        platform_kubernetes_native_resources,
+    )
+
+
+def check_generated_payloads(
+    generated_payloads: dict[str, str],
+    output_directory: Path,
+) -> list[tuple[str, str]]:
+    """Compare what generation would write with what the output directory holds.
+
+    Returns a sorted list of (status, relative path) where status is "stale"
+    (bytes differ), "missing" (would be generated, absent on disk) or "extra"
+    (present on disk, would not be generated; generation deletes such a file).
+    Bytes are compared, not decoded text, so a line-ending change is a
+    difference. Nothing is written.
+    """
+    expected = {
+        Path(file_name): file_content.encode("utf-8")
+        for file_name, file_content in generated_payloads.items()
+    }
+
+    actual = set()
+    if output_directory.is_dir():
+        actual = {
+            path.relative_to(output_directory)
+            for path in output_directory.rglob("*")
+            if not path.is_dir()
+        }
+
+    differences = []
+    for relative_path, file_content in expected.items():
+        if relative_path not in actual:
+            differences.append(("missing", relative_path.as_posix()))
+        elif (output_directory / relative_path).read_bytes() != file_content:
+            differences.append(("stale", relative_path.as_posix()))
+    for relative_path in actual - set(expected):
+        differences.append(("extra", relative_path.as_posix()))
+    return sorted(differences, key=lambda difference: difference[1])
+
+
+def repair_command(arguments: argparse.Namespace) -> str:
+    """Return the shell command that regenerates exactly the checked tree.
+
+    The command is meant to be run from the repository root, so every path is
+    resolved, and it is quoted for a shell because a path can contain spaces.
+    Only the options that differ from the defaults are carried.
+    """
+    command = ["python3", GENERATOR_SCRIPT]
+    if arguments.repository_root is not None:
+        command += ["--repository-root", str(arguments.repository_root.resolve())]
+    if arguments.output_directory is not None:
+        command += ["--output-directory", str(arguments.output_directory.resolve())]
+    if arguments.kustomize_binary != DEFAULT_KUSTOMIZE_BINARY:
+        command += ["--kustomize-binary", arguments.kustomize_binary]
+    return shlex.join(command)
+
+
+def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     argument_parser = argparse.ArgumentParser(
         description=(
             "Generate deduplicated Kubeflow Pipelines Helm manifest templates "
@@ -297,49 +374,79 @@ def parse_arguments() -> argparse.Namespace:
     argument_parser.add_argument(
         "--repository-root",
         type=Path,
-        default=default_repository_root,
+        default=None,
         help="Path to the Kubeflow community distribution repository root.",
     )
     argument_parser.add_argument(
         "--output-directory",
         type=Path,
-        help=(
-            "Generated payload directory. Defaults to "
-            "applications/pipeline/helm/manifests."
-        ),
+        help=f"Generated payload directory. Defaults to {DEFAULT_OUTPUT_PATH}.",
     )
     argument_parser.add_argument(
         "--kustomize-binary",
-        default="kustomize",
+        default=DEFAULT_KUSTOMIZE_BINARY,
         help="Kustomize executable name or path.",
     )
-    return argument_parser.parse_args()
+    argument_parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Report payloads that regeneration would change, without writing.",
+    )
+    return argument_parser.parse_args(argv)
 
 
-def main() -> None:
-    arguments = parse_arguments()
-    repository_root = arguments.repository_root.resolve()
+def main(argv: list[str] | None = None) -> int:
+    arguments = parse_arguments(argv)
+    default_repository_root = Path(__file__).resolve().parents[1]
+    repository_root = (arguments.repository_root or default_repository_root).resolve()
     output_directory = (
         arguments.output_directory.resolve()
         if arguments.output_directory
-        else repository_root / "applications/pipeline/helm/manifests"
+        else repository_root / DEFAULT_OUTPUT_PATH
     )
-    platform_database_resources = render_kustomize_path(
-        repository_root,
-        PLATFORM_DATABASE_KUSTOMIZE_PATH,
-        arguments.kustomize_binary,
+    displayed_output_directory = (
+        output_directory.relative_to(repository_root)
+        if output_directory.is_relative_to(repository_root)
+        else output_directory
     )
-    platform_kubernetes_native_resources = render_kustomize_path(
-        repository_root,
-        PLATFORM_KUBERNETES_NATIVE_KUSTOMIZE_PATH,
-        arguments.kustomize_binary,
-    )
-    generated_payloads = build_generated_payloads(
-        platform_database_resources,
-        platform_kubernetes_native_resources,
-    )
-    write_generated_payloads(generated_payloads, output_directory)
+
+    try:
+        generated_payloads = render_generated_payloads(
+            repository_root,
+            arguments.kustomize_binary,
+        )
+        if arguments.check:
+            differences = check_generated_payloads(
+                generated_payloads,
+                output_directory,
+            )
+        else:
+            write_generated_payloads(generated_payloads, output_directory)
+    except Exception as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+
+    if not arguments.check:
+        print(
+            f"Generated {len(generated_payloads)} Kubeflow Pipelines payload files "
+            f"in {displayed_output_directory}."
+        )
+        return 0
+
+    if differences:
+        print(
+            f"ERROR: Kubeflow Pipelines payloads in {displayed_output_directory} "
+            f"are not what {GENERATOR_SCRIPT} generates:",
+            file=sys.stderr,
+        )
+        for status, file_name in differences:
+            print(f"  {status:8} {file_name}", file=sys.stderr)
+        print(f"Regenerate with: {repair_command(arguments)}", file=sys.stderr)
+        return 1
+
+    print(f"Kubeflow Pipelines payloads in {displayed_output_directory} are fresh.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
