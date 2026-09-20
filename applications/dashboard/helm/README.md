@@ -10,8 +10,12 @@ literally.
 The resources that carry a value Kustomize already declares - the three
 Deployments and the four ConfigMaps - are rendered from hand-written templates
 instead, so those values can be set through `values.yaml`. Everything else is
-vendored verbatim. Before committing an update, the synchronization script runs
-Helm linting and the Helm/Kustomize parity comparison.
+vendored verbatim. The generator applies two controlled transforms to that
+content: every custom resource definition receives
+`helm.sh/resource-policy: keep`, and an aggregated ClusterRole omits its empty
+`rules` field, because the Kubernetes aggregation controller owns that field.
+Before committing an update, the synchronization script runs Helm linting and
+the Helm/Kustomize parity comparison.
 
 ## Installation
 
