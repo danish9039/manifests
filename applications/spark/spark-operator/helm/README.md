@@ -123,11 +123,20 @@ Apply a definition change from a new release manually:
 ```bash
 helm show crds spark-operator \
   --repo https://kubeflow.github.io/spark-operator --version 2.5.2 \
-  | kubectl apply --server-side -f -
+  | kubectl apply --server-side --force-conflicts -f -
 ```
 
 `helm show crds` prints the three definitions of the pinned chart version, so the
 command needs no checkout and no file listing.
+
+`--force-conflicts` is required as soon as a definition really changes. Helm 4
+creates the definitions server-side, so the field manager `helm` owns
+`.spec.versions`, and without the option the apply stops with
+`conflict with "helm": .spec.versions`. Verified on a live cluster: without the
+option, definitions that differ from the installed ones are refused with that
+conflict and unchanged ones are accepted. Taking the field over is safe, because
+Helm does not write to these definitions again: an uninstallation followed by an
+installation left their `resourceVersion` unchanged.
 
 ## How this chart is kept up to date
 
