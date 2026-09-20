@@ -22,8 +22,14 @@ The template of the aggregated ClusterRole `kubeflow-katib-admin` no longer
 ships `rules`, which the aggregation controller owns, because an unchanged
 `helm upgrade` of this chart failed on that role with
 `conflict with "clusterrole-aggregation-controller": .rules` while the template
-shipped `rules: []` (observed 2026-09-21, Helm 4.2.2, Kubernetes 1.36.1); a
-`helm upgrade` after this change is **not yet verified** on a cluster.
+shipped `rules: []` (observed 2026-09-21, Helm 4.2.2, Kubernetes 1.36.1).
+
+After this change, on a fresh installation of this chart, an unchanged
+`helm upgrade`, an upgrade with `--set ui.replicas=2`, a `helm rollback` to the
+revision before it and a further unchanged `helm upgrade` all succeeded without
+any force option (observed 2026-09-21, Helm 4.2.2, Kubernetes 1.36.1). None of
+these commands wrote the role: the aggregation controller kept `.rules`, and
+the field manager `helm` never owned it.
 
 ## Prerequisites
 
@@ -114,9 +120,16 @@ Observed with Helm 4.2.2 on Kubernetes 1.36.1, on definitions that
 
 ### Updating a changed definition
 
-**UNVERIFIED.** This procedure has not run on a cluster. It stays unverified
-until a cluster test has covered a small compatible changed definition, the
-handover to the named field manager and a reinstallation with `--skip-crds`.
+**Verified on a cluster** (2026-09-21, Helm 4.2.2, Kubernetes 1.36.1, one run
+on a single-node cluster). Every step below ran as written and behaved as
+described. The test covered a small compatible changed definition (one added
+`additionalPrinterColumns` entry in the `trials` definition), the handover to
+the field manager `kubeflow-crd-maintenance` and a reinstallation with
+`--skip-crds`. The three definitions and the existing Experiments, Suggestions
+and Trials kept their UIDs throughout. Not covered: a structural schema change,
+a new or changed storage version, a data migration, the branch of step 2 in
+which the first dry run passes, and the install side of
+`helm upgrade --install`.
 
 1. Take the definitions, and nothing else, from the pinned target chart, and
    check that the file holds only the three intended definitions:
@@ -163,6 +176,10 @@ handover to the named field manager and a reinstallation with `--skip-crds`.
 
    `--force-conflicts` here belongs to `kubectl apply` on the definitions-only
    file. It is not a flag for `helm upgrade` of the release.
+
+   Observed: afterwards `kubeflow-crd-maintenance` alone owned `.spec.versions`
+   of the changed definition, and `helm` kept its other fields. The two
+   unchanged definitions had both field managers on every field.
 4. Check that every definition is established, then upgrade the release:
 
    ```bash
@@ -174,6 +191,11 @@ handover to the named field manager and a reinstallation with `--skip-crds`.
 
    Keep the same field manager for later updates. One forced handover does not
    rule out later conflicts on fields that are still shared.
+
+   Observed: the upgrade left the definitions untouched. A later change of the
+   handed-over `trials` definition then passed the dry run of step 2 without
+   force, while a first change of the `experiments` definition conflicted with
+   `helm` on `.spec.versions` again.
 5. When the definitions are administrator-managed, reinstall with
    `--skip-crds`, and have compatible definitions present first:
 
@@ -187,19 +209,25 @@ handover to the named field manager and a reinstallation with `--skip-crds`.
    Without it, `helm install` applies the bundled definitions again as the field
    manager `helm`.
 
-   Observed on the Spark Operator chart of this repository, which keeps its
-   definitions in a `crds/` directory as well (2026-09-21, Helm 4.2.2, field
-   manager `kubeflow-crd-maintenance`). This chart has not run the same test:
+   Observed on this chart (2026-09-21, Helm 4.2.2, field manager
+   `kubeflow-crd-maintenance`), after `helm uninstall` had left the definitions
+   and the custom resource objects in place:
 
-   - When the bundled definitions differed from the administrator-managed ones,
-     a plain `helm install` failed in under one second and left no release:
+   - When the bundled `trials` definition differed from the
+     administrator-managed one, a plain `helm install` failed in under one
+     second and left no release and no resource of the chart:
      `conflict with "kubeflow-crd-maintenance": .spec.versions`.
-   - When the bundled definitions were equal, a plain `helm install` succeeded
-     silently, and `helm` owned `.spec.versions` again, shared with the
-     administrator field manager. The next unforced change then conflicted with
-     `helm` again.
    - `helm install --skip-crds` succeeded and left the definitions, their field
-     managers and the existing custom resource objects unchanged.
+     managers and the existing custom resource objects unchanged. The new
+     controller continued an Experiment that was running during the
+     uninstallation.
+
+   Observed only on the Spark Operator chart of this repository, which keeps
+   its definitions in a `crds/` directory as well; this chart has not run that
+   case: when the bundled definitions were equal, a plain `helm install`
+   succeeded silently, and `helm` owned `.spec.versions` again, shared with the
+   administrator field manager. The next unforced change then conflicted with
+   `helm` again.
 
 Never delete and recreate the definitions to settle ownership. That deletes
 every Experiment, Suggestion and Trial, and the Katib finalizers
