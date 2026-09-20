@@ -30,6 +30,9 @@ WORKLOAD_NAMESPACE="kubeflow-workspaces"
 WORKSPACE_KIND="jupyterlab"
 WORKSPACE_DEFINITIONS=(workspacekinds.kubeflow.org workspaces.kubeflow.org)
 WORKSPACE_LABEL="notebooks.kubeflow.org/workspace-name"
+# Kinds of the objects that the controller creates for a Workspace and ties to
+# it with an owner reference.
+WORKSPACE_DEPENDENT_KINDS=(statefulset service virtualservice serviceaccount rolebinding)
 TIMEOUT_SECONDS=600
 
 mkdir -p "${EVIDENCE_DIRECTORY}"
@@ -47,6 +50,11 @@ owned_objects() {
   kubectl get "${kind}" -n "${KF_PROFILE}" -o json |
     jq -r --arg uid "${owner_uid}" \
       '.items[] | select(any(.metadata.ownerReferences[]?; .uid == $uid)) | .metadata.name'
+}
+
+workspace_pod_uid() {
+  kubectl get pods -n "${KF_PROFILE}" -l "${WORKSPACE_LABEL}=$1" \
+    -o jsonpath='{.items[*].metadata.uid}'
 }
 
 wait_until_no_owned_objects() {
@@ -97,6 +105,8 @@ EOF
   kubectl wait --for=jsonpath='{.status.state}'=Running \
     "workspace/${workspace_name}" -n "${KF_PROFILE}" \
     --timeout="${TIMEOUT_SECONDS}s"
+  kubectl wait --for=condition=Ready pods -n "${KF_PROFILE}" \
+    -l "${WORKSPACE_LABEL}=${workspace_name}" --timeout="${TIMEOUT_SECONDS}s"
 }
 
 wait_for_validating_webhook() {
@@ -126,8 +136,10 @@ wait_for_validating_webhook() {
 }
 
 # A Workspace that names a WorkspaceKind which does not exist passes the schema
-# of the definition, so only the validating webhook can reject it.
+# of the definition, so only the validating webhook can reject it. The webhook
+# answers with a field error on spec.kind, not with "denied the request".
 assert_invalid_workspace_is_rejected() {
+  local invalid_kind="lifecycle-kind-that-does-not-exist"
   local output_file="${EVIDENCE_DIRECTORY}/invalid-workspace-rejection.txt"
   local deadline=$((SECONDS + 300))
   while true; do
@@ -139,7 +151,7 @@ metadata:
   namespace: ${KF_PROFILE}
 spec:
   paused: true
-  kind: "lifecycle-kind-that-does-not-exist"
+  kind: "${invalid_kind}"
   podTemplate:
     volumes:
       home: "lifecycle-invalid-home"
@@ -154,7 +166,7 @@ EOF
       return 1
     fi
     cat "${output_file}"
-    if grep -q "denied the request" "${output_file}"; then
+    if grep -qF "workspace kind \"${invalid_kind}\" not found" "${output_file}"; then
       return 0
     fi
     if ((SECONDS >= deadline)); then
@@ -175,7 +187,7 @@ record_inventory() {
       -o custom-columns=NAME:.metadata.name,UID:.metadata.uid || true
     kubectl get workspace,persistentvolumeclaim -n "${KF_PROFILE}" \
       -o custom-columns=KIND:.kind,NAME:.metadata.name,UID:.metadata.uid || true
-    helm list --namespace "${RELEASE_NAMESPACE}" --all
+    helm list --namespace "${RELEASE_NAMESPACE}"
   } >"${EVIDENCE_DIRECTORY}/inventory-${label}.txt" 2>&1
   cat "${EVIDENCE_DIRECTORY}/inventory-${label}.txt"
 }
@@ -190,7 +202,7 @@ create_workspace_with_claim lifecycle-delete lifecycle-delete-home
 FIXTURE_A_UID="$(object_uid workspace lifecycle-delete -n "${KF_PROFILE}")"
 FIXTURE_A_CLAIM_UID="$(object_uid persistentvolumeclaim lifecycle-delete-home -n "${KF_PROFILE}")"
 {
-  for kind in statefulset service virtualservice; do
+  for kind in "${WORKSPACE_DEPENDENT_KINDS[@]}"; do
     echo "${kind}: $(owned_objects "${kind}" "${FIXTURE_A_UID}" | tr '\n' ' ')"
   done
   echo "pod: $(kubectl get pods -n "${KF_PROFILE}" \
@@ -202,7 +214,7 @@ if [[ -z "$(owned_objects statefulset "${FIXTURE_A_UID}")" ]]; then
 fi
 
 kubectl delete workspace lifecycle-delete -n "${KF_PROFILE}" --timeout="${TIMEOUT_SECONDS}s"
-for kind in statefulset service virtualservice; do
+for kind in "${WORKSPACE_DEPENDENT_KINDS[@]}"; do
   wait_until_no_owned_objects "${kind}" "${FIXTURE_A_UID}"
 done
 kubectl wait --for=delete pods -n "${KF_PROFILE}" \
@@ -229,27 +241,41 @@ for definition in "${WORKSPACE_DEFINITIONS[@]}"; do
   DEFINITION_UIDS["${definition}"]="$(object_uid customresourcedefinition "${definition}")"
 done
 record_inventory before-uninstall
+FIXTURE_B_POD_UID="$(workspace_pod_uid lifecycle-retained)"
+echo "fixture B pod UID before the uninstall: ${FIXTURE_B_POD_UID}" \
+  | tee "${EVIDENCE_DIRECTORY}/fixture-b-pod.txt"
+RELEASE_MANIFEST="${EVIDENCE_DIRECTORY}/release-manifest-before-uninstall.yaml"
+helm get manifest "${RELEASE_NAME}" --namespace "${RELEASE_NAMESPACE}" >"${RELEASE_MANIFEST}"
 
 helm uninstall "${RELEASE_NAME}" --namespace "${RELEASE_NAMESPACE}" --wait --timeout 5m \
   2>&1 | tee "${EVIDENCE_DIRECTORY}/helm-uninstall.txt"
 kubectl wait --for=delete "namespace/${WORKLOAD_NAMESPACE}" --timeout="${TIMEOUT_SECONDS}s"
 record_inventory after-uninstall
+# Recorded as observed, not asserted: the chart makes no promise about running
+# Workspace pods while it is uninstalled.
+echo "fixture B pod UID after the uninstall: $(workspace_pod_uid lifecycle-retained)" \
+  | tee -a "${EVIDENCE_DIRECTORY}/fixture-b-pod.txt"
 
 if kubectl get namespace "${WORKLOAD_NAMESPACE}"; then
   echo "Error, the ${WORKLOAD_NAMESPACE} namespace still exists after the uninstall."
   exit 1
 fi
-# The sentinel and the control plane lived inside the namespace, so both are
-# gone with it. The cluster-scoped objects of the release are checked by name.
-for cluster_object in \
-  clusterrole/workspaces-manager-role \
-  clusterrolebinding/workspaces-manager-rolebinding \
-  validatingwebhookconfiguration/workspaces-validating-webhook-configuration; do
-  if [[ -n "$(kubectl get "${cluster_object}" --ignore-not-found -o name)" ]]; then
-    echo "Error, ${cluster_object} still exists after the uninstall."
-    exit 1
-  fi
-done
+# The sentinel lived inside the namespace, so it is gone with it.
+if [[ -n "$(kubectl get configmap lifecycle-sentinel -n "${WORKLOAD_NAMESPACE}" \
+  --ignore-not-found -o name)" ]]; then
+  echo "Error, the sentinel ConfigMap still exists after the uninstall."
+  exit 1
+fi
+# Of every object in the release manifest, namespaced or cluster-scoped, only
+# the two definitions with helm.sh/resource-policy: keep may remain.
+kubectl get -f "${RELEASE_MANIFEST}" --ignore-not-found -o name | sort \
+  | tee "${EVIDENCE_DIRECTORY}/release-objects-after-uninstall.txt"
+EXPECTED_REMAINING_OBJECTS="$(printf 'customresourcedefinition.apiextensions.k8s.io/%s\n' \
+  "${WORKSPACE_DEFINITIONS[@]}" | sort)"
+if [[ "$(cat "${EVIDENCE_DIRECTORY}/release-objects-after-uninstall.txt")" != "${EXPECTED_REMAINING_OBJECTS}" ]]; then
+  echo "Error, objects of the release other than the two definitions remain after the uninstall."
+  exit 1
+fi
 for definition in "${WORKSPACE_DEFINITIONS[@]}"; do
   test "$(object_uid customresourcedefinition "${definition}")" = "${DEFINITION_UIDS[${definition}]}"
 done
@@ -269,7 +295,7 @@ if helm install "${RELEASE_NAME}" applications/workspaces/helm \
 fi
 cat "${EVIDENCE_DIRECTORY}/foreign-namespace-refusal.txt"
 # A refused installation can leave a failed release record behind.
-helm list --namespace "${RELEASE_NAMESPACE}" --all --filter "^${RELEASE_NAME}\$" \
+helm list --namespace "${RELEASE_NAMESPACE}" --filter "^${RELEASE_NAME}\$" \
   | tee "${EVIDENCE_DIRECTORY}/foreign-namespace-release-record.txt"
 if helm status "${RELEASE_NAME}" --namespace "${RELEASE_NAMESPACE}" >/dev/null 2>&1; then
   helm uninstall "${RELEASE_NAME}" --namespace "${RELEASE_NAMESPACE}" --wait --timeout 5m
@@ -291,15 +317,31 @@ test "$(object_uid workspace lifecycle-retained -n "${KF_PROFILE}")" = "${FIXTUR
 test "$(object_uid persistentvolumeclaim lifecycle-retained-home -n "${KF_PROFILE}")" = "${FIXTURE_B_CLAIM_UID}"
 
 # Reconciliation is proven by a change that only the controller can act on: the
-# retained Workspace is paused and resumed, and its state has to follow.
+# retained Workspace is paused and resumed. Its state has to follow, its pod has
+# to disappear, and the resumed Workspace has to run in a new pod.
+FIXTURE_B_POD_UID_BEFORE_PAUSE="$(workspace_pod_uid lifecycle-retained)"
+echo "fixture B pod UID after the reinstallation: ${FIXTURE_B_POD_UID_BEFORE_PAUSE}" \
+  | tee -a "${EVIDENCE_DIRECTORY}/fixture-b-pod.txt"
 kubectl patch workspace lifecycle-retained -n "${KF_PROFILE}" --type=merge \
   --patch '{"spec":{"paused":true}}'
 kubectl wait --for=jsonpath='{.status.state}'=Paused \
   workspace/lifecycle-retained -n "${KF_PROFILE}" --timeout="${TIMEOUT_SECONDS}s"
+kubectl wait --for=delete pods -n "${KF_PROFILE}" \
+  -l "${WORKSPACE_LABEL}=lifecycle-retained" --timeout="${TIMEOUT_SECONDS}s"
 kubectl patch workspace lifecycle-retained -n "${KF_PROFILE}" --type=merge \
   --patch '{"spec":{"paused":false}}'
 kubectl wait --for=jsonpath='{.status.state}'=Running \
   workspace/lifecycle-retained -n "${KF_PROFILE}" --timeout="${TIMEOUT_SECONDS}s"
+kubectl wait --for=condition=Ready pods -n "${KF_PROFILE}" \
+  -l "${WORKSPACE_LABEL}=lifecycle-retained" --timeout="${TIMEOUT_SECONDS}s"
+FIXTURE_B_POD_UID_AFTER_RESUME="$(workspace_pod_uid lifecycle-retained)"
+echo "fixture B pod UID after pause and resume: ${FIXTURE_B_POD_UID_AFTER_RESUME}" \
+  | tee -a "${EVIDENCE_DIRECTORY}/fixture-b-pod.txt"
+if [[ -z "${FIXTURE_B_POD_UID_AFTER_RESUME}" ||
+  "${FIXTURE_B_POD_UID_AFTER_RESUME}" == "${FIXTURE_B_POD_UID_BEFORE_PAUSE}" ]]; then
+  echo "Error, the resumed Workspace does not run in a new pod."
+  exit 1
+fi
 record_inventory after-reinstall
 
 kubectl delete workspace lifecycle-retained -n "${KF_PROFILE}" --timeout="${TIMEOUT_SECONDS}s"
