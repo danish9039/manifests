@@ -113,7 +113,8 @@ for role in "${AGGREGATED_ROLES[@]}"; do
   [[ -z "$(kubectl get clusterrole "${role}" --ignore-not-found -o name)" ]]
 done
 
-# 5. Reinstall. The definitions already exist, so Helm does not touch them.
+# 5. Reinstall. Helm applies the bundled definitions again as field manager
+#    helm; their content is unchanged here, so their identifiers must not change.
 ./tests/spark_helm_install.sh
 [[ "$(definition_identifiers)" == "${DEFINITION_IDENTIFIERS_BEFORE}" ]]
 for role in "${AGGREGATED_ROLES[@]}"; do
