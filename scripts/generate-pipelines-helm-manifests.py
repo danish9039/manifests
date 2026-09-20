@@ -16,6 +16,7 @@ from typing import Any
 GENERATOR_SCRIPT = "scripts/generate-pipelines-helm-manifests.py"
 DEFAULT_OUTPUT_PATH = Path("applications/pipeline/helm/manifests")
 DEFAULT_KUSTOMIZE_BINARY = "kustomize"
+ROLE_BASED_ACCESS_CONTROL_API_GROUP = "rbac.authorization.k8s.io"
 PLATFORM_DATABASE_KUSTOMIZE_PATH = Path("applications/pipeline/overlays")
 PLATFORM_KUBERNETES_NATIVE_KUSTOMIZE_PATH = Path(
     "applications/pipeline/upstream/env/cert-manager/"
@@ -130,6 +131,58 @@ def add_crd_retention_annotation(
     return rendered_resource
 
 
+def is_aggregated_cluster_role(resource: dict[str, Any]) -> bool:
+    """Tell whether the aggregation controller owns the rules of a resource.
+
+    Decided by the API group, the kind and a valid aggregation rule, never by
+    a name prefix or a label: a ClusterRole that only contributes to another
+    one through its labels owns its rules.
+    """
+    api_version = resource.get("apiVersion")
+    if not isinstance(api_version, str):
+        return False
+    api_group, separator, _ = api_version.partition("/")
+    if not separator or api_group != ROLE_BASED_ACCESS_CONTROL_API_GROUP:
+        return False
+    if resource.get("kind") != "ClusterRole":
+        return False
+
+    aggregation_rule = resource.get("aggregationRule")
+    if not isinstance(aggregation_rule, dict):
+        return False
+    cluster_role_selectors = aggregation_rule.get("clusterRoleSelectors")
+    return isinstance(cluster_role_selectors, list) and bool(cluster_role_selectors)
+
+
+def omit_empty_aggregated_cluster_role_rules(
+    resource: dict[str, Any],
+) -> dict[str, Any]:
+    """Omit the empty rules field of an aggregated ClusterRole.
+
+    The aggregation controller owns the rules of such a ClusterRole. With Helm
+    4 server-side apply, a payload that ships even `rules: []` claims the
+    field, and every later `helm upgrade` fails with a conflict with
+    clusterrole-aggregation-controller. Absent rules stay absent, empty rules
+    are removed and never written as `rules: null`, and nonempty rules are an
+    error, never discarded. Every other resource is returned unchanged.
+    """
+    rendered_resource = copy.deepcopy(resource)
+    if not is_aggregated_cluster_role(rendered_resource):
+        return rendered_resource
+    if "rules" not in rendered_resource:
+        return rendered_resource
+
+    if rendered_resource["rules"] not in (None, []):
+        name = resource_identity(rendered_resource)[3]
+        raise ValueError(
+            f"Aggregated ClusterRole {name} has nonempty rules; the generator "
+            "omits only the empty rules field of an aggregated ClusterRole "
+            "and never discards permissions"
+        )
+    del rendered_resource["rules"]
+    return rendered_resource
+
+
 def render_partition_payload(
     resources: list[dict[str, Any]],
     source_kustomize_path: str,
@@ -139,12 +192,18 @@ def render_partition_payload(
     The payload is plain YAML read with .Files.Get, so Helm never evaluates it
     and Go template delimiters inside upstream manifests survive verbatim.
     Which payload applies is decided by the chart, not written in here.
+
+    The resources are those of `kustomize build` with exactly two controlled
+    transforms: a CustomResourceDefinition gains the annotation
+    `helm.sh/resource-policy: keep`, and an aggregated ClusterRole loses its
+    empty rules field. Both are applied here, at serialization, so the
+    scenarios are still partitioned by their Kustomize output.
     """
     rendered_resources = [
         (
             add_crd_retention_annotation(resource)
             if resource["kind"] == "CustomResourceDefinition"
-            else copy.deepcopy(resource)
+            else omit_empty_aggregated_cluster_role_rules(resource)
         )
         for resource in resources
     ]

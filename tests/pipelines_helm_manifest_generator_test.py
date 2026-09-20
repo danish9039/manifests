@@ -48,6 +48,16 @@ spec:
     plural: examples
   scope: Namespaced
   versions: []
+---
+aggregationRule:
+  clusterRoleSelectors:
+  - matchLabels:
+      rbac.authorization.kubeflow.org/aggregate-to-kubeflow-pipelines-edit: "true"
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubeflow-pipelines-edit
+rules: []
 """
 
 SCENARIO_KUSTOMIZE_INPUT = """\
@@ -308,6 +318,273 @@ class HelmRenderingSafetyTest(unittest.TestCase):
             self.assertFalse((output_directory / "new.yaml").exists())
 
 
+def cluster_role(name, **fields):
+    return {
+        "apiVersion": "rbac.authorization.k8s.io/v1",
+        "kind": "ClusterRole",
+        "metadata": {"name": name},
+        **fields,
+    }
+
+
+def aggregation_rule(role_name):
+    return {
+        "clusterRoleSelectors": [
+            {
+                "matchLabels": {
+                    f"rbac.authorization.kubeflow.org/aggregate-to-{role_name}": "true"
+                }
+            }
+        ]
+    }
+
+
+VIEW_RULES = [{"apiGroups": [""], "resources": ["pods"], "verbs": ["get", "list"]}]
+
+
+class AggregatedClusterRoleRulesTest(unittest.TestCase):
+    """The aggregation controller owns the rules of an aggregated ClusterRole.
+
+    With Helm 4 server-side apply a payload that ships `rules: []` claims that
+    field, and every later `helm upgrade` conflicts with
+    clusterrole-aggregation-controller.
+    """
+
+    def setUp(self):
+        self.generator_module = load_generator_module()
+        self.assertTrue(
+            hasattr(self.generator_module, "omit_empty_aggregated_cluster_role_rules"),
+            "Generator must define omit_empty_aggregated_cluster_role_rules",
+        )
+        self.omit = self.generator_module.omit_empty_aggregated_cluster_role_rules
+
+    def render(self, *resources):
+        return self.generator_module.render_partition_payload(
+            list(resources), "applications/pipeline/overlays"
+        )
+
+    def assert_unchanged(self, resource):
+        self.assertEqual(self.omit(resource), resource)
+        self.assertIn("\nrules: []\n", self.render(resource))
+
+    def test_empty_rules_of_an_aggregated_cluster_role_are_omitted(self):
+        for api_version in (
+            "rbac.authorization.k8s.io/v1",
+            "rbac.authorization.k8s.io/v1beta1",
+        ):
+            with self.subTest(api_version=api_version):
+                source_resource = cluster_role(
+                    "kubeflow-pipelines-edit",
+                    aggregationRule=aggregation_rule("kubeflow-pipelines-edit"),
+                    rules=[],
+                )
+                source_resource["apiVersion"] = api_version
+                source_resource["metadata"]["labels"] = {
+                    "rbac.authorization.kubeflow.org/aggregate-to-kubeflow-edit": "true"
+                }
+
+                rendered_resource = self.omit(source_resource)
+
+                self.assertNotIn("rules", rendered_resource)
+                self.assertEqual(
+                    rendered_resource,
+                    {
+                        key: value
+                        for key, value in source_resource.items()
+                        if key != "rules"
+                    },
+                )
+                self.assertEqual(source_resource["rules"], [])
+                payload = self.render(source_resource)
+                self.assertNotIn("rules", payload)
+                self.assertIn("aggregationRule:\n", payload)
+                self.assertIn("aggregate-to-kubeflow-edit: 'true'", payload)
+
+    def test_absent_rules_stay_absent(self):
+        source_resource = cluster_role(
+            "kubeflow-pipelines-edit",
+            aggregationRule=aggregation_rule("kubeflow-pipelines-edit"),
+        )
+
+        self.assertEqual(self.omit(source_resource), source_resource)
+        self.assertNotIn("rules", self.render(source_resource))
+
+    def test_null_rules_are_omitted_and_never_written_as_null(self):
+        source_resource = cluster_role(
+            "kubeflow-pipelines-view",
+            aggregationRule=aggregation_rule("kubeflow-pipelines-view"),
+            rules=None,
+        )
+
+        self.assertNotIn("rules", self.omit(source_resource))
+        self.assertIn("rules", source_resource)
+        payload = self.render(source_resource)
+        self.assertNotIn("rules", payload)
+        self.assertNotIn("null", payload)
+
+    def test_nonempty_rules_of_an_aggregated_cluster_role_fail_with_its_name(self):
+        source_resource = cluster_role(
+            "kubeflow-pipelines-edit",
+            aggregationRule=aggregation_rule("kubeflow-pipelines-edit"),
+            rules=VIEW_RULES,
+        )
+
+        for transform in (self.omit, self.render):
+            with self.subTest(transform=transform.__name__):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "Aggregated ClusterRole kubeflow-pipelines-edit "
+                    "has nonempty rules",
+                ):
+                    transform(source_resource)
+        self.assertEqual(source_resource["rules"], VIEW_RULES)
+
+    def test_nonempty_rules_fail_the_generation_of_every_payload(self):
+        source_resource = cluster_role(
+            "kubeflow-pipelines-edit",
+            aggregationRule=aggregation_rule("kubeflow-pipelines-edit"),
+            rules=VIEW_RULES,
+        )
+
+        with self.assertRaisesRegex(ValueError, "kubeflow-pipelines-edit"):
+            self.generator_module.build_generated_payloads(
+                [source_resource], [source_resource]
+            )
+
+    def test_ordinary_cluster_role_with_empty_rules_is_unchanged(self):
+        self.assert_unchanged(cluster_role("kubeflow-pipelines-placeholder", rules=[]))
+
+    def test_contributing_cluster_role_with_aggregate_to_labels_is_unchanged(self):
+        """A label makes a role contribute; it does not make it aggregated."""
+        contributing_role = cluster_role("aggregate-to-kubeflow-pipelines-edit")
+        contributing_role["metadata"]["labels"] = {
+            "rbac.authorization.kubeflow.org/aggregate-to-kubeflow-pipelines-edit": (
+                "true"
+            )
+        }
+
+        for rules in ([], VIEW_RULES):
+            with self.subTest(rules=rules):
+                source_resource = {**contributing_role, "rules": rules}
+
+                self.assertEqual(self.omit(source_resource), source_resource)
+                self.assertIn("\nrules:", self.render(source_resource))
+
+    def test_namespaced_role_is_unchanged(self):
+        source_resource = cluster_role(
+            "kubeflow-pipelines-edit",
+            aggregationRule=aggregation_rule("kubeflow-pipelines-edit"),
+            rules=[],
+        )
+        source_resource["kind"] = "Role"
+        source_resource["metadata"]["namespace"] = "kubeflow"
+
+        self.assert_unchanged(source_resource)
+
+    def test_cluster_role_of_another_api_group_is_unchanged(self):
+        for api_version in ("authorization.openshift.io/v1", "v1"):
+            with self.subTest(api_version=api_version):
+                source_resource = cluster_role(
+                    "kubeflow-pipelines-edit",
+                    aggregationRule=aggregation_rule("kubeflow-pipelines-edit"),
+                    rules=[],
+                )
+                source_resource["apiVersion"] = api_version
+
+                self.assert_unchanged(source_resource)
+
+    def test_aggregation_rule_without_selectors_is_unchanged(self):
+        for invalid_aggregation_rule in (
+            None,
+            {},
+            {"clusterRoleSelectors": None},
+            {"clusterRoleSelectors": []},
+            {"clusterRoleSelectors": {}},
+            [],
+        ):
+            with self.subTest(aggregation_rule=invalid_aggregation_rule):
+                self.assert_unchanged(
+                    cluster_role(
+                        "kubeflow-pipelines-edit",
+                        aggregationRule=invalid_aggregation_rule,
+                        rules=[],
+                    )
+                )
+
+    def test_a_second_run_changes_nothing(self):
+        source_resource = cluster_role(
+            "kubeflow-pipelines-edit",
+            aggregationRule=aggregation_rule("kubeflow-pipelines-edit"),
+            rules=[],
+        )
+
+        first_resource = self.omit(source_resource)
+        first_payload = self.render(source_resource)
+
+        self.assertEqual(self.omit(first_resource), first_resource)
+        self.assertEqual(
+            self.render(
+                *self.generator_module.load_yaml_resources(
+                    first_payload, "first payload"
+                )
+            ),
+            first_payload,
+        )
+
+    def test_every_other_resource_is_byte_identical_in_the_payload(self):
+        """The payload equals the one of a source that never carried the field."""
+        aggregated_role = cluster_role(
+            "kubeflow-pipelines-view",
+            aggregationRule=aggregation_rule("kubeflow-pipelines-view"),
+        )
+        other_resources = [
+            cluster_role("kubeflow-pipelines-placeholder", rules=[]),
+            cluster_role("aggregate-to-kubeflow-pipelines-view", rules=VIEW_RULES),
+            {
+                "apiVersion": "apiextensions.k8s.io/v1",
+                "kind": "CustomResourceDefinition",
+                "metadata": {"name": "applications.app.k8s.io"},
+                "spec": {},
+            },
+            {
+                "apiVersion": "admissionregistration.k8s.io/v1",
+                "kind": "ValidatingWebhookConfiguration",
+                "metadata": {"name": "pipelineversions.pipelines.kubeflow.org"},
+                "webhooks": [{"name": "pipelineversions.kubeflow.org", "rules": []}],
+            },
+        ]
+
+        self.assertEqual(
+            self.render({**aggregated_role, "rules": []}, *other_resources),
+            self.render(aggregated_role, *other_resources),
+        )
+
+    def test_partitioning_compares_the_source_resources(self):
+        """The field is omitted at serialization only, so what the two
+        scenarios have in common is decided from the Kustomize output."""
+        database_role = cluster_role(
+            "kubeflow-pipelines-edit",
+            aggregationRule=aggregation_rule("kubeflow-pipelines-edit"),
+            rules=[],
+        )
+        kubernetes_native_role = cluster_role(
+            "kubeflow-pipelines-edit",
+            aggregationRule=aggregation_rule("kubeflow-pipelines-edit"),
+        )
+
+        partitions = self.generator_module.partition_scenarios(
+            [database_role], [kubernetes_native_role]
+        )
+
+        self.assertEqual(partitions["common_resources"], [])
+        self.assertEqual(partitions["platform_database_resources"], [database_role])
+        self.assertIn("rules", partitions["platform_database_resources"][0])
+        self.assertEqual(
+            partitions["platform_kubernetes_native_resources"],
+            [kubernetes_native_role],
+        )
+
+
 class GeneratedTemplateSetTest(unittest.TestCase):
     def test_build_generated_payloads_creates_common_and_scenario_payloads(self):
         generator_module = load_generator_module()
@@ -453,6 +730,24 @@ class FreshnessCheckTest(unittest.TestCase):
             sorted(path.name for path in self.output_directory.iterdir()),
             PAYLOAD_FILE_NAMES,
         )
+
+    def test_a_second_generation_is_byte_identical_without_aggregated_rules(self):
+        def payload_bytes():
+            return {
+                path.name: path.read_bytes() for path in self.output_directory.iterdir()
+            }
+
+        first_generation = payload_bytes()
+        self.assertIn(b"rules: []", self.input_path.read_bytes())
+        self.assertIn(b"aggregationRule:", first_generation["common-resources.yaml"])
+        for file_name, file_content in first_generation.items():
+            with self.subTest(file_name=file_name):
+                self.assertNotIn(b"rules", file_content)
+
+        regenerated = run_generator(self.root)
+
+        self.assertEqual(regenerated.returncode, 0, regenerated.stderr)
+        self.assertEqual(payload_bytes(), first_generation)
 
     def test_an_edited_input_is_detected(self):
         self.input_path.write_text(
