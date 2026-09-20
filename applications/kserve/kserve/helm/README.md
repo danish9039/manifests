@@ -191,8 +191,12 @@ The supported claim is recovery: after the upgrade or the rollback has
 completed and the controllers are ready again, existing `InferenceService`
 objects reconcile and serve. Uninterrupted serving during the operation is not
 claimed. `tests/kserve_helm_lifecycle_test.sh` sends requests to an
-`InferenceService` before, during and after both operations and counts every
-failure and timeout.
+`InferenceService` before, during and after both operations and records when
+every request started and when it completed. It counts a request in the phase
+in which the request started, and it counts every failure and timeout,
+including that of a request which started before an operation and completed
+during or after it. Recovery is asserted only on a request that started after
+the operation had ended and completed successfully.
 
 ### Uninstall and reinstall
 

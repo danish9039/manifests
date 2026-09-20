@@ -22,16 +22,23 @@
 #   1-3   installation from the packaged chart, which adopts the kept
 #         definitions, then recovery of reconciliation and of serving
 #
-# Every request is attributed to a phase by its time, and every phase reports
-# its successes, failures and timeouts. A request succeeded only when curl
-# exited with 0 and the HTTP status is 200; the curl exit status is judged
-# first, so an HTTP 200 whose transfer timed out is a timeout. Recovery after
-# each operation is asserted on a request sent after the operation ended, never
-# on an older one. Failures during an operation are reported, and fail the
-# script only with REQUIRE_SERVING_CONTINUITY=true, because whether the README
-# may claim continuity or only recovery is decided from these numbers. A
-# watched phase without any request proves nothing: continuity is then
-# inconclusive, which REQUIRE_SERVING_CONTINUITY=true also refuses.
+# Every request is logged with the second in which it started and the second
+# in which it completed. A request is attributed to the phase in which it
+# started, and every phase reports the requests that started in it and how many
+# of those succeeded, failed and timed out. A request that started in one phase
+# and completed in a later one crossed a phase boundary: these are counted for
+# every boundary, and one that failed or timed out interrupts serving when any
+# phase from its start to its completion is a watched one. A request succeeded
+# only when curl exited with 0 and the HTTP status is 200; the curl exit status
+# is judged first, so an HTTP 200 whose transfer timed out is a timeout.
+# Recovery after each operation is asserted on a request that started after the
+# operation ended, never on one that only completed after it. Failures during
+# an operation are reported, and fail the script only with
+# REQUIRE_SERVING_CONTINUITY=true, because whether the README may claim
+# continuity or only recovery is decided from these numbers. A watched phase in
+# which no request started proves nothing: continuity is then inconclusive,
+# which REQUIRE_SERVING_CONTINUITY=true also refuses. A line of the request log
+# that is not a request line fails the script; it is never counted.
 #
 # An upgrade between two identical charts changes nothing in the cluster. The
 # summary labels it a no-op check; point UPGRADE_CHART at a chart whose
@@ -253,9 +260,11 @@ spec:
 EOF
 }
 
-# One line per request: <epoch seconds> <HTTP status> <curl exit status>.
-# curl reports the HTTP status 000 when no response arrived and the exit
-# status 28 for a timeout.
+# One line per request:
+#   <start epoch second> <completion epoch second> <HTTP status> <curl exit status>
+# The start is taken immediately before curl runs and the completion
+# immediately after it returns. curl reports the HTTP status 000 when no
+# response arrived and the exit status 28 for a timeout.
 start_the_request_client() {
   kubectl apply -f - <<EOF
 apiVersion: v1
@@ -280,13 +289,14 @@ spec:
     - -c
     - |
       while true; do
+        request_started=\$(date +%s)
         http_status=\$(curl --silent --output /dev/null --write-out '%{http_code}' \
           --max-time ${REQUEST_TIMEOUT_SECONDS} \
           --header 'Content-Type: application/json' \
           --data '{"instances": [[6.8, 2.8, 4.8, 1.4]]}' \
           '${PREDICTION_URL}')
         curl_status=\$?
-        echo "\$(date +%s) \${http_status} \${curl_status}"
+        echo "\${request_started} \$(date +%s) \${http_status} \${curl_status}"
         sleep 1
       done
     securityContext:
@@ -310,14 +320,33 @@ request_log() {
     >"${EVIDENCE_DIRECTORY}/requests.log"
 }
 
-# True when the newest request was sent after the boundary, an epoch second,
-# and succeeded: curl exit status 0 and HTTP status 200. A request from before
-# the boundary says nothing about the state after the operation.
+# Every line of the request log must be a request line: four fields, two epoch
+# seconds of which the completion is not before the start, a three-digit HTTP
+# status and a curl exit status. Any other line, such as the three fields that
+# were logged before the start of a request was recorded, is printed and
+# refused, never counted.
+reject_malformed_request_lines() {
+  awk '
+    NF != 4 || $1 !~ /^[0-9]+$/ || $2 !~ /^[0-9]+$/ || $2 + 0 < $1 + 0 ||
+    $3 !~ /^[0-9][0-9][0-9]$/ || $4 !~ /^[0-9]+$/ {
+      printf "rejected line %d of the request log: %s\n", NR, $0
+      rejected++
+    }
+    END { exit rejected ? 1 : 0 }
+  ' "${EVIDENCE_DIRECTORY}/requests.log" | tee -a "$SUMMARY_FILE" >&2
+}
+
+# Returns 0 when the newest request started after the boundary, an epoch
+# second, and completed successfully: curl exit status 0 and HTTP status 200.
+# A request that started before the boundary, or in the boundary second itself,
+# says nothing about the state after the operation, even when it completed
+# after the boundary. Returns 2 when the request log holds a rejected line.
 fresh_request_succeeded() {
   request_log
+  reject_malformed_request_lines || return 2
   tail -n 1 "${EVIDENCE_DIRECTORY}/requests.log" |
     awk -v boundary="$1" '
-      $1 > boundary && $3 == "0" && $2 == "200" { fresh = 1 }
+      $1 + 0 > boundary + 0 && $4 == "0" && $3 == "200" { fresh = 1 }
       END { exit fresh ? 0 : 1 }
     '
 }
@@ -325,52 +354,90 @@ fresh_request_succeeded() {
 # wait_for_a_successful_request <description> <boundary epoch second>
 wait_for_a_successful_request() {
   local attempt
+  local status
   for attempt in $(seq 1 "$RECOVERY_ATTEMPTS"); do
-    if fresh_request_succeeded "$2"; then
-      report "a prediction sent after $(date --utc --date="@$2" +%H:%M:%SZ) succeeded $1 (attempt ${attempt})"
+    status=0
+    fresh_request_succeeded "$2" || status=$?
+    if [[ "$status" -eq 0 ]]; then
+      report "a prediction that started after $(date --utc --date="@$2" +%H:%M:%SZ) completed successfully $1 (attempt ${attempt})"
       return
+    fi
+    if [[ "$status" -eq 2 ]]; then
+      fail "the request log holds rejected lines $1; nothing is concluded from it"
     fi
     sleep "$RECOVERY_INTERVAL_SECONDS"
   done
   tail -n 5 "${EVIDENCE_DIRECTORY}/requests.log" | tee -a "$SUMMARY_FILE"
-  fail "no fresh prediction succeeded $1 within $((RECOVERY_ATTEMPTS * RECOVERY_INTERVAL_SECONDS)) seconds"
+  fail "no prediction that started after $(date --utc --date="@$2" +%H:%M:%SZ) completed successfully $1 within $((RECOVERY_ATTEMPTS * RECOVERY_INTERVAL_SECONDS)) seconds"
 }
 
-# Prints one row per phase, the number of failed or timed out requests in the
-# phases named in the first argument, and the number of those phases that hold
-# no request at all. The curl exit status is judged before the HTTP status.
+# Prints one row per phase with the requests that started in it, one row per
+# phase boundary with the requests that started before it and completed after
+# it, the number of interrupting requests, the number of watched phases, named
+# in the first argument, in which no request started, and the number of
+# requests that crossed a boundary. A request that failed or timed out
+# interrupts when any phase from its start to its completion is watched, so a
+# failed request that started before an operation and completed during it is
+# an interruption of that operation. Times are whole seconds: a request that
+# started in the second in which a phase started is attributed to that phase.
+# Requests that completed before the first phase are in no row. The curl exit
+# status is judged before the HTTP status.
+# Prints nothing and returns 1 when the request log holds a rejected line.
 summarize_requests() {
-  request_log
+  request_log || return 1
+  reject_malformed_request_lines || return 1
   awk -v phases_file="$PHASES_FILE" -v watched="$1" '
     BEGIN {
+      name[0] = "before-the-first-phase"
       while ((getline line < phases_file) > 0) {
         split(line, fields, " ")
         count++
-        start[count] = fields[1]
+        start[count] = fields[1] + 0
         name[count] = fields[2]
+        is_watched[count] = index(" " watched " ", " " fields[2] " ") > 0
       }
-      printf "%-28s %9s %9s %9s %9s\n", "phase", "requests", "succeeded", "failed", "timed out"
     }
     {
-      phase = 0
-      for (i = 1; i <= count; i++) if ($1 >= start[i]) phase = i
-      if (!phase) next
-      total[phase]++
-      if ($3 == "28") timed_out[phase]++
-      else if ($3 != "0") failed[phase]++
-      else if ($2 == "200") succeeded[phase]++
-      else failed[phase]++
+      started_in = 0
+      completed_in = 0
+      for (i = 1; i <= count; i++) {
+        if ($1 + 0 >= start[i]) started_in = i
+        if ($2 + 0 >= start[i]) completed_in = i
+      }
+      if (!completed_in) next
+      if ($4 == "28") outcome = "timed out"
+      else if ($4 == "0" && $3 == "200") outcome = "succeeded"
+      else outcome = "failed"
+      if (started_in) {
+        started[started_in]++
+        in_phase[started_in, outcome]++
+      }
+      touched_a_watched_phase = 0
+      for (i = started_in; i <= completed_in; i++) {
+        if (i > started_in) {
+          crossed[i]++
+          over_boundary[i, outcome]++
+        }
+        if (is_watched[i]) touched_a_watched_phase = 1
+      }
+      if (completed_in > started_in) crossing++
+      if (outcome != "succeeded" && touched_a_watched_phase) interrupted++
     }
     END {
+      print "requests by the phase in which they started; succeeded: completed with curl exit status 0 and HTTP status 200"
+      printf "%-46s %9s %9s %9s %9s\n", "phase", "started", "succeeded", "failed", "timed out"
       for (i = 1; i <= count; i++) {
-        printf "%-28s %9d %9d %9d %9d\n", name[i], total[i], succeeded[i], failed[i], timed_out[i]
-        if (index(" " watched " ", " " name[i] " ")) {
-          interrupted += failed[i] + timed_out[i]
-          if (!total[i]) inconclusive++
-        }
+        printf "%-46s %9d %9d %9d %9d\n", name[i], started[i], in_phase[i, "succeeded"], in_phase[i, "failed"], in_phase[i, "timed out"]
+        if (is_watched[i] && !started[i]) inconclusive++
+      }
+      print "requests that started before a phase boundary and completed after it, by boundary"
+      printf "%-46s %9s %9s %9s %9s\n", "boundary", "crossed", "succeeded", "failed", "timed out"
+      for (i = 1; i <= count; i++) {
+        printf "%-46s %9d %9d %9d %9d\n", name[i - 1] "->" name[i], crossed[i], over_boundary[i, "succeeded"], over_boundary[i, "failed"], over_boundary[i, "timed out"]
       }
       printf "interrupted %d\n", interrupted
       printf "inconclusive %d\n", inconclusive
+      printf "crossed %d\n", crossing
     }
   ' "${EVIDENCE_DIRECTORY}/requests.log"
 }
@@ -414,14 +481,14 @@ report_serving_continuity() {
     return 1
   fi
   if [[ "$inconclusive" -ne 0 ]]; then
-    report "serving continuity: INCONCLUSIVE, ${inconclusive} watched phases hold no request; ${interrupted} requests failed or timed out in the others"
+    report "serving continuity: INCONCLUSIVE, no request started in ${inconclusive} phases of the upgrade and the rollback; ${interrupted} requests that started in or crossed into a phase of the upgrade or the rollback failed or timed out"
     return 1
   fi
   if [[ "$interrupted" -ne 0 ]]; then
-    report "serving continuity: NOT observed, ${interrupted} requests failed or timed out across the upgrade and the rollback; the supported claim is recovery"
+    report "serving continuity: NOT observed, ${interrupted} requests that started in or crossed into a phase of the upgrade or the rollback failed or timed out; the supported claim is recovery"
     return 1
   fi
-  report "serving continuity: observed, no request failed or timed out across the upgrade and the rollback"
+  report "serving continuity: observed, no request that started in or crossed into a phase of the upgrade or the rollback failed or timed out"
 }
 
 main() {
@@ -528,7 +595,8 @@ main() {
   sleep "$OBSERVATION_SECONDS"
 
   report "=== requests (upgrade: ${upgrade_kind%%:*})"
-  summarize_requests "$WATCHED_PHASES" | tee "$requests_summary" | tee -a "$SUMMARY_FILE"
+  summarize_requests "$WATCHED_PHASES" | tee "$requests_summary" | tee -a "$SUMMARY_FILE" ||
+    fail "the request log could not be read or holds rejected lines; nothing is concluded from it"
   helm history "$RELEASE_NAME" --namespace "$RELEASE_NAMESPACE" | tee -a "$SUMMARY_FILE"
 
   kubectl delete "pod/${CLIENT_POD_NAME}" --namespace "$TEST_NAMESPACE" --wait=false
