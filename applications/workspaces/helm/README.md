@@ -29,8 +29,12 @@ Install these first, in this order:
    (`common/kubeflow-namespace/helm`) and the Kubeflow roles.
 2. cert-manager, ready to issue certificates. The chart renders an `Issuer` and
    a `Certificate` for the validating webhook, and cert-manager injects the
-   certificate authority bundle into the webhook configuration and into both
-   definitions.
+   certificate authority bundle into both webhooks of the
+   `ValidatingWebhookConfiguration`. Both definitions carry the
+   `cert-manager.io/inject-ca-from` annotation as well, but they declare no
+   conversion webhook in this version, so there is no field to inject into: on a
+   cluster their `spec.conversion` is `strategy: None` and cert-manager owns no
+   field of them.
 3. Istio. The chart renders `VirtualService`, `DestinationRule` and
    `AuthorizationPolicy` objects, and the namespace it creates is labelled
    `istio-injection: enabled`.
@@ -83,10 +87,17 @@ release is stored in one namespace while it renders others. Do not use
 | Situation | Behavior |
 | --- | --- |
 | Fresh platform installation | The only supported path. |
-| `kubeflow-workspaces` already exists and is not owned by this release, for example from a Kustomize installation | The installation is expected to be refused by Helm's ownership check. The chart offers no `--take-ownership` recipe and no silent adoption. Migrating a Kustomize installation is out of scope. |
+| `kubeflow-workspaces` already exists and is not owned by this release, for example from a Kustomize installation | Helm's ownership check refuses the installation with the error below and leaves no release record behind. The chart offers no `--take-ownership` recipe and no silent adoption. Migrating a Kustomize installation is out of scope. |
 | `helm uninstall` | The `kubeflow-workspaces` namespace is **deleted, together with everything inside it, including objects that this release does not own**. Do not keep anything of your own in this namespace. |
 | What remains after `helm uninstall` | The two definitions (`helm.sh/resource-policy: keep`), every `Workspace` with its PersistentVolumeClaim in the profile namespaces, and every cluster-scoped `WorkspaceKind`. |
 | Reinstallation | Only after the namespace has finished terminating. The same release name and release namespace adopt the kept definitions again. |
+
+The refusal of a namespace that the release does not own, as Helm 4.2.2 prints
+it for a namespace created with `kubectl create namespace kubeflow-workspaces`:
+
+```text
+Error: INSTALLATION FAILED: unable to continue with install: Namespace "kubeflow-workspaces" in namespace "" exists and cannot be imported into the current release: invalid ownership metadata; label validation error: missing key "app.kubernetes.io/managed-by": must be set to "Helm"; annotation validation error: missing key "meta.helm.sh/release-name": must be set to "kubeflow-workspaces"; annotation validation error: missing key "meta.helm.sh/release-namespace": must be set to "kubeflow"
+```
 
 The namespace is deleted on purpose. `kubeflow-workspaces` is a dedicated system
 namespace for the controller, the backend and the frontend. User data lives
@@ -103,8 +114,25 @@ webhook configuration was deleted with the release. Treat the time between
 uninstall and reinstall as an outage of Workspaces, not as a degraded mode.
 A `WorkspaceKind` that is in use carries the
 `notebooks.kubeflow.org/workspacekind-protection` finalizer, which only the
-controller removes, so deleting one during that time blocks until the chart is
-installed again.
+controller removes. Deleting one during that time is not validated and leaves it
+terminating with that finalizer; once the chart is installed again, the
+controller removes it as soon as no `Workspace` uses it any more.
+
+The uninstall does not touch the pod of a running `Workspace`: on the test
+cluster the pod kept its UID through uninstall and reinstall. After the
+reinstallation the webhook rejects an invalid `Workspace` again
+(`spec.kind: Invalid value: ...: workspace kind "..." not found`), and the
+controller reconciles the retained `Workspace` again: pausing it removes the pod
+and resuming it starts a new one.
+
+## Deleting A Workspace
+
+`kubectl delete workspace` removes what the controller created for it, because
+each of these objects carries an owner reference to the `Workspace`: the
+StatefulSet with its pod, the Service, the VirtualService, the ServiceAccount
+and the RoleBindings. The PersistentVolumeClaim that `spec.podTemplate.volumes`
+names is not owned by the `Workspace`. It remains with the same UID and is
+deleted separately when its data is no longer needed.
 
 Wait for the namespace to terminate before installing again:
 
