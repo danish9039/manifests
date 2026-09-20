@@ -159,6 +159,11 @@ python3 tests/run_helm_kustomize_comparison.py spark-operator --all-scenarios
 python3 tests/spark_operator_helm_chart_test.py
 ```
 
+The chart tests need the upstream chart from its repository. When it cannot be
+downloaded, the tests that render the chart are skipped, the last lines of the
+output count them, and the command exits with status 2: that run is incomplete,
+not passed. In GitHub Actions the same condition is an error.
+
 Both sides of that comparison render the same upstream chart, so agreement is
 close to tautological. What it proves is narrow but worth having: that the values
 in this chart reproduce the flags the synchronization script passes, and that the
