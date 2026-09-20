@@ -6,9 +6,12 @@
 # It proves what `helm uninstall` and a later `helm install` do:
 #   - the three custom resource definitions and a user SparkApplication with
 #     the same UID remain after the uninstallation;
-#   - the operator workloads and the three aggregated ClusterRoles are deleted;
+#   - every object of the release, including the operator workloads, the
+#     webhook configurations, the service accounts and the three aggregated
+#     ClusterRoles, is deleted;
 #   - after the reinstallation the operator reconciles again: a new
-#     SparkApplication completes and the retained one is observed.
+#     SparkApplication completes, and a specification change to the retained
+#     one is submitted again and completes.
 # It makes no claim that a running application continues without the operator.
 set -euxo pipefail
 
@@ -18,8 +21,6 @@ cd "${REPOSITORY_ROOT}"
 
 SPARK_APPLICATION_YAML="applications/spark/sparkapplication_example.yaml"
 RETAINED_APPLICATION="spark-pi-python"
-# The name must not contain the retained name, because step 7 searches the
-# controller log for the retained name.
 NEW_APPLICATION="reinstallation-spark-pi"
 CUSTOM_RESOURCE_DEFINITIONS=(
   scheduledsparkapplications.sparkoperator.k8s.io
@@ -49,12 +50,32 @@ wait_for_application_state() {
   return 1
 }
 
+# The controller gives every submission a new status.submissionID.
+wait_for_new_submission() {
+  local application="$1"
+  local previous="$2"
+  local current=""
+  for _ in $(seq 1 60); do
+    current=$(kubectl -n "${NAMESPACE}" get sparkapplication "${application}" \
+      -o jsonpath='{.status.submissionID}')
+    if [[ -n "${current}" && "${current}" != "${previous}" ]]; then
+      return 0
+    fi
+    sleep 5
+  done
+  echo "ERROR: SparkApplication ${application} was not submitted again, status.submissionID is still ${current}." >&2
+  kubectl -n "${NAMESPACE}" describe sparkapplication "${application}" >&2
+  return 1
+}
+
 definition_identifiers() {
   kubectl get customresourcedefinitions "${CUSTOM_RESOURCE_DEFINITIONS[@]}" \
     -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.uid}{"\n"}{end}'
 }
 
+RELEASE_MANIFEST="$(mktemp)"
 cleanup() {
+  rm -f "${RELEASE_MANIFEST}"
   kubectl -n "${NAMESPACE}" delete sparkapplication \
     "${RETAINED_APPLICATION}" "${NEW_APPLICATION}" --ignore-not-found
 }
@@ -67,7 +88,10 @@ kubectl -n "${NAMESPACE}" apply -f "${SPARK_APPLICATION_YAML}"
 wait_for_application_state "${RETAINED_APPLICATION}" COMPLETED
 APPLICATION_IDENTIFIER_BEFORE=$(kubectl -n "${NAMESPACE}" get sparkapplication \
   "${RETAINED_APPLICATION}" -o jsonpath='{.metadata.uid}')
+SUBMISSION_IDENTIFIER_BEFORE=$(kubectl -n "${NAMESPACE}" get sparkapplication \
+  "${RETAINED_APPLICATION}" -o jsonpath='{.status.submissionID}')
 DEFINITION_IDENTIFIERS_BEFORE=$(definition_identifiers)
+helm get manifest spark-operator --namespace kubeflow > "${RELEASE_MANIFEST}"
 
 # 2. Uninstall the release.
 helm uninstall spark-operator --namespace kubeflow --wait --timeout 5m
@@ -78,7 +102,9 @@ APPLICATION_IDENTIFIER_AFTER=$(kubectl -n "${NAMESPACE}" get sparkapplication \
   "${RETAINED_APPLICATION}" -o jsonpath='{.metadata.uid}')
 [[ "${APPLICATION_IDENTIFIER_AFTER}" == "${APPLICATION_IDENTIFIER_BEFORE}" ]]
 
-# 4. The operator workloads and the aggregated roles are deleted.
+# 4. Every object of the release is deleted, among them the operator workloads
+# and the aggregated roles. The definitions are not part of the release manifest.
+[[ -z "$(kubectl -n kubeflow get -f "${RELEASE_MANIFEST}" --ignore-not-found -o name)" ]]
 for deployment in "${OPERATOR_DEPLOYMENTS[@]}"; do
   [[ -z "$(kubectl -n kubeflow get deployment "${deployment}" --ignore-not-found -o name)" ]]
 done
@@ -99,14 +125,20 @@ sed "s/^  name: ${RETAINED_APPLICATION}\$/  name: ${NEW_APPLICATION}/" "${SPARK_
   | kubectl -n "${NAMESPACE}" apply -f -
 wait_for_application_state "${NEW_APPLICATION}" COMPLETED
 
-# 7. The retained application is observed by the new controller: it still has
-# the same identity, and the controller emits an event for a change to it.
+# 7. The new controller reconciles the retained application. A completed
+# application stays completed on its own, so change its specification: the
+# controller submits it again, which changes status.submissionID, and it
+# completes with the same identity.
+[[ "$(kubectl -n "${NAMESPACE}" get sparkapplication "${RETAINED_APPLICATION}" \
+  -o jsonpath='{.status.applicationState.state}={.status.submissionID}')" \
+  == "COMPLETED=${SUBMISSION_IDENTIFIER_BEFORE}" ]]
+kubectl -n "${NAMESPACE}" patch sparkapplication "${RETAINED_APPLICATION}" \
+  --type merge --patch '{"spec":{"arguments":["2"]}}'
+wait_for_new_submission "${RETAINED_APPLICATION}" "${SUBMISSION_IDENTIFIER_BEFORE}"
+wait_for_application_state "${RETAINED_APPLICATION}" COMPLETED
 [[ "$(kubectl -n "${NAMESPACE}" get sparkapplication "${RETAINED_APPLICATION}" \
   -o jsonpath='{.metadata.uid}')" == "${APPLICATION_IDENTIFIER_BEFORE}" ]]
-CONTROLLER_START=$(kubectl -n kubeflow get pod \
-  -l app.kubernetes.io/name=spark-operator,app.kubernetes.io/component=controller \
-  -o jsonpath='{.items[0].status.startTime}')
-kubectl -n kubeflow logs deployment/spark-operator-controller --since-time="${CONTROLLER_START}" \
-  | grep -F "${RETAINED_APPLICATION}"
+kubectl -n "${NAMESPACE}" get events \
+  --field-selector "involvedObject.name=${RETAINED_APPLICATION}" --sort-by=.lastTimestamp
 
 echo "Spark Operator Helm lifecycle verified: definitions and SparkApplication ${APPLICATION_IDENTIFIER_BEFORE} retained, operator and aggregated roles deleted and restored, reconciliation resumed."
