@@ -12,6 +12,10 @@
 {{- end }}
 {{- end }}
 {{- if .Values.resources.enabled }}
+{{- if .Values.clusterServingRuntimes.enabled }}
 {{ include "kserve.generatedPayload" (dict "root" . "path" "manifests/platform-resources.yaml") }}
+{{- else }}
+{{ include "kserve.generatedPayloadWithoutClusterServingRuntimes" (dict "root" . "path" "manifests/platform-resources.yaml") }}
+{{- end }}
 {{- end }}
 {{- end }}

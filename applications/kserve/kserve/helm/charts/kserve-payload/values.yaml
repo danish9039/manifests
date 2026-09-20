@@ -12,3 +12,7 @@ customResourceDefinitions:
 resources:
   # -- Render the KServe control plane.
   enabled: true
+
+clusterServingRuntimes:
+  # -- Render the bundled ClusterServingRuntime objects of the control plane.
+  enabled: true

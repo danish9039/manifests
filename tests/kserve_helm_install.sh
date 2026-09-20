@@ -2,11 +2,12 @@
 # Helm counterpart of tests/kserve_install.sh, proven equivalent to
 # applications/kserve/kserve by the kserve platform comparison scenario.
 #
-# Two release revisions replace the raw installer's apply-fail-apply dance:
-# the first renders only the custom resource definitions, the second adds the
-# control plane once every definition is established, because the cluster
-# serving runtimes and the cluster storage container in the payload cannot be
-# created before their definitions exist.
+# Three release revisions replace the raw installer's apply-fail-apply dance:
+# the first renders only the custom resource definitions; the second adds the
+# control plane once every definition is established, without the cluster
+# serving runtimes; the third adds the cluster serving runtimes once the
+# controllers are ready, because their validating webhook has
+# failurePolicy: Fail and kserve-controller-manager serves it.
 set -euxo pipefail
 echo "Installing KServe with Helm ..."
 helm install kserve applications/kserve/kserve/helm \
@@ -39,6 +40,7 @@ done
 helm upgrade kserve applications/kserve/kserve/helm \
   --namespace kserve \
   --values applications/kserve/kserve/helm/ci/values-platform.yaml \
+  --set payload.clusterServingRuntimes.enabled=false \
   --wait --timeout 10m
 
 kubectl wait --for=condition=Ready -n kserve --timeout=120s \
@@ -70,6 +72,19 @@ fi
 for deployment_name in "${DEPLOYMENT_NAMES[@]}"; do
   kubectl rollout status "deployment/${deployment_name}" -n kserve --timeout=300s
 done
+
+# Helm 4 applies server-side. From the second revision on, the role
+# aggregation controller owns .rules of the aggregated kubeflow-kserve-admin
+# cluster role, which the payload ships as an empty list. Every later upgrade
+# conflicts on that one field; --force-conflicts reapplies the empty list and
+# the controller restores the aggregated rules at once, the trade
+# tests/kserve_install.sh makes with kubectl apply --server-side
+# --force-conflicts.
+helm upgrade kserve applications/kserve/kserve/helm \
+  --namespace kserve \
+  --values applications/kserve/kserve/helm/ci/values-platform.yaml \
+  --force-conflicts \
+  --wait --timeout 10m
 
 # The Models Web Application keeps its Kustomize installation until its own
 # chart lands; it joins this script in that pull request.

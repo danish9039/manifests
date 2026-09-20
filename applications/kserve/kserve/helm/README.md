@@ -58,10 +58,18 @@ and removes the `pod-security.kubernetes.io/enforce: restricted` label.
 
 ## Installation
 
-Install in two release revisions. The payload contains cluster serving runtimes
-and a cluster storage container, which cannot be created before their custom
-resource definitions are established, and Helm does not wait for that on its
-own.
+Install in three release revisions, because Helm does not wait between the
+objects of one revision:
+
+1. the sixteen custom resource definitions alone, which must be established
+   before the cluster serving runtimes and the cluster storage container of the
+   payload can be created;
+2. the control plane without the fourteen `ClusterServingRuntime` objects. Their
+   validating webhook, `clusterservingruntime.serving.kserve.io`, has
+   `failurePolicy: Fail` and is served by `kserve-controller-manager`, so the
+   API server rejects every one of them with `connection refused` until that
+   Deployment is ready;
+3. everything.
 
 ```bash
 helm install kserve ./applications/kserve/kserve/helm \
@@ -80,12 +88,23 @@ done
 helm upgrade kserve ./applications/kserve/kserve/helm \
   --namespace kserve \
   --values ./applications/kserve/kserve/helm/ci/values-platform.yaml \
+  --set payload.clusterServingRuntimes.enabled=false \
+  --wait --timeout 10m
+
+kubectl wait --for=condition=Available --namespace kserve --timeout=300s \
+  deployment/kserve-controller-manager
+
+helm upgrade kserve ./applications/kserve/kserve/helm \
+  --namespace kserve \
+  --values ./applications/kserve/kserve/helm/ci/values-platform.yaml \
+  --force-conflicts \
   --wait --timeout 10m
 ```
 
-The second command passes the complete values file again and no
-`--reuse-values`, so the release does not depend on the values of the first
-revision: `payload.resources.enabled` is `true` in that file.
+Every command passes the complete values file again and no `--reuse-values`,
+so no revision depends on the values of an earlier one: both phase keys are
+`true` in that file. The last command needs `--force-conflicts` for the reason
+given under [Upgrade](#upgrade).
 
 `tests/kserve_helm_install.sh` is this procedure as continuous integration
 runs it, followed by the readiness waits of the Kustomize installer.
@@ -99,8 +118,9 @@ The Models Web Application is a separate component, `applications/kserve/kserve-
 | `payload.scenario` | `platform` | Rendered Kustomize parity scenario. Only `platform` is supported. |
 | `payload.customResourceDefinitions.enabled` | `true` | Render the sixteen KServe custom resource definitions. |
 | `payload.resources.enabled` | `true` | Render the control plane. Set to `false` for the first release revision. |
+| `payload.clusterServingRuntimes.enabled` | `true` | Render the fourteen bundled `ClusterServingRuntime` objects of the control plane. Set to `false` for the second release revision. No effect while `payload.resources.enabled` is `false`. |
 
-These three keys are the whole interface. The chart fails when `scenario`,
+These four keys are the whole interface. The chart fails when `scenario`,
 `customResourceDefinitions` or `resources` is set at the top level, and names
 the `payload.` key to use instead, because Helm would otherwise ignore the
 value silently.
@@ -131,6 +151,7 @@ when an administrator or another release already owns them.
 helm upgrade kserve ./applications/kserve/kserve/helm \
   --namespace kserve \
   --values ./applications/kserve/kserve/helm/ci/values-platform.yaml \
+  --force-conflicts \
   --wait --timeout 10m
 ```
 
@@ -138,16 +159,31 @@ Pass the same values file as for the installation and do not pass
 `--reuse-values`. The definitions are updated to the synchronized upstream
 version and every custom resource is kept.
 
+Helm 4 applies server-side, and one field that the payload ships empty is
+owned by another controller once the control plane exists: the Kubernetes role
+aggregation controller fills `.rules` of the aggregated `kubeflow-kserve-admin`
+cluster role, which the payload declares as `rules: []`. A plain `helm upgrade`
+therefore stops with `conflict with "clusterrole-aggregation-controller":
+.rules`; it is the only conflict among the 74 objects. `--force-conflicts`
+reapplies the empty list and the controller restores the aggregated rules
+immediately, the same trade `tests/kserve_install.sh` makes with
+`kubectl apply --server-side --force-conflicts`. The `caBundle` fields that the
+cert-manager CA injector writes into the webhook configurations do not
+conflict, because the payload does not set them. An upgrade that stopped on a
+conflict has already applied the objects before it; run it again with the
+option.
+
 ### Rollback
 
 ```bash
 helm history kserve --namespace kserve
-helm rollback kserve <revision> --namespace kserve --wait --timeout 10m
+helm rollback kserve <revision> --namespace kserve --force-conflicts --wait --timeout 10m
 ```
 
 Roll back only to a revision that installed everything. Revision 1 of the
 installation above holds the definitions alone; rolling back to it deletes the
-whole control plane, so it is not a rollback target.
+whole control plane, so it is not a rollback target. Neither is revision 2,
+which lacks the cluster serving runtimes. Revision 3 is the first full one.
 
 ### Serving during an upgrade or a rollback
 
@@ -183,7 +219,7 @@ between `helm uninstall` and the next installation.
 Installing again with the release name `kserve` in the namespace `kserve`
 adopts the kept definitions, because they still carry the ownership metadata
 of that release; any other release name or namespace is refused by Helm. Use
-the two-revision installation above; afterwards the controllers reconcile the
+the three-revision installation above; afterwards the controllers reconcile the
 kept objects again.
 
 ## How this chart is kept up to date

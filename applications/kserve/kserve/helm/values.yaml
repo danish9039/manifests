@@ -28,5 +28,14 @@ payload:
     # the inference service configuration, cluster serving runtimes and the
     # Kubeflow integration resources. Set this to false for the first release
     # revision, so the custom resource definitions are established before the
-    # cluster serving runtimes that need them are applied.
+    # objects that need them are applied.
+    enabled: true
+
+  clusterServingRuntimes:
+    # -- Render the fourteen bundled ClusterServingRuntime objects, which are
+    # part of the control plane payload. Set this to false for the second
+    # release revision: their validating webhook has failurePolicy: Fail and is
+    # served by kserve-controller-manager, so they cannot be created before
+    # that Deployment is ready. It has no effect while
+    # payload.resources.enabled is false.
     enabled: true

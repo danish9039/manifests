@@ -183,6 +183,30 @@ class KServeHelmChartTest(unittest.TestCase):
 
         self.assertEqual(kinds, {"CustomResourceDefinition"})
 
+    def test_second_revision_leaves_out_only_the_cluster_serving_runtimes(self):
+        """Their validating webhook fails closed until the controller is ready."""
+        result = render_chart(
+            CHART_PATH, "--set", "payload.clusterServingRuntimes.enabled=false"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+        second_revision = load_manifests(result.stdout)
+        cluster_serving_runtimes = [
+            manifest
+            for manifest in self.manifests
+            if manifest["kind"] == "ClusterServingRuntime"
+        ]
+
+        self.assertTrue(cluster_serving_runtimes)
+        self.assertEqual(
+            second_revision,
+            [
+                manifest
+                for manifest in self.manifests
+                if manifest["kind"] != "ClusterServingRuntime"
+            ],
+        )
+
     def test_disabling_everything_fails(self):
         result = render_chart(
             CHART_PATH,
@@ -235,10 +259,12 @@ class KServeHelmChartTest(unittest.TestCase):
             {manifest["kind"] for manifest in self.manifests},
         )
 
-    def test_readme_documents_the_two_revision_installation(self):
+    def test_readme_documents_the_three_revision_installation(self):
         readme = (CHART_PATH / "README.md").read_text()
 
         self.assertIn("--set payload.resources.enabled=false", readme)
+        self.assertIn("--set payload.clusterServingRuntimes.enabled=false", readme)
+        self.assertIn("--force-conflicts", readme)
         self.assertIn("condition=Established", readme)
         self.assertNotIn("--reuse-values\n", readme)
         self.assertNotIn("--set resources.", readme)
