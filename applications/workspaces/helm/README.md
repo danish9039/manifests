@@ -83,6 +83,25 @@ that sets it, even to an empty list, claims a field that the controller owns. Th
 `aggregationRule` selectors, the labels and the ClusterRoles that contribute the
 permissions are the ones of the Kustomize baseline.
 
+A release that was installed from an earlier revision of this chart still
+stores `rules: []` for the three aggregated ClusterRoles in its release history.
+`helm upgrade` from such a release to this chart needs no force option.
+`helm rollback` to such a stored revision applies `rules: []` again and fails
+with a conflict against `clusterrole-aggregation-controller` on `.rules` of all
+three roles. As observed, the failed rollback changes neither the roles and
+their rules nor the Deployments and their pods, but it leaves no revision
+`deployed`: `helm status` reports `failed`. `helm upgrade` with this chart,
+again without a force option, recovers. Roll back only to revisions created from
+this chart revision or a later one. `helm upgrade --dry-run=server` is not
+conflict evidence, because it does not apply: with the earlier chart revision it
+exits with 0, while the real upgrade fails with the conflict.
+
+Every `helm upgrade` and `helm rollback`, including a failed one, rewrites
+`NetworkPolicy/workspaces-controller` with identical content: only its
+`generation` and the timestamp of the `helm` field manager change. The payload
+declares `from: []` for it, as the Kustomize baseline does, and the stored object
+does not contain that field. An unchanged upgrade wrote no other object.
+
 ## Release Namespace And Workload Namespace
 
 Other Kubeflow charts install into the namespace that holds their workloads.
@@ -238,8 +257,8 @@ of a workflow. `tests/workspaces_helm_upgrade_test.sh` runs an unchanged
 upgrade, an upgrade to a changed copy of the chart and a rollback, all without a
 force option. After each it checks that the three aggregated ClusterRoles carry
 rules, that Helm is not a manager of that field, and that a ServiceAccount bound
-to `kubeflow-workspaces-edit` may still create a `Workspace`; it is not part of
-a workflow either.
+to `kubeflow-workspaces-edit` may still create a `Workspace` and may still not
+read a `Secret`; it is not part of a workflow either.
 
 ## Keeping The Chart Up To Date
 
