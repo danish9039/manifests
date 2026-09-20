@@ -158,7 +158,6 @@ install_in_three_revisions() {
   helm upgrade "$RELEASE_NAME" "$chart" \
     --namespace "$RELEASE_NAMESPACE" \
     --values "$VALUES_FILE" \
-    --force-conflicts \
     --wait --timeout 10m
   wait_for_the_control_plane
 }
@@ -533,7 +532,6 @@ main() {
   helm upgrade "$RELEASE_NAME" "$UPGRADE_CHART" \
     --namespace "$RELEASE_NAMESPACE" \
     --values "$VALUES_FILE" \
-    --force-conflicts \
     --wait --timeout 10m
   wait_for_the_control_plane
   expect_revision 4 "upgrade"
@@ -554,7 +552,7 @@ main() {
   report "=== rollback from revision 4 to revision 3"
   start_phase during-rollback
   helm rollback "$RELEASE_NAME" 3 --namespace "$RELEASE_NAMESPACE" \
-    --force-conflicts --wait --timeout 10m
+    --wait --timeout 10m
   wait_for_the_control_plane
   expect_revision 5 "rollback to revision 3"
   operation_ended=$(date +%s)

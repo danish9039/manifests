@@ -42,6 +42,14 @@ and of the LLM inference service configuration templates with their validation
 webhook, the path-based ingress configuration, the aggregated Kubeflow roles
 and the webhook NetworkPolicy.
 
+A resource in the payload keeps the content Kustomize rendered. The generator
+departs from that output in four controlled ways and in no other: every custom
+resource definition receives `helm.sh/resource-policy: keep`; the definitions
+are written one per file; `Namespace/kserve` is left out, because the
+`kubeflow-namespaces` chart owns it; and the aggregated `kubeflow-kserve-admin`
+cluster role omits its empty `rules` field, because the Kubernetes role
+aggregation controller owns that field.
+
 ## Prerequisites
 
 | chart | provides |
@@ -97,14 +105,13 @@ kubectl wait --for=condition=Available --namespace kserve --timeout=300s \
 helm upgrade kserve ./applications/kserve/kserve/helm \
   --namespace kserve \
   --values ./applications/kserve/kserve/helm/ci/values-platform.yaml \
-  --force-conflicts \
   --wait --timeout 10m
 ```
 
 Every command passes the complete values file again and no `--reuse-values`,
 so no revision depends on the values of an earlier one: both phase keys are
-`true` in that file. The last command needs `--force-conflicts` for the reason
-given under [Upgrade](#upgrade).
+`true` in that file. No command passes `--force-conflicts`; [Upgrade](#upgrade)
+gives the reason.
 
 `tests/kserve_helm_install.sh` is this procedure as continuous integration
 runs it, followed by the readiness waits of the Kustomize installer.
@@ -151,7 +158,6 @@ when an administrator or another release already owns them.
 helm upgrade kserve ./applications/kserve/kserve/helm \
   --namespace kserve \
   --values ./applications/kserve/kserve/helm/ci/values-platform.yaml \
-  --force-conflicts \
   --wait --timeout 10m
 ```
 
@@ -159,31 +165,47 @@ Pass the same values file as for the installation and do not pass
 `--reuse-values`. The definitions are updated to the synchronized upstream
 version and every custom resource is kept.
 
-Helm 4 applies server-side, and one field that the payload ships empty is
-owned by another controller once the control plane exists: the Kubernetes role
-aggregation controller fills `.rules` of the aggregated `kubeflow-kserve-admin`
-cluster role, which the payload declares as `rules: []`. A plain `helm upgrade`
-therefore stops with `conflict with "clusterrole-aggregation-controller":
-.rules`; it is the only conflict among the 74 objects. `--force-conflicts`
-reapplies the empty list and the controller restores the aggregated rules
-immediately, the same trade `tests/kserve_install.sh` makes with
-`kubectl apply --server-side --force-conflicts`. The `caBundle` fields that the
-cert-manager CA injector writes into the webhook configurations do not
-conflict, because the payload does not set them. An upgrade that stopped on a
-conflict has already applied the objects before it; run it again with the
-option.
+No installation, upgrade or rollback of this chart passes `--force-conflicts`.
+Helm 4 applies server-side, and the chart states no field that another
+controller owns. The payload omits `rules` of the aggregated
+`kubeflow-kserve-admin` cluster role, because the Kubernetes role aggregation
+controller owns that field
+([aggregated ClusterRoles](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#aggregated-clusterroles)).
+It sets no `caBundle` either, which the cert-manager CA injector writes into
+the webhook configurations.
+
+`--force-conflicts` is not limited to one field: it covers every object of the
+release and overwrites, without a message, each field of the payload that an
+administrator or another controller changed in the cluster. A conflict is
+therefore a finding to inspect, not a reason to add the option. An upgrade that
+stopped on a conflict may already have applied other objects of the release, so
+do not assume that nothing changed. `helm upgrade --dry-run=server` is not
+conflict evidence: it does not apply, so it exits 0 where the real upgrade
+stops on a conflict.
 
 ### Rollback
 
 ```bash
 helm history kserve --namespace kserve
-helm rollback kserve <revision> --namespace kserve --force-conflicts --wait --timeout 10m
+helm rollback kserve <revision> --namespace kserve --wait --timeout 10m
 ```
 
 Roll back only to a revision that installed everything. Revision 1 of the
 installation above holds the definitions alone; rolling back to it deletes the
 whole control plane, so it is not a rollback target. Neither is revision 2,
 which lacks the cluster serving runtimes. Revision 3 is the first full one.
+
+A release installed from an earlier revision of this chart keeps that
+revision's manifest in its history, and regenerating the chart does not rewrite
+it: the stored manifest still states `rules: []` for `kubeflow-kserve-admin`.
+`helm upgrade` from such a release to this chart needs no option. Rolling back
+to the stored revision reintroduces `rules: []`, so such a revision is not a
+rollback target either. Observed on a cluster: `helm rollback` to it stops with
+`conflict with "clusterrole-aggregation-controller": .rules`, changes no object
+in the cluster, and leaves the release without a `deployed` revision, because
+Helm records the rollback as `failed` after it has marked the previous revision
+`superseded`. The `helm upgrade` command above, with this chart and without any
+option, then creates a `deployed` revision again.
 
 ### Serving during an upgrade or a rollback
 

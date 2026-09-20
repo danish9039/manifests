@@ -21,6 +21,11 @@ OBSOLETE_TOP_LEVEL_VALUES = {
     "customResourceDefinitions": "customResourceDefinitions.enabled=true",
     "resources": "resources.enabled=false",
 }
+HELM_COMMAND_SOURCES = (
+    CHART_PATH / "README.md",
+    REPOSITORY_ROOT / "tests/kserve_helm_install.sh",
+    REPOSITORY_ROOT / "tests/kserve_helm_lifecycle_test.sh",
+)
 OWNED_NAMESPACE = "kserve"
 CUSTOM_RESOURCE_DEFINITION_COUNT = 16
 HELM_BINARY = os.environ.get("HELM_BINARY", "helm")
@@ -44,6 +49,17 @@ def render_chart(chart_directory=CHART_PATH, *arguments, namespace=OWNED_NAMESPA
 
 def load_manifests(rendered):
     return [document for document in yaml.safe_load_all(rendered) if document]
+
+
+def helm_commands(text):
+    """Return every Helm command of a script or a document, continuations joined."""
+    return [
+        command
+        for command in (
+            line.strip() for line in text.replace("\\\n", " ").splitlines()
+        )
+        if command.startswith("helm ")
+    ]
 
 
 class KServeHelmChartTest(unittest.TestCase):
@@ -264,10 +280,51 @@ class KServeHelmChartTest(unittest.TestCase):
 
         self.assertIn("--set payload.resources.enabled=false", readme)
         self.assertIn("--set payload.clusterServingRuntimes.enabled=false", readme)
-        self.assertIn("--force-conflicts", readme)
         self.assertIn("condition=Established", readme)
         self.assertNotIn("--reuse-values\n", readme)
         self.assertNotIn("--set resources.", readme)
+
+    def test_no_helm_command_passes_force_conflicts(self):
+        """The payload states no field that another controller owns, so no
+        documented or scripted Helm command needs the release-wide option."""
+        for path in HELM_COMMAND_SOURCES:
+            commands = helm_commands(path.read_text())
+            with self.subTest(path=path.name):
+                self.assertTrue(
+                    any(command.startswith("helm upgrade ") for command in commands),
+                    f"no helm upgrade command found in {path.name}",
+                )
+                self.assertEqual(
+                    [command for command in commands if "--force" in command], []
+                )
+
+    def test_the_payload_states_no_rules_for_the_aggregated_cluster_role(self):
+        """The role aggregation controller owns the field; a manifest that
+        states it, even as an empty list, conflicts on the next upgrade."""
+        aggregated_roles = [
+            manifest
+            for manifest in self.manifests
+            if manifest["kind"] == "ClusterRole" and "aggregationRule" in manifest
+        ]
+
+        self.assertEqual(
+            [role["metadata"]["name"] for role in aggregated_roles],
+            ["kubeflow-kserve-admin"],
+        )
+        self.assertNotIn("rules", aggregated_roles[0])
+
+    def test_readme_explains_why_no_command_forces_conflicts(self):
+        readme = " ".join((CHART_PATH / "README.md").read_text().split())
+
+        self.assertIn("passes `--force-conflicts`", readme)
+        self.assertIn(
+            "https://kubernetes.io/docs/reference/access-authn-authz/rbac/"
+            "#aggregated-clusterroles",
+            readme,
+        )
+        self.assertIn("`helm upgrade --dry-run=server` is not conflict evidence", readme)
+        self.assertIn("reintroduces `rules: []`", readme)
+        self.assertIn("leaves the release without a `deployed` revision", readme)
 
     def test_readme_separates_retention_from_the_objects_the_chart_provides(self):
         readme = " ".join((CHART_PATH / "README.md").read_text().split())

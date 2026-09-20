@@ -73,17 +73,12 @@ for deployment_name in "${DEPLOYMENT_NAMES[@]}"; do
   kubectl rollout status "deployment/${deployment_name}" -n kserve --timeout=300s
 done
 
-# Helm 4 applies server-side. From the second revision on, the role
-# aggregation controller owns .rules of the aggregated kubeflow-kserve-admin
-# cluster role, which the payload ships as an empty list. Every later upgrade
-# conflicts on that one field; --force-conflicts reapplies the empty list and
-# the controller restores the aggregated rules at once, the trade
-# tests/kserve_install.sh makes with kubectl apply --server-side
-# --force-conflicts.
+# No revision passes --force-conflicts. Helm 4 applies server-side, and the
+# payload omits the rules field of the aggregated kubeflow-kserve-admin cluster
+# role, which the role aggregation controller owns, so no upgrade conflicts.
 helm upgrade kserve applications/kserve/kserve/helm \
   --namespace kserve \
   --values applications/kserve/kserve/helm/ci/values-platform.yaml \
-  --force-conflicts \
   --wait --timeout 10m
 
 # The Models Web Application keeps its Kustomize installation until its own

@@ -1,8 +1,9 @@
 # Default values for the KServe chart.
 #
-# The chart vendors the Kustomize component applications/kserve/kserve verbatim,
+# The chart vendors the rendered Kustomize component applications/kserve/kserve,
 # including every restricted Pod Security Standard and Kubeflow integration
-# patch that component carries. Kustomize remains the source of truth.
+# patch that component carries. README.md lists the four controlled transforms
+# of the generator. Kustomize remains the source of truth.
 #
 # Every value lives under payload, the alias of the internal kserve-payload
 # dependency that holds the generated manifests. The top-level keys scenario,
