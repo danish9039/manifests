@@ -1,8 +1,12 @@
 # Default values for the Kubeflow Notebooks chart.
 #
-# The chart vendors the Kustomize platform overlay verbatim. Values that the
-# Kustomize baseline declares - container images and configMapGenerator inputs -
-# are not exposed yet; that is a separate change.
+# The chart vendors the Kustomize platform overlay verbatim. The generator
+# applies two controlled transforms to that content: every custom resource
+# definition receives helm.sh/resource-policy: keep, and an aggregated
+# ClusterRole omits its empty rules field, because the Kubernetes aggregation
+# controller owns that field. Values that the Kustomize baseline declares -
+# container images and configMapGenerator inputs - are not exposed yet; that is
+# a separate change.
 
 # -- Rendered Kustomize parity scenario.
 # Supported value: platform
