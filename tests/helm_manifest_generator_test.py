@@ -562,6 +562,73 @@ class HelmManifestGeneratorTest(unittest.TestCase):
                 ["kustomize", "build", "applications/example/helm/kustomize"],
             )
 
+    def test_freshness_check_covers_the_per_definition_directory(self):
+        """One file per definition is one more directory level; a missing, an
+        extra and a stale definition file are each reported with their path."""
+        yaml = YAML()
+        resources = self.resources()
+        resources.append(
+            self.resource(
+                "samples.kubeflow.org",
+                kind="CustomResourceDefinition",
+                api_version="apiextensions.k8s.io/v1",
+                namespace=None,
+            )
+        )
+        per_definition = engine.GeneratorConfiguration(
+            **{
+                **configuration().__dict__,
+                "crds_payload_directory": "custom-resource-definitions",
+            }
+        )
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            repository_root = Path(temporary_directory)
+            render_path = repository_root / "render.yaml"
+            with render_path.open("w") as stream:
+                yaml.dump_all(resources, stream)
+            completed = subprocess.CompletedProcess(
+                args=[], returncode=0, stdout=render_path.read_text(), stderr=""
+            )
+            definitions = (
+                repository_root
+                / per_definition.output_path
+                / "custom-resource-definitions"
+            )
+
+            with mock.patch.object(engine.subprocess, "run", return_value=completed):
+                engine.generate_manifests(repository_root, per_definition)
+                self.assertEqual(
+                    engine.check_manifests(repository_root, per_definition), []
+                )
+
+                (definitions / "examples.kubeflow.org.yaml").unlink()
+                (definitions / "removed.kubeflow.org.yaml").write_text("kind: x\n")
+                with (definitions / "samples.kubeflow.org.yaml").open("a") as stream:
+                    stream.write("# edited\n")
+
+                self.assertEqual(
+                    engine.check_manifests(repository_root, per_definition),
+                    [
+                        (
+                            "missing",
+                            "custom-resource-definitions/examples.kubeflow.org.yaml",
+                        ),
+                        (
+                            "extra",
+                            "custom-resource-definitions/removed.kubeflow.org.yaml",
+                        ),
+                        (
+                            "stale",
+                            "custom-resource-definitions/samples.kubeflow.org.yaml",
+                        ),
+                    ],
+                )
+
+                engine.generate_manifests(repository_root, per_definition)
+                self.assertEqual(
+                    engine.check_manifests(repository_root, per_definition), []
+                )
+
     def test_failed_kustomize_build_is_reported(self):
         completed = subprocess.CompletedProcess(
             args=[], returncode=1, stdout="", stderr="boom"
