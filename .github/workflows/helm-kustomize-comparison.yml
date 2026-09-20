@@ -136,6 +136,11 @@ jobs:
         cache: false
     - name: Test Helm release storage size
       run: python tests/helm_release_size_test.py
+    - name: Test KServe definitions-only release size
+      # The first KServe release revision renders the definitions alone and no
+      # descriptor scenario covers it. It compiles the Go encoder, so it runs
+      # after Install Go.
+      run: python tests/kserve_helm_release_size_test.py
     - name: Check that the generated Helm payloads are fresh
       # Every generator's --check mode; it renders local inputs and writes
       # nothing, so a stale committed payload fails here whatever changed.
