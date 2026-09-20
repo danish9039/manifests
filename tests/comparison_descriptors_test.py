@@ -88,6 +88,17 @@ class SiblingChartDiscoveryTest(unittest.TestCase):
                 ],
             )
 
+    def test_a_directory_without_a_chart_is_not_discovered(self):
+        """A descriptor alone does not make a chart; Helm would fail on it."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_chart(root, "applications/x/helm")
+            stray = self.write_chart(root, "applications/x/helm-notes")
+            (stray / "Chart.yaml").unlink()
+
+            self.assertEqual(sorted(comparison.discover(root)), ["x-helm"])
+            self.assertEqual(comparison.charts_without_descriptor(root), [])
+
     def test_a_sibling_chart_without_a_descriptor_fails_the_coverage_guard(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

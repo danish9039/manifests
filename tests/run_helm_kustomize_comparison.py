@@ -296,16 +296,17 @@ def charts_without_descriptor(root=ROOT_DIRECTORY):
 def discover(root=ROOT_DIRECTORY):
     """Return {component: (chart directory, descriptor)} for every chart."""
     descriptors = {}
-    for pattern in CHART_GLOBS:
-        for chart in sorted(root.glob(pattern)):
-            path = chart / "ci" / "comparison.yaml"
-            if not path.is_file():
-                continue
-            descriptor = load_descriptor(path)
-            component = descriptor["component"]
-            if component in descriptors:
-                raise ValueError(f"{component!r} is declared twice: {path}")
-            descriptors[component] = (chart, descriptor)
+    # The same definition of a chart as the coverage guard: a directory with a
+    # descriptor but no Chart.yaml is not a chart and is never handed to Helm.
+    for chart in chart_directories(root):
+        path = chart / "ci" / "comparison.yaml"
+        if not path.is_file():
+            continue
+        descriptor = load_descriptor(path)
+        component = descriptor["component"]
+        if component in descriptors:
+            raise ValueError(f"{component!r} is declared twice: {path}")
+        descriptors[component] = (chart, descriptor)
     return descriptors
 
 
