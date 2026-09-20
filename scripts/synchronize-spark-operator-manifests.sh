@@ -23,15 +23,13 @@ CHART_DIRECTORY="${MANIFESTS_DIRECTORY}/${CHART_PATH}"
 SOURCE_TEXT="\[[^]]*\](https://github.com/${REPOSITORY_NAME}/tree/[^)]*)"
 DESTINATION_TEXT="\[${COMMIT#v}\](https://github.com/${REPOSITORY_NAME}/tree/${COMMIT})"
 
-# Keep the developer's Helm home untouched when resolving the chart dependency.
+# Keep the developer's Helm state untouched when resolving the chart dependency.
 HELM_HOME_DIRECTORY="$(mktemp -d)"
 cleanup() {
   rm -rf "$HELM_HOME_DIRECTORY"
 }
 trap cleanup EXIT
-export HELM_CACHE_HOME="$HELM_HOME_DIRECTORY/cache"
-export HELM_CONFIG_HOME="$HELM_HOME_DIRECTORY/config"
-export HELM_DATA_HOME="$HELM_HOME_DIRECTORY/data"
+isolate_helm_environment "$HELM_HOME_DIRECTORY"
 
 update_spark_operator_helm_chart() {
     update_helm_chart_application_version "$CHART_DIRECTORY/Chart.yaml" "${COMMIT#v}"
