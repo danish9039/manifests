@@ -14,3 +14,12 @@ sources:
 annotations:
   category: Serving
   licenses: Apache-2.0
+# The generated payload is an unpacked chart under charts/kserve-payload, so the
+# dependency names no repository and needs neither Chart.lock nor an archive.
+# Helm stores the files of the installed chart in the release record but not
+# the files of its dependencies, which keeps the record below the 1 MiB limit
+# of a Kubernetes Secret.
+dependencies:
+- name: kserve-payload
+  version: 0.1.0
+  alias: payload

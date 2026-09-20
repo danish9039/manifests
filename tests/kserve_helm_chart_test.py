@@ -13,13 +13,16 @@ import yaml
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CHART_PATH = REPOSITORY_ROOT / "applications/kserve/kserve/helm"
-CRDS_PAYLOAD = "manifests/platform-crds.yaml"
-RESOURCES_PAYLOAD = "manifests/platform-resources.yaml"
+PAYLOAD_CHART = "charts/kserve-payload"
+RESOURCES_PAYLOAD = f"{PAYLOAD_CHART}/manifests/platform-resources.yaml"
+DEFINITIONS_DIRECTORY = f"{PAYLOAD_CHART}/manifests/custom-resource-definitions"
+OBSOLETE_TOP_LEVEL_VALUES = {
+    "scenario": "scenario=platform",
+    "customResourceDefinitions": "customResourceDefinitions.enabled=true",
+    "resources": "resources.enabled=false",
+}
 OWNED_NAMESPACE = "kserve"
 CUSTOM_RESOURCE_DEFINITION_COUNT = 16
-# Helm stores the packaged chart, gzip plus base64, in a release Secret that
-# must stay well under the Kubernetes object size limit.
-PACKAGED_CHART_SIZE_LIMIT = 1_000_000
 HELM_BINARY = os.environ.get("HELM_BINARY", "helm")
 
 
@@ -57,6 +60,40 @@ class KServeHelmChartTest(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("must be installed into the kserve namespace", result.stderr)
+
+    def test_obsolete_top_level_values_are_rejected_with_their_replacement(self):
+        """Helm would ignore them silently; the payload chart never sees them."""
+        for key, assignment in OBSOLETE_TOP_LEVEL_VALUES.items():
+            with self.subTest(key=key):
+                result = render_chart(CHART_PATH, "--set", assignment)
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f'top-level value "{key}"', result.stderr)
+                self.assertIn(f"set payload.{key} instead", result.stderr)
+
+    def test_the_payload_is_an_unpacked_dependency_without_lock_or_archive(self):
+        """The release record embeds the parent's files, not the dependency's,
+        and the source tree needs no dependency build."""
+        parent = yaml.safe_load((CHART_PATH / "Chart.yaml").read_text())
+        child = yaml.safe_load((CHART_PATH / PAYLOAD_CHART / "Chart.yaml").read_text())
+
+        self.assertEqual(
+            parent["dependencies"],
+            [{"name": child["name"], "version": child["version"], "alias": "payload"}],
+        )
+        self.assertEqual(parent["appVersion"], child["appVersion"])
+        self.assertFalse((CHART_PATH / "Chart.lock").exists())
+        self.assertEqual(
+            sorted(path.name for path in (CHART_PATH / "charts").iterdir()),
+            ["kserve-payload"],
+        )
+        self.assertFalse((CHART_PATH / "manifests").exists())
+
+    def test_an_invalid_scenario_fails(self):
+        result = render_chart(CHART_PATH, "--set", "payload.scenario=unknown")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('invalid scenario "unknown"', result.stderr)
 
     def test_upstream_template_delimiters_survive_the_render(self):
         """The payload is data, not chart code.
@@ -96,6 +133,17 @@ class KServeHelmChartTest(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn("missing or empty", result.stderr)
 
+    def test_missing_definition_payloads_fail_the_render(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            chart_directory = Path(temporary_directory) / "chart"
+            shutil.copytree(CHART_PATH, chart_directory)
+            shutil.rmtree(chart_directory / DEFINITIONS_DIRECTORY)
+
+            result = render_chart(chart_directory)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("no generated custom resource definition", result.stderr)
+
     def test_custom_resource_definitions_are_retained_and_optional(self):
         definitions = [
             manifest
@@ -110,7 +158,7 @@ class KServeHelmChartTest(unittest.TestCase):
             )
 
         result = render_chart(
-            CHART_PATH, "--set", "customResourceDefinitions.enabled=false"
+            CHART_PATH, "--set", "payload.customResourceDefinitions.enabled=false"
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         remaining = load_manifests(result.stdout)
@@ -128,7 +176,7 @@ class KServeHelmChartTest(unittest.TestCase):
         )
 
     def test_first_revision_renders_only_custom_resource_definitions(self):
-        result = render_chart(CHART_PATH, "--set", "resources.enabled=false")
+        result = render_chart(CHART_PATH, "--set", "payload.resources.enabled=false")
         self.assertEqual(result.returncode, 0, result.stderr)
 
         kinds = {manifest["kind"] for manifest in load_manifests(result.stdout)}
@@ -139,9 +187,9 @@ class KServeHelmChartTest(unittest.TestCase):
         result = render_chart(
             CHART_PATH,
             "--set",
-            "customResourceDefinitions.enabled=false",
+            "payload.customResourceDefinitions.enabled=false",
             "--set",
-            "resources.enabled=false",
+            "payload.resources.enabled=false",
         )
 
         self.assertNotEqual(result.returncode, 0)
@@ -187,31 +235,24 @@ class KServeHelmChartTest(unittest.TestCase):
             {manifest["kind"] for manifest in self.manifests},
         )
 
-    def test_packaged_chart_stays_under_the_release_size_limit(self):
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            result = subprocess.run(
-                [
-                    HELM_BINARY,
-                    "package",
-                    str(CHART_PATH),
-                    "--destination",
-                    temporary_directory,
-                ],
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            archives = list(Path(temporary_directory).glob("*.tgz"))
-
-            self.assertEqual(len(archives), 1)
-            self.assertLess(archives[0].stat().st_size, PACKAGED_CHART_SIZE_LIMIT)
-
     def test_readme_documents_the_two_revision_installation(self):
         readme = (CHART_PATH / "README.md").read_text()
 
-        self.assertIn("--set resources.enabled=false", readme)
-        self.assertIn("--set resources.enabled=true", readme)
+        self.assertIn("--set payload.resources.enabled=false", readme)
         self.assertIn("condition=Established", readme)
+        self.assertNotIn("--reuse-values\n", readme)
+        self.assertNotIn("--set resources.", readme)
+
+    def test_readme_separates_retention_from_the_objects_the_chart_provides(self):
+        readme = " ".join((CHART_PATH / "README.md").read_text().split())
+
+        self.assertIn(
+            "deleted, including every bundled `ClusterServingRuntime` and "
+            "`ClusterStorageContainer`",
+            readme,
+        )
+        self.assertIn("No inference is promised", readme)
+        self.assertIn("it is not a rollback target", readme)
 
 
 if __name__ == "__main__":

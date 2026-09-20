@@ -12,7 +12,7 @@ echo "Installing KServe with Helm ..."
 helm install kserve applications/kserve/kserve/helm \
   --namespace kserve \
   --values applications/kserve/kserve/helm/ci/values-platform.yaml \
-  --set resources.enabled=false \
+  --set payload.resources.enabled=false \
   --wait --timeout 5m
 
 mapfile -t CUSTOM_RESOURCE_DEFINITION_NAMES < <(
@@ -32,8 +32,8 @@ if [[ "${#CUSTOM_RESOURCE_DEFINITION_NAMES[@]}" -eq 0 ]]; then
   echo "No CustomResourceDefinition resources were found in the kserve Helm release." >&2
   exit 1
 fi
-for name in "${CUSTOM_RESOURCE_DEFINITION_NAMES[@]}"; do
-  kubectl wait --for=condition=Established "crd/${name}" --timeout=120s
+for custom_resource_definition_name in "${CUSTOM_RESOURCE_DEFINITION_NAMES[@]}"; do
+  kubectl wait --for=condition=Established "crd/${custom_resource_definition_name}" --timeout=120s
 done
 
 helm upgrade kserve applications/kserve/kserve/helm \
@@ -67,8 +67,8 @@ if [[ "${#DEPLOYMENT_NAMES[@]}" -eq 0 ]]; then
   echo "No Deployment resources were found in the kserve Helm release." >&2
   exit 1
 fi
-for name in "${DEPLOYMENT_NAMES[@]}"; do
-  kubectl rollout status "deployment/${name}" -n kserve --timeout=300s
+for deployment_name in "${DEPLOYMENT_NAMES[@]}"; do
+  kubectl rollout status "deployment/${deployment_name}" -n kserve --timeout=300s
 done
 
 # The Models Web Application keeps its Kustomize installation until its own

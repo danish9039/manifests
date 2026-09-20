@@ -4,5 +4,5 @@
 {{- fail (printf "invalid scenario %q; supported values: %s" $scenario (join ", " $validScenarios)) -}}
 {{- end -}}
 {{- if and (not .Values.customResourceDefinitions.enabled) (not .Values.resources.enabled) -}}
-{{- fail "at least one of customResourceDefinitions.enabled or resources.enabled must be true" -}}
+{{- fail "at least one of payload.customResourceDefinitions.enabled or payload.resources.enabled must be true" -}}
 {{- end -}}

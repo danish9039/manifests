@@ -1,0 +1,14 @@
+# Default values for the generated KServe payload. The kserve parent chart sets
+# them through its payload key; this chart is not installed on its own.
+
+# -- Rendered Kustomize parity scenario.
+# Supported value: platform
+scenario: platform
+
+customResourceDefinitions:
+  # -- Render the sixteen KServe custom resource definitions.
+  enabled: true
+
+resources:
+  # -- Render the KServe control plane.
+  enabled: true

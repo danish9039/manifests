@@ -1,0 +1,8 @@
+{{- /* The values moved under payload when the generated manifests became the
+       kserve-payload dependency. A top-level key would be ignored silently, so
+       it fails instead and names its replacement. */}}
+{{- range $obsoleteKey := list "scenario" "customResourceDefinitions" "resources" }}
+{{- if hasKey $.Values $obsoleteKey }}
+{{- fail (printf "the top-level value %q is not supported; set payload.%s instead" $obsoleteKey $obsoleteKey) }}
+{{- end }}
+{{- end }}

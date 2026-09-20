@@ -3,10 +3,31 @@
 This chart renders the current KServe Kustomize component,
 `applications/kserve/kserve`, with Helm. Kustomize remains the source of truth.
 The synchronization script builds the component once and writes deterministic
-payloads under `manifests/`, which one small template loads with `.Files.Get`:
-`platform-resources.yaml` for the control plane and one file per custom
-resource definition under `custom-resource-definitions/`, because Helm refuses
-any chart file above 5 MiB and the sixteen definitions together weigh 6.7 MB.
+payloads under `charts/kserve-payload/manifests/`, which one small template
+loads with `.Files.Get`: `platform-resources.yaml` for the control plane and one
+file per custom resource definition under `custom-resource-definitions/`,
+because Helm refuses any chart file above 5 MiB and the sixteen definitions
+together weigh 6.7 MB.
+
+## Packaging
+
+One release installs everything. The `kserve` chart is a thin parent; the
+generated payload and the templates that load it are the internal
+`kserve-payload` chart, an unpacked directory under `charts/` that the parent
+declares as a dependency with the alias `payload` and without a repository.
+The source tree therefore holds no `Chart.lock` and no dependency archive, and
+no installation step runs `helm dependency build`.
+
+The split exists because of the release record. Helm stores every release
+revision as one Kubernetes Secret, which cannot exceed 1,048,576 bytes, and
+that record embeds the files of the installed chart but not the files of its
+dependencies. With the payload in the parent the record needs about 1.2 MB and
+the first `helm install` fails; as a dependency it needs less than half of the
+limit. `tests/helm_release_size.py kserve` measures the full installation and
+`tests/kserve_helm_release_size_test.py` the first, definitions-only revision.
+
+`kserve-payload` is not installable on its own and is not the upstream KServe
+chart.
 
 Helm does not send `.Files.Get` content through the template renderer, so the
 Go template expressions that KServe ships in `inferenceservice-config` (the
@@ -45,23 +66,26 @@ own.
 ```bash
 helm install kserve ./applications/kserve/kserve/helm \
   --namespace kserve \
-  --set resources.enabled=false \
+  --values ./applications/kserve/kserve/helm/ci/values-platform.yaml \
+  --set payload.resources.enabled=false \
   --wait
 
-for name in $(helm get manifest kserve --namespace kserve |
-    awk '$0 == "kind: CustomResourceDefinition" {c = 1; next} c && /^  name: / {print $2; c = 0}'); do
-  kubectl wait --for=condition=Established "crd/${name}" --timeout=120s
+for custom_resource_definition_name in $(helm get manifest kserve --namespace kserve |
+    awk '$0 == "kind: CustomResourceDefinition" {definition = 1; next}
+         definition && /^  name: / {print $2; definition = 0}'); do
+  kubectl wait --for=condition=Established \
+    "crd/${custom_resource_definition_name}" --timeout=120s
 done
 
 helm upgrade kserve ./applications/kserve/kserve/helm \
   --namespace kserve \
-  --set resources.enabled=true \
+  --values ./applications/kserve/kserve/helm/ci/values-platform.yaml \
   --wait --timeout 10m
 ```
 
-The second command states `resources.enabled=true` rather than relying on the
-chart default, so the release does not depend on whether the upgrade reuses
-the first revision's values.
+The second command passes the complete values file again and no
+`--reuse-values`, so the release does not depend on the values of the first
+revision: `payload.resources.enabled` is `true` in that file.
 
 `tests/kserve_helm_install.sh` is this procedure as continuous integration
 runs it, followed by the readiness waits of the Kustomize installer.
@@ -72,40 +96,103 @@ The Models Web Application is a separate component, `applications/kserve/kserve-
 
 | Value | Default | Purpose |
 | --- | --- | --- |
-| `scenario` | `platform` | Rendered Kustomize parity scenario. Only `platform` is supported. |
-| `customResourceDefinitions.enabled` | `true` | Render the sixteen KServe custom resource definitions. |
-| `resources.enabled` | `true` | Render the control plane. Set to `false` for the first release revision. |
+| `payload.scenario` | `platform` | Rendered Kustomize parity scenario. Only `platform` is supported. |
+| `payload.customResourceDefinitions.enabled` | `true` | Render the sixteen KServe custom resource definitions. |
+| `payload.resources.enabled` | `true` | Render the control plane. Set to `false` for the first release revision. |
+
+These three keys are the whole interface. The chart fails when `scenario`,
+`customResourceDefinitions` or `resources` is set at the top level, and names
+the `payload.` key to use instead, because Helm would otherwise ignore the
+value silently.
 
 Values that the Kustomize component declares through patches, such as the
 ingress configuration and the controller images, are not exposed. Exposing one
 means rendering the resource that carries it from a hand-written template,
 which is a separate change.
 
-## Custom resource definition lifecycle
+## Lifecycle
+
+### Custom resource definitions
 
 The sixteen definitions are rendered from `templates/` and carry
 `helm.sh/resource-policy: keep`. This deviates from Helm's documented
 recommendation to place custom resource definitions in `crds/`, deliberately:
 Helm never upgrades or deletes anything in `crds/`, which would freeze every
 schema at its first installed version. Rendering them as templates keeps the
-schemas upgradeable, while the retention policy stops `helm uninstall` from
-deleting existing InferenceServices, runtimes and caches.
-
-| operation | definitions | custom resources |
-| --- | --- | --- |
-| `helm install` | created | none yet |
-| `helm upgrade` | updated to the synchronized upstream version | kept |
-| `helm uninstall` | kept (`helm.sh/resource-policy: keep`) | kept |
+schemas upgradeable.
 
 Because they are templates rather than `crds/` content, Helm's `--skip-crds`
-option has no effect on them. Use `customResourceDefinitions.enabled=false`
+option has no effect on them. Use `payload.customResourceDefinitions.enabled=false`
 when an administrator or another release already owns them.
+
+### Upgrade
+
+```bash
+helm upgrade kserve ./applications/kserve/kserve/helm \
+  --namespace kserve \
+  --values ./applications/kserve/kserve/helm/ci/values-platform.yaml \
+  --wait --timeout 10m
+```
+
+Pass the same values file as for the installation and do not pass
+`--reuse-values`. The definitions are updated to the synchronized upstream
+version and every custom resource is kept.
+
+### Rollback
+
+```bash
+helm history kserve --namespace kserve
+helm rollback kserve <revision> --namespace kserve --wait --timeout 10m
+```
+
+Roll back only to a revision that installed everything. Revision 1 of the
+installation above holds the definitions alone; rolling back to it deletes the
+whole control plane, so it is not a rollback target.
+
+### Serving during an upgrade or a rollback
+
+The supported claim is recovery: after the upgrade or the rollback has
+completed and the controllers are ready again, existing `InferenceService`
+objects reconcile and serve. Uninterrupted serving during the operation is not
+claimed. `tests/kserve_helm_lifecycle_test.sh` sends requests to an
+`InferenceService` before, during and after both operations and counts every
+failure and timeout.
+
+### Uninstall and reinstall
+
+The retention policy protects the sixteen definitions, and with them the
+objects that users created from them, such as every `InferenceService`,
+`ServingRuntime` and `TrainedModel`. It protects nothing else. Everything else
+the release owns is deleted, including the `ClusterServingRuntime` and
+`ClusterStorageContainer` objects that the chart itself provides, the
+controllers, the webhooks and the inference service configuration.
+
+| operation | sixteen definitions | objects created by users | objects provided by the chart |
+| --- | --- | --- | --- |
+| `helm install` | created | none yet | created |
+| `helm upgrade` | updated | kept | updated |
+| `helm rollback` to a full revision | restored to that revision | kept | restored to that revision |
+| `helm uninstall` | kept (`helm.sh/resource-policy: keep`) | kept | deleted, including every bundled `ClusterServingRuntime` and `ClusterStorageContainer` |
+| `helm install` again | adopted by the release | kept | created again |
+
+An uninstalled release serves nothing reliably: no controller reconciles the
+kept objects, and an `InferenceService` that refers to a bundled
+`ClusterServingRuntime` has lost that runtime. No inference is promised
+between `helm uninstall` and the next installation.
+
+Installing again with the release name `kserve` in the namespace `kserve`
+adopts the kept definitions, because they still carry the ownership metadata
+of that release; any other release name or namespace is refused by Helm. Use
+the two-revision installation above; afterwards the controllers reconcile the
+kept objects again.
 
 ## How this chart is kept up to date
 
 `COMMIT` in `scripts/synchronize-kserve-kserve-manifests.sh` is the single
 upstream version. The script copies the upstream bundle, regenerates the
-payloads from the component and sets `appVersion`:
+payloads from the component, sets `appVersion` in the `kserve` and the
+`kserve-payload` chart and verifies that the dependency version the parent
+declares equals the version of `kserve-payload`:
 
 ```bash
 python3 -m pip install pyyaml "ruamel.yaml==0.19.1"
@@ -113,7 +200,7 @@ KUBEFLOW_SYNCHRONIZE_NO_COMMIT=true \
   ./scripts/synchronize-kserve-kserve-manifests.sh
 ```
 
-Do not edit files under `manifests/` directly. Review a generated payload change
+Do not edit files under `charts/kserve-payload/manifests/` directly. Review a generated payload change
 by resource identity and upstream source boundary first, then regenerate and
 confirm `git diff` is empty. The replay proves the generator is deterministic; it
 cannot tell you whether a new upstream release introduced an unintended webhook,
@@ -130,9 +217,17 @@ permission or policy change.
 ```bash
 helm lint applications/kserve/kserve/helm --namespace kserve
 python3 tests/run_helm_kustomize_comparison.py kserve platform
+python3 tests/helm_release_size.py kserve
 python3 tests/kserve_helm_chart_test.py
 python3 tests/kserve_helm_manifest_generator_test.py
+python3 tests/kserve_helm_release_size_test.py
+python3 scripts/generate-kserve-helm-manifests.py --check
 ```
+
+`tests/kserve_helm_lifecycle_test.sh` exercises the installation from the
+chart directory and from a packaged chart, the upgrade, the rollback, the
+uninstallation and the reinstallation on a cluster that already provides the
+prerequisites.
 
 How this chart is compared, including every declared allowance, is in
 [`ci/comparison.yaml`](ci/comparison.yaml); the descriptor format is documented in

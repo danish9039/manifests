@@ -6,7 +6,6 @@ definition retention, deterministic rendering and atomic replacement live in
 scripts/helm_manifest_generator.py so every component shares one engine.
 """
 
-import argparse
 import importlib.util
 import sys
 
@@ -21,10 +20,15 @@ _SPEC.loader.exec_module(engine)
 # The component's own kustomization.yaml is the source: a chart-side wrapper
 # kustomization under helm/ cannot reference its parent directory, because
 # Kustomize rejects a root that contains an already visited root.
+#
+# The payloads belong to the internal kserve-payload chart, a dependency of the
+# kserve chart: Helm stores the files of the installed chart in the release
+# record, but not the files of its dependencies, and the record must fit into a
+# Kubernetes Secret.
 CONFIGURATION = engine.GeneratorConfiguration(
     component_name="KServe",
     kustomize_path=Path("applications/kserve/kserve"),
-    output_path=Path("applications/kserve/kserve/helm/manifests"),
+    output_path=Path("applications/kserve/kserve/helm/charts/kserve-payload/manifests"),
     generator_script="scripts/generate-kserve-helm-manifests.py",
     synchronize_script="scripts/synchronize-kserve-kserve-manifests.sh",
     # Together the sixteen definitions weigh 6.7 MB and Helm refuses any chart
@@ -38,34 +42,12 @@ CONFIGURATION = engine.GeneratorConfiguration(
 )
 
 
-def parse_arguments():
-    parser = argparse.ArgumentParser(
-        description="Generate payloads for the KServe Helm chart."
-    )
-    parser.add_argument(
-        "--repository-root",
-        type=Path,
-        default=Path(__file__).resolve().parents[1],
-        help="Path to the kubeflow/community-distribution repository.",
-    )
-    return parser.parse_args()
-
-
 def main():
-    arguments = parse_arguments()
-    try:
-        resource_count, payload_filenames = engine.generate_manifests(
-            arguments.repository_root, CONFIGURATION
-        )
-    except Exception as error:
-        print(f"ERROR: {error}", file=sys.stderr)
-        return 1
-
-    print(
-        f"Generated {resource_count} KServe resources across "
-        f"{len(payload_filenames)} files."
+    return engine.command_line(
+        CONFIGURATION,
+        description="Generate payloads for the KServe Helm chart.",
+        default_repository_root=Path(__file__).resolve().parents[1],
     )
-    return 0
 
 
 if __name__ == "__main__":

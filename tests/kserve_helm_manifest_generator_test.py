@@ -15,7 +15,9 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 GENERATOR_PATH = REPOSITORY_ROOT / "scripts/generate-kserve-helm-manifests.py"
-CHART_PATH = REPOSITORY_ROOT / "applications/kserve/kserve/helm"
+PAYLOAD_CHART_PATH = (
+    REPOSITORY_ROOT / "applications/kserve/kserve/helm/charts/kserve-payload"
+)
 
 CRDS_PAYLOAD_DIRECTORY = "custom-resource-definitions/"
 RESOURCES_PAYLOAD = "platform-resources.yaml"
@@ -76,12 +78,19 @@ class KServeGeneratorConfigurationTest(unittest.TestCase):
             with self.subTest(payload=filename):
                 self.assertLess(len(contents.encode()), 5 * 1024 * 1024)
 
+    def test_payloads_are_written_into_the_payload_chart(self):
+        """In the kserve chart itself they would exceed the release record."""
+        self.assertEqual(
+            REPOSITORY_ROOT / generator.CONFIGURATION.output_path,
+            PAYLOAD_CHART_PATH / "manifests",
+        )
+
     def test_checked_in_payloads_are_current(self):
         """The committed payloads equal a fresh generation, byte for byte."""
         for filename, contents in self.payloads.items():
             with self.subTest(payload=filename):
                 self.assertEqual(
-                    (CHART_PATH / "manifests" / filename).read_text(), contents
+                    (PAYLOAD_CHART_PATH / "manifests" / filename).read_text(), contents
                 )
 
 
