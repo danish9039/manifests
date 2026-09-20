@@ -13,10 +13,17 @@ This chart is a relocation draft.
 The hand-written chart moved from `experimental/helm/charts/katib` to
 `applications/katib/helm`, next to its Kustomize component. The chart name, the
 release name `katib`, the namespace `kubeflow`, the templates, the values keys
-and the definitions in `crds/` are unchanged, and every values file renders the
-same resources from both paths. The chart at the old path was experimental, so
-this chart neither documents nor tests an upgrade of a release that was
-installed from the old path.
+and the definitions in `crds/` are unchanged apart from the one field named
+below, and every values file renders the same resources from both paths. The
+chart at the old path was experimental, so this chart neither documents nor
+tests an upgrade of a release that was installed from the old path.
+
+The template of the aggregated ClusterRole `kubeflow-katib-admin` no longer
+ships `rules`, which the aggregation controller owns, because an unchanged
+`helm upgrade` of this chart failed on that role with
+`conflict with "clusterrole-aggregation-controller": .rules` while the template
+shipped `rules: []` (observed 2026-09-21, Helm 4.2.2, Kubernetes 1.36.1); a
+`helm upgrade` after this change is **not yet verified** on a cluster.
 
 ## Prerequisites
 
@@ -76,17 +83,23 @@ helm install katib applications/katib/helm --namespace kubeflow \
 ## CustomResourceDefinitions
 
 The `experiments`, `suggestions` and `trials` CustomResourceDefinitions are in
-`crds/`. Helm installs them once and never upgrades or deletes them, and they
-survive `helm uninstall`. When a Katib release changes a schema, the
-definitions of the chart version that is about to be installed have to be
-applied before `helm upgrade`. The intended command is:
+`crds/`. Helm 4.2.2 handles them as follows:
 
-```bash
-helm show crds applications/katib/helm | kubectl apply --server-side -f -
-```
+- On `helm install`,
+  [`installCRDs`](https://github.com/helm/helm/blob/v4.2.2/pkg/action/install.go#L185)
+  sends a server-side apply `PATCH` for every definition in `crds/` with
+  `fieldManager=helm` and `force=false`, and no `GET` precedes it. A later
+  installation can therefore reapply the bundled definitions.
+- An ordinary `helm upgrade` of an existing release does not touch the
+  definitions in `crds/`.
+- `helm uninstall` does not delete them.
+
+When a Katib release changes a schema, the definitions of the chart version
+that is about to be installed have to be applied before `helm upgrade`.
 
 Observed with Helm 4.2.2 on Kubernetes 1.36.1, on definitions that
-`helm install` created from `crds/`:
+`helm install` created from `crds/`, with the command
+`helm show crds applications/katib/helm | kubectl apply --server-side -f -`:
 
 - With unchanged definitions the command succeeds. `kubectl` becomes a second
   field manager of the three definitions, next to `helm`.
@@ -99,8 +112,85 @@ Observed with Helm 4.2.2 on Kubernetes 1.36.1, on definitions that
   error: Apply failed with 1 conflict: conflict with "helm": .spec.versions
   ```
 
-How an administrator updates a changed definition is an open decision. This
-chart does not provide a verified procedure for it yet.
+### Updating a changed definition
+
+**UNVERIFIED.** This procedure has not run on a cluster. It stays unverified
+until a cluster test has covered a small compatible changed definition, the
+handover to the named field manager and a reinstallation with `--skip-crds`.
+
+1. Take the definitions, and nothing else, from the pinned target chart, and
+   check that the file holds only the three intended definitions:
+
+   ```bash
+   helm show crds applications/katib/helm > target-crds.yaml
+   grep "^kind:\|^  name:" target-crds.yaml
+   ```
+
+   The expected output is `kind: CustomResourceDefinition` three times, each
+   followed by one of `experiments.kubeflow.org`, `suggestions.kubeflow.org` and
+   `trials.kubeflow.org`. Schema compatibility, storage version compatibility
+   and any data migration are separate prerequisites. Forcing ownership does
+   not perform them.
+2. Use one stable field manager for this work, exactly
+   `kubeflow-crd-maintenance`. Start with a server dry run without force:
+
+   ```bash
+   kubectl apply --server-side --field-manager=kubeflow-crd-maintenance \
+     --dry-run=server -f target-crds.yaml
+   ```
+
+   If it passes, run the same command without `--dry-run=server`, skip step 3
+   and continue with step 4. The real apply needs no force in that case.
+
+   If it reports a conflict, inspect the conflicting fields and their owners:
+
+   ```bash
+   kubectl get crd <name> -o yaml --show-managed-fields
+   ```
+
+   A conflict with `helm` on `.spec.versions` is the result recorded above for
+   a changed definition. Stop on unexpected controller-owned or externally
+   managed fields.
+3. Only after that review, and only for this definitions-only file, run the
+   forced dry run and then the forced apply:
+
+   ```bash
+   kubectl apply --server-side --field-manager=kubeflow-crd-maintenance \
+     --force-conflicts --dry-run=server -f target-crds.yaml
+   kubectl apply --server-side --field-manager=kubeflow-crd-maintenance \
+     --force-conflicts -f target-crds.yaml
+   ```
+
+   `--force-conflicts` here belongs to `kubectl apply` on the definitions-only
+   file. It is not a flag for `helm upgrade` of the release.
+4. Check that every definition is established, then upgrade the release:
+
+   ```bash
+   kubectl wait --for=condition=Established \
+     crd/experiments.kubeflow.org crd/suggestions.kubeflow.org crd/trials.kubeflow.org
+   helm upgrade katib applications/katib/helm --namespace kubeflow \
+     --values applications/katib/helm/ci/values-kubeflow.yaml
+   ```
+
+   Keep the same field manager for later updates. One forced handover does not
+   rule out later conflicts on fields that are still shared.
+5. When the definitions are administrator-managed, reinstall with
+   `--skip-crds`, and have compatible definitions present first:
+
+   ```bash
+   helm install katib applications/katib/helm --namespace kubeflow \
+     --values applications/katib/helm/ci/values-kubeflow.yaml \
+     --skip-crds --wait --timeout 5m
+   ```
+
+   The same flag applies to the install side of `helm upgrade --install`.
+   Without it, `helm install` applies the bundled definitions again as the field
+   manager `helm`.
+
+Never delete and recreate the definitions to settle ownership. That deletes
+every Experiment, Suggestion and Trial, and the Katib finalizers
+(`update-prometheus-metrics`, `clean-metrics-in-db`) block the deletion while no
+controller runs (observed 2026-09-21).
 
 ## Database credentials
 
