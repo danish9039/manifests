@@ -11,8 +11,8 @@ CHART_DIRECTORY="applications/spark/spark-operator/helm"
 CHART_REPOSITORY="https://kubeflow.github.io/spark-operator"
 
 # The upstream chart is a dependency that is never committed. Build it in a
-# temporary copy with isolated Helm homes, so that no archive is left in the
-# source tree and the caller's Helm repositories are not changed.
+# temporary copy with an isolated Helm environment, so that no archive is left
+# in the source tree and the caller's Helm repositories are not changed.
 WORK_DIRECTORY="$(mktemp -d)"
 cleanup() {
   rm -rf "${WORK_DIRECTORY}"
@@ -21,9 +21,9 @@ trap cleanup EXIT
 CHART_COPY="${WORK_DIRECTORY}/spark-operator"
 cp -R "${CHART_DIRECTORY}" "${CHART_COPY}"
 (
-  export HELM_CACHE_HOME="${WORK_DIRECTORY}/helm/cache"
-  export HELM_CONFIG_HOME="${WORK_DIRECTORY}/helm/configuration"
-  export HELM_DATA_HOME="${WORK_DIRECTORY}/helm/data"
+  # shellcheck source=scripts/library.sh
+  source "${REPOSITORY_ROOT}/scripts/library.sh"
+  isolate_helm_environment "${WORK_DIRECTORY}/helm"
   helm repo add spark-operator "${CHART_REPOSITORY}"
   helm dependency build "${CHART_COPY}"
 )

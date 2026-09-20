@@ -32,6 +32,20 @@ require_helm_version() {
   fi
 }
 
+# Point Helm at directories under "$1" so that a script neither reads nor
+# changes the caller's Helm state. HELM_REPOSITORY_CONFIG,
+# HELM_REPOSITORY_CACHE and HELM_PLUGINS override or extend the three home
+# directories, so an inherited value would reach the caller's repository
+# configuration, repository cache or plugins after all; they are removed, as
+# helm_environment in tests/run_helm_kustomize_comparison.py removes them.
+isolate_helm_environment() {
+  local home="$1"
+  export HELM_CACHE_HOME="$home/cache"
+  export HELM_CONFIG_HOME="$home/configuration"
+  export HELM_DATA_HOME="$home/data"
+  unset HELM_REPOSITORY_CONFIG HELM_REPOSITORY_CACHE HELM_PLUGINS
+}
+
 # Check if the git repository has uncommitted changes
 check_uncommitted_changes() {
   if [ -n "$(git status --porcelain)" ]; then
