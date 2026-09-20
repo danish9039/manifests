@@ -94,8 +94,8 @@ left alone.
 
 ## Custom resource definition lifecycle
 
-**The three Spark custom resource definitions are installed once and are not
-upgraded by `helm upgrade`.**
+**The three Spark custom resource definitions are not upgraded by `helm upgrade`
+and not deleted by `helm uninstall`.**
 
 They come from the upstream chart's `crds/` directory. Helm states plainly that
 there is *"no support at this time for upgrading or deleting CRDs"*
@@ -114,29 +114,98 @@ so it fails restricted Pod Security admission in `kubeflow`.
 
 | Operation | Behaviour |
 | --- | --- |
-| `helm install` | Creates the definitions if absent. |
+| `helm install` | Applies the bundled definitions server-side as field manager `helm`, also when they already exist. |
 | `helm upgrade` | **Does not** update them. |
 | `helm uninstall` | Leaves them and every Spark application in place. |
 
-Apply a definition change from a new release manually:
+### Definition maintenance
 
-```bash
-helm show crds spark-operator \
-  --repo https://kubeflow.github.io/spark-operator --version 2.5.2 \
-  | kubectl apply --server-side --force-conflicts -f -
-```
+An administrator applies a definition change from a new release before the chart
+upgrade, as the field manager `kubeflow-crd-maintenance`. Keep exactly this name
+for every later update.
 
-`helm show crds` prints the three definitions of the pinned chart version, so the
-command needs no checkout and no file listing.
+1. Extract only the definitions, from the upstream chart version that the target
+   release of this chart pins:
 
-`--force-conflicts` is required as soon as a definition really changes. Helm 4
-creates the definitions server-side, so the field manager `helm` owns
-`.spec.versions`, and without the option the apply stops with
-`conflict with "helm": .spec.versions`. Verified on a live cluster: without the
-option, definitions that differ from the installed ones are refused with that
-conflict and unchanged ones are accepted. Taking the field over is safe, because
-Helm does not write to these definitions again: an uninstallation followed by an
-installation left their `resourceVersion` unchanged.
+   ```bash
+   helm show crds spark-operator \
+     --repo https://kubeflow.github.io/spark-operator --version 2.5.2 \
+     > target-crds.yaml
+   ```
+
+   Check that the file holds only the three intended definitions. Schema
+   compatibility, storage version compatibility and any data migration are
+   separate prerequisites; `--force-conflicts` performs none of them.
+
+2. Preview on the server without force:
+
+   ```bash
+   kubectl apply --server-side --field-manager=kubeflow-crd-maintenance \
+     --dry-run=server -f target-crds.yaml
+   ```
+
+   When it passes, repeat it without `--dry-run=server` and continue with step 4.
+   No force is needed.
+
+3. Helm created the definitions server-side, so a changed definition is refused
+   with `conflict with "helm": .spec.versions`. The message does not name the
+   definition; it is the one that is not reported as `serverside-applied`.
+   Inspect the conflicting fields and their managers:
+
+   ```bash
+   kubectl get crd sparkapplications.sparkoperator.k8s.io -o yaml --show-managed-fields
+   ```
+
+   Stop when a manager other than `helm` or `kubeflow-crd-maintenance` owns a
+   conflicting field. Only after this review, preview and then apply the
+   handover with the same manager and the same file:
+
+   ```bash
+   kubectl apply --server-side --field-manager=kubeflow-crd-maintenance \
+     --force-conflicts --dry-run=server -f target-crds.yaml
+   kubectl apply --server-side --field-manager=kubeflow-crd-maintenance \
+     --force-conflicts -f target-crds.yaml
+   ```
+
+4. Check that the definitions are established, and with `kubectl explain` that a
+   field which the new version changes carries the intended schema. Then upgrade
+   the chart.
+
+   ```bash
+   kubectl wait --for=condition=Established --timeout=60s -f target-crds.yaml
+   ```
+
+**One forced apply does not end every later conflict.** It hands over only the
+fields that changed: `kubeflow-crd-maintenance` then owns `.spec.versions` of the
+changed definition alone, and a further change to it passes without force.
+`helm` still shares every unchanged field, including `.spec.versions` of an
+unchanged definition, so the first change there conflicts with `helm` again. A
+different field manager conflicts with `kubeflow-crd-maintenance` as well.
+
+**Reinstall with `--skip-crds` once the definitions are administrator-managed**,
+with compatible definitions present first. Pass it to `helm install`, and to
+`helm upgrade --install` because its install side behaves the same. Without it,
+Helm applies the bundled definitions again as `helm`, without force. When they
+differ from the maintained ones, the installation fails before it creates a
+release, with `conflict with "kubeflow-crd-maintenance": .spec.versions`. When
+they are equal, it succeeds, and `helm` shares `.spec.versions` again, so the
+next change needs force again.
+
+**Never delete and recreate a definition to resolve ownership.** Deleting a
+definition deletes every object of its kind, for `sparkapplications` every Spark
+application.
+
+Verified on a cluster, in this scope: one single-node kind cluster, Kubernetes
+1.36.1, Helm 4.2.2, the pinned definitions with one changed `description` in
+`sparkapplications`. Steps 1 to 4, an unchanged `helm upgrade` without any force
+option, and both reinstallation outcomes were observed. The equal case used a
+local copy of the dependency with the same change, and the statements about later
+changes come from server dry runs. The three definitions and a completed Spark
+application kept their UIDs, the changed schema stayed in place, and a new
+application completed after the reinstallation with `--skip-crds`. An upgrade to
+a newer upstream version was not tested. The earlier check against the
+definitions of upstream chart 2.2.1 was a server dry-run conflict probe, not a
+supported downgrade and not an upgrade to a newer version.
 
 ## Uninstallation and reinstallation
 
@@ -146,6 +215,12 @@ at run time and that are therefore not part of the release:
 `Secret/spark-operator-webhook-certs`, `Lease/spark-operator-controller-lock` and
 `Lease/spark-operator-webhook-lock`. There is no claim that a running application
 continues without the operator.
+
+A reinstallation applies the bundled definitions again as field manager `helm`.
+For a definition that `helm` still owns with identical content, this changed
+nothing on a live cluster: the UID and the `resourceVersion` stayed the same.
+For administrator-managed definitions, reinstall with `--skip-crds` as described
+in [Definition maintenance](#definition-maintenance).
 
 After a reinstallation the new webhook pod is ready before it is the leader: it
 first waits for the `Lease` of the previous pod to expire, and it writes
