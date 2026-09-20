@@ -3,9 +3,11 @@
 # Workspaces (Notebooks v2) is still pre-GA. Do not deploy it to a production
 # cluster.
 #
-# The chart vendors the Kustomize Istio overlay verbatim. Values that the
-# Kustomize baseline declares, such as container images, are not exposed; that
-# is a separate change.
+# The chart vendors the Kustomize Istio overlay with two controlled transforms:
+# both definitions receive helm.sh/resource-policy: keep, and the three
+# aggregated ClusterRoles omit their empty rules field, which the Kubernetes
+# aggregation controller owns. Values that the Kustomize baseline declares, such
+# as container images, are not exposed; that is a separate change.
 
 # -- Rendered Kustomize parity scenario.
 # Supported value: istio

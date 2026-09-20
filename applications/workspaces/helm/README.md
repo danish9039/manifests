@@ -61,6 +61,28 @@ The release is listed in `kubeflow`, not in `kubeflow-workspaces`:
 helm list -n kubeflow
 ```
 
+## Upgrade And Rollback
+
+```bash
+helm upgrade kubeflow-workspaces applications/workspaces/helm \
+  --namespace kubeflow \
+  --values applications/workspaces/helm/ci/values-istio.yaml \
+  --wait --timeout 5m
+helm history kubeflow-workspaces --namespace kubeflow
+helm rollback kubeflow-workspaces <revision> --namespace kubeflow --wait --timeout 5m
+```
+
+`helm upgrade` and `helm rollback` need no force option.
+`kubeflow-workspaces-admin`, `kubeflow-workspaces-edit` and
+`kubeflow-workspaces-view` are
+[aggregated ClusterRoles](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#aggregated-clusterroles):
+the Kubernetes aggregation controller owns their `rules` field and fills it from
+the ClusterRoles that each `aggregationRule` selects. The Kustomize baseline
+declares `rules: []` on all three. The chart omits the field, because a manifest
+that sets it, even to an empty list, claims a field that the controller owns. The
+`aggregationRule` selectors, the labels and the ClusterRoles that contribute the
+permissions are the ones of the Kustomize baseline.
+
 ## Release Namespace And Workload Namespace
 
 Other Kubeflow charts install into the namespace that holds their workloads.
@@ -162,9 +184,9 @@ change.
 recommendation to place custom resource definitions in `crds/`, deliberately:
 Helm never upgrades or deletes anything in `crds/`, which would freeze both
 schemas at their first installed version while upstream publishes a new beta
-about every two weeks. Rendering them as templates keeps the schemas
-upgradeable, while the retention policy stops `helm uninstall` from deleting
-existing Workspaces and WorkspaceKinds.
+about every two weeks. Rendering them as templates makes both schemas part of
+what `helm upgrade` applies, while the retention policy stops `helm uninstall`
+from deleting existing Workspaces and WorkspaceKinds.
 
 Because they are templates rather than `crds/` content, Helm's `--skip-crds`
 option has no effect on them. Use `customResourceDefinitions.enabled=false` when
@@ -189,7 +211,10 @@ with a certificate that cert-manager issues into `kubeflow-workspaces`.
 
 `kustomize/kustomization.yaml` is the generator input: that overlay plus one
 patch that adds `helm.sh/resource-policy: keep` to every definition. The
-content-hashed ConfigMap name is kept exactly as Kustomize renders it.
+payloads keep what Kustomize renders, including the content-hashed ConfigMap
+name, with two controlled transforms: the keep annotation on both definitions,
+and the omitted `rules` field of the three aggregated ClusterRoles
+([Upgrade And Rollback](#upgrade-and-rollback)).
 
 ## Comparison
 
@@ -209,7 +234,12 @@ the comparison.
 `tests/workspaces_helm_lifecycle_test.sh` exercises explicit `Workspace`
 deletion, uninstall with a retained `Workspace`, reinstallation and the refusal
 of a namespace that the release does not own; it is destructive and is not part
-of a workflow.
+of a workflow. `tests/workspaces_helm_upgrade_test.sh` runs an unchanged
+upgrade, an upgrade to a changed copy of the chart and a rollback, all without a
+force option. After each it checks that the three aggregated ClusterRoles carry
+rules, that Helm is not a manager of that field, and that a ServiceAccount bound
+to `kubeflow-workspaces-edit` may still create a `Workspace`; it is not part of
+a workflow either.
 
 ## Keeping The Chart Up To Date
 
