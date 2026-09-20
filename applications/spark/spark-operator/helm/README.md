@@ -138,6 +138,25 @@ conflict and unchanged ones are accepted. Taking the field over is safe, because
 Helm does not write to these definitions again: an uninstallation followed by an
 installation left their `resourceVersion` unchanged.
 
+## Uninstallation and reinstallation
+
+`helm uninstall` deletes every object of the release. It leaves the three
+definitions, every Spark application, and three objects that the operator creates
+at run time and that are therefore not part of the release:
+`Secret/spark-operator-webhook-certs`, `Lease/spark-operator-controller-lock` and
+`Lease/spark-operator-webhook-lock`. There is no claim that a running application
+continues without the operator.
+
+After a reinstallation the new webhook pod is ready before it is the leader: it
+first waits for the `Lease` of the previous pod to expire, and it writes
+`caBundle` into the two webhook configurations only as the leader. That took 16
+to 19 seconds on a live cluster, and until then the API server rejected a Spark
+application with `x509: certificate signed by unknown authority`.
+`tests/spark_helm_install.sh` therefore waits for `caBundle`.
+`tests/spark_helm_lifecycle_test.sh` verified the rest on the same cluster: the
+reinstalled controller completes a new application, leaves a completed one
+alone, and submits it again when its specification changes.
+
 ## How this chart is kept up to date
 
 `scripts/synchronize-spark-operator-manifests.sh` owns a single version, `COMMIT`,
