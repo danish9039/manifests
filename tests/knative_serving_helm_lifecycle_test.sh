@@ -19,8 +19,17 @@ revision=$(helm history knative-serving -n kubeflow -o json | python3 -c 'import
 cp -a "$chart" "$temporary/chart"
 # A disposable candidate changes the controller Pod template, proving a real
 # workload rollout instead of only incrementing the stored release revision.
-yq eval -i '(select(.kind == "Deployment" and .metadata.name == "controller").spec.template.metadata.annotations."tests.kubeflow.org/lifecycle") = "changed"' \
-    "$temporary/chart/manifests/platform-resources.yaml"
+python3 - "$temporary/chart/manifests/platform-resources.yaml" <<'PYTHON'
+import sys
+from pathlib import Path
+import yaml
+path = Path(sys.argv[1])
+resources = list(yaml.safe_load_all(path.read_text()))
+controllers = [r for r in resources if r and r["kind"] == "Deployment" and r["metadata"]["name"] == "controller"]
+assert len(controllers) == 1, "Expected one controller Deployment"
+controllers[0]["spec"]["template"]["metadata"].setdefault("annotations", {})["tests.kubeflow.org/lifecycle"] = "changed"
+path.write_text(yaml.safe_dump_all(resources, sort_keys=False))
+PYTHON
 helm upgrade knative-serving "$temporary/chart" -n kubeflow --wait --timeout 10m
 kubectl rollout status deployment/controller -n knative-serving --timeout=120s
 KNATIVE_HELM_KEEP_FIXTURE=true ./tests/knative_serving_helm_smoke_test.sh "$namespace"

@@ -88,7 +88,7 @@ python3 tests/run_helm_kustomize_comparison.py knative-serving --all-scenarios
 python3 tests/knative_serving_helm_chart_test.py
 python3 tests/helm_release_size.py knative-serving
 ./tests/knative_serving_helm_smoke_test.sh kubeflow-user-example-com
-# Destructive; use only a disposable test cluster.
+# Destructive; use only a disposable test cluster. Requires PyYAML.
 ./tests/knative_serving_helm_lifecycle_test.sh kubeflow-user-example-com
 ```
 

@@ -88,6 +88,9 @@ jobs:
     - name: Install Dashboard with Helm
       run: ./tests/dashboard_helm_install.sh
 
+    - name: Install Knative lifecycle test dependency
+      run: pip3 install PyYAML==6.0.2
+
     - name: Install Knative Serving with Helm
       # The istio release already owns the cluster-local gateway and the
       # Kubeflow Istio resources, so the shared script skips its Istio applies.
