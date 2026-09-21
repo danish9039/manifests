@@ -26,7 +26,16 @@ cat >"$temporary/service.json" <<'JSON'
   "apiVersion": "serving.knative.dev/v1",
   "kind": "Service",
   "metadata": {"generateName": "helm-admission-probe-", "namespace": "knative-serving"},
-  "spec": {"template": {"spec": {"containers": [{"image": "hashicorp/http-echo:1.0.0"}]}}}
+  "spec": {"template": {"spec": {"containers": [{
+    "image": "hashicorp/http-echo:1.0.0",
+    "securityContext": {
+      "runAsNonRoot": true,
+      "runAsUser": 65532,
+      "seccompProfile": {"type": "RuntimeDefault"},
+      "allowPrivilegeEscalation": false,
+      "capabilities": {"drop": ["ALL"]}
+    }
+  }]}}}
 }
 JSON
 kubectl create --dry-run=server -f "$temporary/service.json" -o json >"$temporary/defaulted.json"
