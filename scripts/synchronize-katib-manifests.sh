@@ -95,9 +95,10 @@ apply_katib_mysql_patch() {
     rm -rf "$candidate_directory"
 }
 
-# Partial maintenance: only the application version and global.imageTag follow
-# COMMIT. The collector and suggestion image pins in config.katibConfig, the
-# CustomResourceDefinitions in crds and the templates are maintained by hand.
+# The payloads in manifests are generated from the imported installation. Of
+# the hand-written chart, only the application version and global.imageTag
+# follow COMMIT: the collector and suggestion image pins in config.katibConfig,
+# the CustomResourceDefinitions in crds and the templates are maintained by hand.
 update_katib_helm_chart() {
     local values_file
 
@@ -106,6 +107,8 @@ update_katib_helm_chart() {
         # Rewrite only the imageTag key directly under the top-level global key.
         sed -i "/^global:/,/^[^[:space:]#]/ s|^  imageTag: .*|  imageTag: ${COMMIT}|" "$values_file"
     done
+    python3 "${SCRIPT_DIRECTORY}/generate-katib-helm-manifests.py" \
+        --repository-root "$MANIFESTS_DIRECTORY"
 }
 
 validate_katib_helm_chart() {
@@ -134,6 +137,9 @@ commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from 
   "${HELM_CHART_PATH}/Chart.yaml" \
   "${HELM_CHART_PATH}/values.yaml" \
   "${HELM_CHART_PATH}/ci" \
+  "${HELM_CHART_PATH}/kustomize/kustomization.yaml" \
+  "${HELM_CHART_PATH}/manifests" \
+  "${SCRIPT_DIRECTORY}/generate-katib-helm-manifests.py" \
   "${SCRIPT_DIRECTORY}/synchronize-katib-manifests.sh" \
   "README.md"
 echo "Synchronization completed successfully."
