@@ -2,9 +2,9 @@ apiVersion: v2
 
 name: katib
 
-description: A Helm chart for Katib - AutoML on Kubernetes
+description: A Helm chart for the Katib platform resources of the Kubeflow community distribution
 
-version: 0.17.0
+version: 0.18.0
 
 appVersion: "v0.19.0"
 
