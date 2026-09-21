@@ -34,6 +34,7 @@ COMMAND_SOURCES = [
     REPOSITORY_ROOT / "tests/workspaces_helm_install.sh",
     REPOSITORY_ROOT / "tests/workspaces_helm_lifecycle_test.sh",
     REPOSITORY_ROOT / "tests/workspaces_helm_upgrade_test.sh",
+    REPOSITORY_ROOT / "tests/workspaces_helm_upgrade_cleanup_test.sh",
 ]
 CLUSTER_SCOPED_KINDS = {
     "ClusterRole",
