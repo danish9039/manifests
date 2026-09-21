@@ -5,8 +5,9 @@ The lifecycle script and the installer run unchanged in a miniature repository,
 against tests/trainer_helm_lifecycle_fake_cluster.py as helm and kubectl. Only
 tests/trainer_test.sh is replaced, because it needs the Kubeflow SDK. This proves
 the selection of scenarios, the order of the calls, that a reinstallation issues
-the calls of the installer, that no call carries a force option and that only
-objects of the same run are deleted. It proves nothing about a real cluster.
+the calls of the installer, that no call carries a force option, that only
+objects of the same run are deleted and that a failed read never counts as the
+absence of an object. It proves nothing about a real cluster.
 
 Every run is independent of the others, so all of them start together in
 setUpClass and a test waits only for the runs that it inspects.
@@ -60,6 +61,31 @@ CONNECTION_FAILURE = (
     'webhook "validator.trainjob.trainer.kubeflow.org": connection refused'
 )
 PACKAGED_CHART = "{packaged chart}"
+HELD_JOB = f"{PREFIX}-unmanaged-job"
+HELD_SNAPSHOT = f"configmap/{HELD_JOB}-runtime-snapshot"
+HELD_JOB_SET = f"jobset/{HELD_JOB}"
+ABSENCE_READ = "kubectl get {} --namespace " + NAMESPACE + " --ignore-not-found -o name"
+KUEUE_DEFINITION = "customresourcedefinition/workloads.kueue.x-k8s.io"
+NOT_READ = "could not be read, which is no evidence that it is absent"
+# The held TrainJob is read twice in the window of one second, once while the
+# runtime is absent and once at the end, so the number of reads that still find
+# the object absent selects the check that must find it.
+APPEARING = {
+    "snapshot in the window": (HELD_SNAPSHOT, 1, "within 1 seconds of its creation"),
+    "JobSet in the window": (HELD_JOB_SET, 1, "within 1 seconds of its creation"),
+    "snapshot during the retirement": (
+        HELD_SNAPSHOT,
+        2,
+        "while torch-distributed is absent",
+    ),
+    "JobSet at the end": (HELD_JOB_SET, 3, "at the end of the scenario"),
+}
+# Each fragment is the read of one check whose good news is an absent object.
+UNREAD_ABSENCE_CHECKS = {
+    "fixtures": f"clustertrainingruntime/{PREFIX}-administrator --ignore-not-found",
+    "controller-reinstall": "jobset-validating-webhook-configuration --ignore-not-found",
+    "retirement-after-snapshot": "clustertrainingruntime/torch-distributed --ignore-not-found",
+}
 WITHOUT_EFFECT = {
     "controller-upgrade-rollback": "does not carry the changed Pod template",
     "api-upgrade": "does not serve the property",
@@ -104,6 +130,29 @@ RUNS = {
         "retirement-before-snapshot",
         existing=["customresourcedefinition||workloads.kueue.x-k8s.io"],
     ),
+    "unreadable kueue": lifecycle(
+        NAMESPACE, "retirement-before-snapshot", FAKE_UNREADABLE=KUEUE_DEFINITION
+    ),
+    "held": lifecycle(NAMESPACE, "retirement-before-snapshot"),
+    # The reproduction of the review: the snapshot exists and its reads fail.
+    "existing snapshot with failing reads": lifecycle(
+        NAMESPACE,
+        "retirement-before-snapshot",
+        FAKE_SNAPSHOT_FOR_EXTERNAL_MANAGER="true",
+        FAIL_COMMAND="unmanaged-job-runtime-snapshot",
+        TRAINER_HELM_LIFECYCLE_KEEP_FIXTURES="true",
+    ),
+    "unreadable snapshot": lifecycle(
+        NAMESPACE, "retirement-before-snapshot", FAKE_UNREADABLE=HELD_SNAPSHOT
+    ),
+    "unreadable JobSet": lifecycle(
+        NAMESPACE, "retirement-before-snapshot", FAKE_UNREADABLE=HELD_JOB_SET
+    ),
+    "unreadable definition": lifecycle(
+        NAMESPACE,
+        "api-upgrade",
+        FAIL_COMMAND="crd/trainjobs.trainer.kubeflow.org -o json$",
+    ),
     "admitted without runtime": lifecycle(
         NAMESPACE, "retirement-after-snapshot", FAKE_ADMIT_WITHOUT_RUNTIME="true"
     ),
@@ -132,6 +181,17 @@ RUNS = {
         NAMESPACE, "all", TRAINER_APIS_CHART="/missing/chart.tgz"
     ),
 }
+for name, (appearing, reads, _) in APPEARING.items():
+    RUNS[f"appearing {name}"] = lifecycle(
+        NAMESPACE,
+        "retirement-before-snapshot",
+        FAKE_APPEARING_OBJECT=appearing,
+        FAKE_APPEARS_AFTER_READS=str(reads),
+    )
+for scenario, fragment in UNREAD_ABSENCE_CHECKS.items():
+    RUNS[f"unread absence check {scenario}"] = lifecycle(
+        NAMESPACE, scenario, FAIL_COMMAND=fragment
+    )
 for scenario in WITHOUT_EFFECT:
     RUNS[f"without effect {scenario}"] = lifecycle(
         NAMESPACE, scenario, FAKE_UPGRADE_WITHOUT_EFFECT="true"
@@ -514,14 +574,114 @@ class TrainerLifecycleControlFlowTest(unittest.TestCase):
         self.assertIn(train_job("catalog-job"), run.state["reconciled"])
 
     def test_retirement_needs_a_train_job_without_a_snapshot(self):
+        run = self.run_of("snapshot for an external manager", passes=False)
+        self.assertIn(f"has {HELD_SNAPSHOT} within 1 seconds", run.result.stderr)
+        self.assertNotIn("PROVED", run.result.stdout)
+        self.assertEqual(run.matching("helm uninstall"), [])
+
+    def test_kueue_or_an_unreadable_kueue_query_refuses_the_scenario(self):
         for name, message in (
-            ("snapshot for an external manager", "received a snapshot"),
-            ("kueue", "Kueue is installed"),
+            ("kueue", "FAIL: Kueue is installed"),
+            ("unreadable kueue", f"{NOT_READ}. The scenario is refused"),
         ):
             with self.subTest(run=name):
                 run = self.run_of(name, passes=False)
                 self.assertIn(message, run.result.stderr)
+                self.assertNotIn("PROVED", run.result.stdout)
+                # Refused before the fixtures, so nothing is created or changed.
+                self.assertEqual(
+                    run.matching("kubectl create", "helm uninstall", "helm install"),
+                    [],
+                )
+                self.assertEqual(run.state["created"], {})
+
+    def test_the_held_train_job_has_no_snapshot_and_no_job_set_in_any_read(self):
+        run = self.run_of("held", passes=True)
+        self.assertIn("PROVED: retirement-before-snapshot", run.result.stdout)
+        self.assertIn("PASS: retirement-before-snapshot.", run.result.stdout)
+        snapshot, job_set = (
+            ABSENCE_READ.format(resource) for resource in (HELD_SNAPSHOT, HELD_JOB_SET)
+        )
+        reads = [index for index, c in enumerate(run.commands) if c == snapshot]
+        # Two passes of the window, one while the runtime is absent, one at the end.
+        self.assertEqual(len(reads), 4)
+        for index in reads:
+            self.assertEqual(run.commands[index + 1], job_set)
+        self.assertEqual(run.commands.count(job_set), 4)
+        retirement = run.position("helm uninstall trainer-runtimes ")
+        restoration = run.position("helm install trainer-runtimes ")
+        self.assertLess(reads[1], retirement)
+        self.assertLess(retirement, reads[2])
+        self.assertLess(reads[2], restoration)
+        self.assertLess(restoration, reads[3])
+        admitted = run.commands.index(
+            run.matching(f"kubectl patch trainjob/{HELD_JOB}")[-1], restoration
+        )
+        self.assertLess(admitted, reads[3])
+        # Nothing but these successful reads establishes the absence: no wait
+        # whose failure would pass for it names the held TrainJob.
+        self.assertEqual([c for c in run.matching("kubectl wait") if HELD_JOB in c], [])
+        self.assertEqual([key for key in run.state["objects"] if PREFIX in key], [])
+
+    def test_a_failed_read_of_the_held_train_job_is_not_its_absence(self):
+        for name, resource, exists in (
+            ("existing snapshot with failing reads", HELD_SNAPSHOT, True),
+            ("unreadable snapshot", HELD_SNAPSHOT, False),
+            ("unreadable JobSet", HELD_JOB_SET, False),
+        ):
+            with self.subTest(run=name):
+                run = self.run_of(name, passes=False)
+                self.assertIn(f"FAIL: {resource} {NOT_READ}", run.result.stderr)
+                self.assertNotIn("PROVED", run.result.stdout)
+                self.assertNotIn("PASS", run.result.stdout)
                 self.assertEqual(run.matching("helm uninstall"), [])
+                # Only the reproduction of the review keeps its objects: there the
+                # snapshot that the failed reads hid exists.
+                key = resource.replace("/", f"|{NAMESPACE}|")
+                self.assertEqual(key in run.state["objects"], exists)
+
+    def test_a_snapshot_or_a_job_set_that_appears_fails_the_scenario(self):
+        for name, (resource, reads, moment) in APPEARING.items():
+            with self.subTest(appearing=name):
+                run = self.run_of(f"appearing {name}", passes=False)
+                self.assertIn(
+                    f"FAIL: The TrainJob {HELD_JOB} has {resource}", run.result.stderr
+                )
+                self.assertIn(moment, run.result.stderr)
+                self.assertNotIn("PROVED", run.result.stdout)
+                self.assertNotIn("PASS", run.result.stdout)
+                self.assertEqual(
+                    run.commands.count(ABSENCE_READ.format(resource)), reads + 1
+                )
+                # The check that finds it is the one before, during or after the
+                # absence of the catalog.
+                self.assertEqual(len(run.matching("helm uninstall")), int(reads > 1))
+                self.assertEqual(len(run.matching("helm install")), int(reads > 2))
+                # The appeared object left with the TrainJob that owns it.
+                self.assertEqual([k for k in run.state["objects"] if PREFIX in k], [])
+
+    def test_no_failed_read_counts_as_an_absent_object(self):
+        # What must not follow the failed read of a free fixture name, of a webhook
+        # configuration after the uninstallation and of the retired runtime.
+        never_reached = {
+            "fixtures": "kubectl create",
+            "controller-reinstall": "helm install",
+            "retirement-after-snapshot": "kubectl patch",
+        }
+        for scenario, call in never_reached.items():
+            with self.subTest(scenario=scenario):
+                run = self.run_of(f"unread absence check {scenario}", passes=False)
+                self.assertIn(NOT_READ, run.result.stderr)
+                self.assertNotIn("PROVED", run.result.stdout)
+                self.assertEqual(run.matching(call), [])
+
+    def test_an_unreadable_definition_says_nothing_about_its_property(self):
+        run = self.run_of("unreadable definition", passes=False)
+        self.assertIn(
+            "could not be read, which is no evidence about", run.result.stderr
+        )
+        self.assertNotIn("PROVED", run.result.stdout)
+        self.assertEqual(run.matching("helm upgrade"), [])
 
     def test_only_an_admission_denial_counts_as_a_denial(self):
         for name, message in (

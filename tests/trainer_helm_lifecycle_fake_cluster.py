@@ -10,12 +10,20 @@ releases. It proves control flow, never the behavior of a real cluster.
 COMMAND_LOG receives every call as one line. FAKE_CLUSTER_STATE is the JSON file
 that holds the objects, the releases, the manifests that kubectl create has
 created and the TrainJobs that the imitated Trainer controller has reconciled.
-FAIL_COMMAND fails every call whose line contains it.
+FAIL_COMMAND fails every call whose line contains it; a final $ in it stands for
+the end of the line.
 FAKE_ADMIT_WITHOUT_RUNTIME=true admits a TrainJob whose runtime is absent,
 FAKE_DENIAL_MESSAGE replaces the admission denial by another failure,
 FAKE_SNAPSHOT_FOR_EXTERNAL_MANAGER=true reconciles a TrainJob that another
 controller manages, and FAKE_UPGRADE_WITHOUT_EFFECT=true stores the revision of
 an upgrade without changing a live object.
+
+FAKE_UNREADABLE names objects as kind/name, separated by spaces. kubectl get and
+kubectl wait of one of them fail as a denied read does, whether the object exists
+or not; every other call treats it as usual. FAKE_APPEARING_OBJECT names one
+snapshot or JobSet as kind/name. It comes into being, owned by its TrainJob, once
+kubectl get has found it absent FAKE_APPEARS_AFTER_READS times (1 by default), so
+the next read finds it.
 """
 
 import json
@@ -394,6 +402,22 @@ def reconcile(cluster, job, namespace):
     )
 
 
+def appear(cluster, kind, namespace, name):
+    """FAKE_APPEARING_OBJECT after enough reads that found it absent, else None."""
+    if f"{kind}/{name}" != os.environ.get("FAKE_APPEARING_OBJECT"):
+        return None
+    reads = cluster.state.setdefault("absent_reads", {})
+    key = cluster.key(kind, namespace, name)
+    if reads.get(key, 0) < int(os.environ.get("FAKE_APPEARS_AFTER_READS", "1")):
+        reads[key] = reads.get(key, 0) + 1
+        return None
+    job = cluster.get("trainjob", namespace, name.removesuffix("-runtime-snapshot"))
+    owner = {"kind": "TrainJob"} | {k: job["metadata"][k] for k in ("name", "uid")}
+    return cluster.put(
+        kind, namespace, name, {"metadata": {"ownerReferences": [owner]}}
+    )
+
+
 def kubectl(cluster, arguments):
     command = arguments[0]
     positional, options = parse(arguments[1:])
@@ -415,10 +439,17 @@ def kubectl(cluster, arguments):
     if command == "rollout":
         positional = positional[1:]
     kind, name = resource(positional)
+    unreadable = os.environ.get("FAKE_UNREADABLE", "").split()
+    if command in ("get", "wait") and f"{kind}/{name}" in unreadable:
+        fail(
+            f'Error from server (Forbidden): {kind} "{name}" is forbidden: '
+            "the fake cluster denies this read"
+        )
     found = cluster.get(kind, namespace, name) if name else None
     if command == "get":
         if not name:
             return
+        found = found or appear(cluster, kind, namespace, name)
         if not found:
             if "--ignore-not-found" in options:
                 return
@@ -457,7 +488,7 @@ def main():
     with open(os.environ["COMMAND_LOG"], "a") as log:
         log.write(line + "\n")
     failure = os.environ.get("FAIL_COMMAND")
-    if failure and failure in line:
+    if failure and failure in f"{line}$":
         fail(f"error: prepared failure of {line}")
     cluster = Cluster(os.environ["FAKE_CLUSTER_STATE"])
     {"helm": helm, "kubectl": kubectl}[executable](cluster, arguments)

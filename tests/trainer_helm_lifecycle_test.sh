@@ -62,9 +62,14 @@
 #                              held without a snapshot by
 #                              spec.managedBy: kueue.x-k8s.io/multikueue, the API
 #                              value that makes the Trainer controller skip it, so
-#                              the scenario refuses a cluster with Kueue. It does
-#                              not show the reconciliation failure of a TrainJob
-#                              that the Trainer controller manages.
+#                              the scenario refuses a cluster with Kueue, and one
+#                              whose Kueue definition cannot be read. Its snapshot
+#                              and its JobSet must be absent in every read of
+#                              TRAINER_HELM_LIFECYCLE_SNAPSHOT_ABSENCE_SECONDS
+#                              (30) after its creation, while the runtime is
+#                              absent and at the end. It does not show the
+#                              reconciliation failure of a TrainJob that the
+#                              Trainer controller manages.
 #
 # Fixtures. Every scenario except smoke creates, once per run, an administrator
 # ClusterTrainingRuntime with its own name, a namespaced TrainingRuntime in the
@@ -73,6 +78,10 @@
 # runtime snapshots with a digest of their content, of both JobSets, of the four
 # definitions and of the namespace kubeflow-system, and asserts all of them after
 # every release operation of the scenario.
+#
+# Absence. An object counts as absent only when a successful read returns
+# nothing. A read that fails, by authorization, connection or anything else, is
+# evidence of neither presence nor absence and fails the run.
 #
 # Ownership. Every object name carries a run identifier. An object is created
 # with kubectl create after a check that its name is free, and it is recorded as
@@ -198,8 +207,15 @@ uid() {
   kubectl get "$1" ${2:+--namespace "$2"} -o jsonpath='{.metadata.uid}'
 }
 
+# Succeeds when a successful read returns the object and returns 1 when a
+# successful read returns nothing. A read that fails is evidence of neither, so it
+# fails the run instead of counting as absence; no error text is interpreted. The
+# optional third argument says what stays unknown then.
 object_exists() {
-  [[ -n "$(kubectl get "$1" ${2:+--namespace "$2"} --ignore-not-found -o name)" ]]
+  local found
+  found=$(kubectl get "$1" ${2:+--namespace "$2"} --ignore-not-found -o name) ||
+    fail "$1 could not be read, which is no evidence that it is absent.${3:+ $3}"
+  [[ -n "$found" ]]
 }
 
 # Deletes what this run has recorded as created, the newest object first, and
@@ -443,6 +459,14 @@ print("present" if all(found) else "mixed" if any(found) else "absent")
 ' "$API_TEST_PROPERTY"
 }
 
+# A failed read must not pass for an answer about the property.
+assert_api_test_property() {
+  local expected="$1" message="$2" found
+  found=$(live_api_test_property) ||
+    fail "The live TrainJob definition could not be read, which is no evidence about the property ${API_TEST_PROPERTY}."
+  [[ "$found" == "$expected" ]] || fail "$message"
+}
+
 definition_generation() {
   kubectl get crd/trainjobs.trainer.kubeflow.org -o jsonpath='{.metadata.generation}'
 }
@@ -452,6 +476,32 @@ retire_catalog() {
   if object_exists "clustertrainingruntime/${CATALOG_RUNTIME}"; then
     fail "${CATALOG_RUNTIME} is still present after the catalog was uninstalled."
   fi
+}
+
+# A runtime snapshot or a JobSet would mean that a controller reconciled the held
+# TrainJob. Both reads must succeed and return nothing; see object_exists.
+assert_not_reconciled() {
+  local job="$1" moment="$2" resource
+  for resource in "configmap/${job}-runtime-snapshot" "jobset/${job}"; do
+    if object_exists "$resource" "$TEST_NAMESPACE" \
+      "The TrainJob ${job} may have been reconciled."; then
+      fail "The TrainJob ${job} has ${resource} ${moment}: it was reconciled, so this is not the case before the first snapshot."
+    fi
+  done
+}
+
+# Reads at once and then every second; the last pass begins at or after the end of
+# the window. A timeout of kubectl wait --for=create cannot serve here, because a
+# denied or failed read ends that command exactly as the wanted timeout does.
+assert_not_reconciled_throughout_the_window() {
+  local job="$1" pass_started=$SECONDS deadline
+  deadline=$((pass_started + SNAPSHOT_ABSENCE_SECONDS))
+  while true; do
+    assert_not_reconciled "$job" "within ${SNAPSHOT_ABSENCE_SECONDS} seconds of its creation"
+    ((pass_started < deadline)) || break
+    sleep 1
+    pass_started=$SECONDS
+  done
 }
 
 restore_catalog() {
@@ -551,8 +601,8 @@ scenario_controller_reinstall() {
 scenario_api_upgrade() {
   local generation_before generation_changed api_job="${NAME_PREFIX}-api-job"
   ensure_fixtures
-  [[ "$(live_api_test_property)" == absent ]] ||
-    fail "The live TrainJob definition already has the property ${API_TEST_PROPERTY}."
+  assert_api_test_property absent \
+    "The live TrainJob definition already has the property ${API_TEST_PROPERTY}."
   cp -R applications/trainer/helm-crds "${TEMPORARY_DIRECTORY}/apis"
   python3 - "${TEMPORARY_DIRECTORY}/apis/charts/trainer-api-payload/manifests/definitions/trainjobs.trainer.kubeflow.org.yaml" \
     "$API_TEST_PROPERTY" <<'PY'
@@ -579,8 +629,8 @@ PY
     --namespace "$RELEASE_NAMESPACE" --wait --timeout 5m
   assert_release_deployed trainer-apis
   wait_for_established_definitions
-  [[ "$(live_api_test_property)" == present ]] ||
-    fail "The live TrainJob definition does not serve the property ${API_TEST_PROPERTY}."
+  assert_api_test_property present \
+    "The live TrainJob definition does not serve the property ${API_TEST_PROPERTY}."
   generation_changed=$(definition_generation)
   ((generation_changed > generation_before)) ||
     fail "The generation of the TrainJob definition did not increase."
@@ -591,8 +641,8 @@ PY
   helm upgrade trainer-apis "$API_CHART" --namespace "$RELEASE_NAMESPACE" --wait --timeout 5m
   assert_release_deployed trainer-apis
   wait_for_established_definitions
-  [[ "$(live_api_test_property)" == absent ]] ||
-    fail "The live TrainJob definition still has the property ${API_TEST_PROPERTY}."
+  assert_api_test_property absent \
+    "The live TrainJob definition still has the property ${API_TEST_PROPERTY}."
   assert_identities_retained "the upgrade of trainer-apis back to the unchanged chart"
   assert_admission_works
   proved "api-upgrade: trainer-apis served one more optional TrainJob property after an upgrade; TrainJobs, both runtime kinds and JobSets stayed readable with their UIDs; a new TrainJob was admitted and reconciled; the unchanged chart removed the property again."
@@ -697,20 +747,19 @@ scenario_retirement_after_snapshot() {
 
 scenario_retirement_before_snapshot() {
   local unmanaged_job="${NAME_PREFIX}-unmanaged-job" unmanaged_job_uid
-  ensure_fixtures
-  if object_exists crd/workloads.kueue.x-k8s.io; then
+  # Refused before anything is created. An unreadable query is not an absent Kueue.
+  if object_exists crd/workloads.kueue.x-k8s.io "" \
+    "The scenario is refused: Kueue may be installed and could reconcile a TrainJob with managedBy ${EXTERNAL_MANAGER}."; then
     fail "Kueue is installed and could reconcile a TrainJob with managedBy ${EXTERNAL_MANAGER}."
   fi
+  ensure_fixtures
   # Admitted while the runtime exists; the Trainer controller skips it, so it
   # has no snapshot when the runtime is retired.
   write_train_job_manifest "${TEMPORARY_DIRECTORY}/${unmanaged_job}.yaml" "$unmanaged_job" \
     ClusterTrainingRuntime "$CATALOG_RUNTIME" "$EXTERNAL_MANAGER"
   create_owned "${TEMPORARY_DIRECTORY}/${unmanaged_job}.yaml" "trainjob/${unmanaged_job}" "$TEST_NAMESPACE"
   unmanaged_job_uid=$(uid "trainjob/${unmanaged_job}" "$TEST_NAMESPACE")
-  if kubectl wait --namespace "$TEST_NAMESPACE" --for=create \
-    "configmap/${unmanaged_job}-runtime-snapshot" --timeout="${SNAPSHOT_ABSENCE_SECONDS}s"; then
-    fail "The TrainJob ${unmanaged_job} received a snapshot; this is not the case before the first snapshot."
-  fi
+  assert_not_reconciled_throughout_the_window "$unmanaged_job"
 
   retire_catalog
   assert_identities_retained "the uninstallation of trainer-runtimes"
@@ -720,9 +769,7 @@ scenario_retirement_before_snapshot() {
     --dry-run=server -f "${TEMPORARY_DIRECTORY}/new-submission.yaml"
   expect_admission_denial "$CATALOG_RUNTIME" kubectl patch "trainjob/${unmanaged_job}" \
     --namespace "$TEST_NAMESPACE" --type merge -p '{"spec":{"suspend":false}}'
-  if object_exists "configmap/${unmanaged_job}-runtime-snapshot" "$TEST_NAMESPACE"; then
-    fail "The TrainJob ${unmanaged_job} received a snapshot although its runtime is absent."
-  fi
+  assert_not_reconciled "$unmanaged_job" "while ${CATALOG_RUNTIME} is absent"
   assert_uid "trainjob/${unmanaged_job}" "$unmanaged_job_uid" "$TEST_NAMESPACE" "the uninstallation of trainer-runtimes"
 
   restore_catalog
@@ -730,7 +777,8 @@ scenario_retirement_before_snapshot() {
     --type merge -p '{"spec":{"suspend":false}}' --dry-run=server
   assert_uid "trainjob/${unmanaged_job}" "$unmanaged_job_uid" "$TEST_NAMESPACE" "the reinstallation of trainer-runtimes"
   assert_identities_retained "the reinstallation of trainer-runtimes"
-  proved "retirement-before-snapshot: a TrainJob admitted while ${CATALOG_RUNTIME} existed and held without a snapshot has no snapshot to fall back on; admission denies its validated update and a new submission while the runtime is absent, and admits the update after the catalog returned."
+  assert_not_reconciled "$unmanaged_job" "at the end of the scenario"
+  proved "retirement-before-snapshot: a TrainJob admitted while ${CATALOG_RUNTIME} existed and held by spec.managedBy had neither a snapshot nor a JobSet in any read, and every read succeeded; admission denies its validated update and a new submission while the runtime is absent, and admits the update after the catalog returned."
 }
 
 for release in trainer-apis trainer trainer-runtimes; do
