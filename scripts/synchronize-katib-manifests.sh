@@ -95,23 +95,14 @@ apply_katib_mysql_patch() {
     rm -rf "$candidate_directory"
 }
 
-# The payloads in manifests are generated from the imported installation. Of
-# the hand-written chart, only the application version and global.imageTag
-# follow COMMIT: the collector and suggestion image pins in config.katibConfig,
-# the CustomResourceDefinitions in crds and the templates are maintained by hand.
 update_katib_helm_chart() {
-    local values_file
-
     update_helm_chart_application_version "${HELM_CHART_DIRECTORY}/Chart.yaml" "$COMMIT"
-    for values_file in "${HELM_CHART_DIRECTORY}/values.yaml" "${HELM_CHART_DIRECTORY}"/ci/values-*.yaml; do
-        # Rewrite only the imageTag key directly under the top-level global key.
-        sed -i "/^global:/,/^[^[:space:]#]/ s|^  imageTag: .*|  imageTag: ${COMMIT}|" "$values_file"
-    done
     python3 "${SCRIPT_DIRECTORY}/generate-katib-helm-manifests.py" \
         --repository-root "$MANIFESTS_DIRECTORY"
 }
 
 validate_katib_helm_chart() {
+    # The chart refuses any namespace but kubeflow, so the linter needs it too.
     helm lint "$HELM_CHART_DIRECTORY" --namespace kubeflow
     # Parity is compared in continuous integration, by the "Compare katib"
     # job, with its pinned Helm version.
@@ -135,8 +126,6 @@ commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from 
   "${DESTINATION_MANIFESTS_PATH}" \
   "${MYSQL_PATCH_PATH}" \
   "${HELM_CHART_PATH}/Chart.yaml" \
-  "${HELM_CHART_PATH}/values.yaml" \
-  "${HELM_CHART_PATH}/ci" \
   "${HELM_CHART_PATH}/kustomize/kustomization.yaml" \
   "${HELM_CHART_PATH}/manifests" \
   "${SCRIPT_DIRECTORY}/generate-katib-helm-manifests.py" \
