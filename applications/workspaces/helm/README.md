@@ -258,7 +258,10 @@ upgrade, an upgrade to a changed copy of the chart and a rollback, all without a
 force option. After each it checks that the three aggregated ClusterRoles carry
 rules, that Helm is not a manager of that field, and that a ServiceAccount bound
 to `kubeflow-workspaces-edit` may still create a `Workspace` and may still not
-read a `Secret`; it is not part of a workflow either.
+read a `Secret`; it is not part of a workflow either. It creates a uniquely
+named namespace for that ServiceAccount and deletes only a namespace that it has
+created, which `tests/workspaces_helm_upgrade_cleanup_test.sh` verifies without
+a cluster, with stub `kubectl` and `helm` executables.
 
 ## Keeping The Chart Up To Date
 
