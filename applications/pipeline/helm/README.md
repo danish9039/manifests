@@ -1,8 +1,12 @@
 # Kubeflow Pipelines Helm Chart
 
-> Draft: credential and data-retention configuration is unresolved, and
-> `helm upgrade` of an installed release is not yet verified on a cluster; not
-> administrator-ready. See [Upgrade](#upgrade), [Credentials](#credentials) and
+> Draft: credential and data-retention configuration is unresolved; not
+> administrator-ready. An unchanged `helm upgrade` and a rollback between
+> corrected revisions are verified on a cluster for the scenario
+> `platform-database`. An upgrade that changes a workload, an upgrade between
+> chart or application versions, and every upgrade in the scenario
+> `platform-k8s-native` are not yet verified. See [Upgrade](#upgrade),
+> [Credentials](#credentials) and
 > [Storage and uninstallation](#storage-and-uninstallation).
 
 This chart renders the current Kubeflow Pipelines Kustomize resources with
