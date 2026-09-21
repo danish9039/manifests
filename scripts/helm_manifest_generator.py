@@ -54,7 +54,9 @@ class GeneratorConfiguration:
     output_path: Path
     generator_script: str
     synchronize_script: str
-    crds_payload_filename: str = "platform-crds.yaml"
+    # None declares that this component has no definitions. Unexpected CRDs
+    # then fail generation instead of acquiring an unreviewed lifecycle.
+    crds_payload_filename: str | None = "platform-crds.yaml"
     # When set, every custom resource definition is written to its own file,
     # <directory>/<definition name>.yaml, instead of crds_payload_filename.
     # Helm refuses to load any chart file above 5 MiB, and one component's
@@ -303,7 +305,17 @@ def generate_payload_contents(resources, configuration):
             + ", ".join(missing_documents)
         )
 
-    if configuration.crds_payload_directory:
+    if configuration.crds_payload_filename is None:
+        if configuration.crds_payload_directory:
+            raise ValueError(
+                "component declares no custom resource definitions but configures their directory"
+            )
+        if crd_resources:
+            raise ValueError(
+                "component declares no custom resource definitions but Kustomize renders them"
+            )
+        crd_payloads = []
+    elif configuration.crds_payload_directory:
         crds_payload_name = configuration.crds_payload_directory + "/"
         crd_payloads = [
             (
