@@ -205,3 +205,26 @@ python3 tests/comparison_partitions_test.py -v                # the check and it
 The load-time rejection messages come from `tests/run_helm_kustomize_comparison.py`
 and name the file and the rule that was violated; `tests/comparison_descriptors_test.py`
 exercises each one.
+
+### Trainer release boundaries
+
+Trainer uses three releases in `kubeflow-system`: `trainer-apis`, `trainer`, and
+`trainer-runtimes`. Local checks:
+
+```sh
+python3 tests/helm_manifest_partitions_test.py
+python3 tests/trainer_helm_chart_test.py
+python3 tests/trainer_helm_install_helper_test.py
+python3 scripts/generate-trainer-helm-manifests.py --check
+python3 tests/run_helm_kustomize_comparison.py --partitions
+python3 tests/helm_release_size.py trainer-apis trainer trainer-runtimes
+```
+
+`tests/trainer_helm_install.sh` is the ordered installer used by the full Helm
+workflow; `tests/trainer_test.sh` supplies the existing SDK functional test.
+`tests/trainer_helm_lifecycle_test.sh` is an opt-in destructive boundary and
+recovery test, requiring an explicit disposable kubeconfig and
+`TRAINER_HELM_LIFECYCLE_DISPOSABLE=true`. See the
+[chart lifecycle instructions](../applications/trainer/helm/README.md).
+Installer stubs establish ordering and fail-stop behavior only; they do not
+establish live admission, reconciliation or lifecycle correctness.
