@@ -18,6 +18,8 @@ apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   name: $fixture
+  labels:
+    networking.knative.dev/visibility: cluster-local
 spec:
   template:
     metadata:
@@ -60,7 +62,7 @@ hostname=$(kubectl get "services.serving.knative.dev/$fixture" -n "$namespace" -
 hostname=${hostname#http://}
 hostname=${hostname#https://}
 token=$(kubectl create token default-editor -n "$namespace")
-kubectl port-forward -n istio-system service/cluster-local-gateway "$port:80" >/dev/null 2>&1 &
+kubectl port-forward -n istio-system service/knative-local-gateway "$port:80" >/dev/null 2>&1 &
 port_forward_pid=$!
 # Retry only transport/route readiness; every successful response must be the fixture body.
 response=""
