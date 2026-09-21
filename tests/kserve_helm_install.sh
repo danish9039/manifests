@@ -81,8 +81,5 @@ helm upgrade kserve applications/kserve/kserve/helm \
   --values applications/kserve/kserve/helm/ci/values-platform.yaml \
   --wait --timeout 10m
 
-# The Models Web Application keeps its Kustomize installation until its own
-# chart lands; it joins this script in that pull request.
-kustomize build applications/kserve/kserve-ui | kubectl apply --server-side --force-conflicts -f -
-kubectl wait --for=condition=Available -n kserve --timeout=300s \
-  deployment/kserve-models-web-application
+# The UI has a separate release; its installer owns every UI resource.
+./tests/kserve_ui_helm_install.sh

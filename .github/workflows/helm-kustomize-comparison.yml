@@ -120,6 +120,10 @@ jobs:
         python tests/kserve_helm_chart_test.py
         python tests/kserve_helm_manifest_generator_test.py
         ./tests/kserve_helm_lifecycle_functions_test.sh
+    - name: Test Models UI Helm behavior
+      run: |
+        python tests/kserve_ui_helm_chart_test.py
+        python tests/kserve_ui_synchronization_test.py
     - name: Test Dashboard Helm behavior
       run: python tests/dashboard_helm_chart_test.py
     - name: Test Notebooks Helm behavior

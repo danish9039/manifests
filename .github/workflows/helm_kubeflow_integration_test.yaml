@@ -222,6 +222,8 @@ jobs:
       run: ./tests/katib_test.sh "${KF_PROFILE}"
 
     - name: Run KServe Test
+      env:
+        KSERVE_UI_MANAGED_BY_HELM: "true"
       run: ./tests/kserve_test.sh ${KF_PROFILE}
 
     - name: Run Spark Test

@@ -1,0 +1,16 @@
+apiVersion: v2
+name: kserve-models-web-application
+description: Kubeflow Models UI generated from the distribution Kustomize manifests
+type: application
+version: 0.1.0
+appVersion: "v1.0.1"
+keywords:
+- kubeflow
+- kserve
+- models
+home: https://github.com/kubeflow/community-distribution
+sources:
+- https://github.com/kubeflow/community-distribution/tree/master/applications/kserve/kserve-ui
+- https://github.com/kserve/models-web-app
+annotations:
+  licenses: Apache-2.0

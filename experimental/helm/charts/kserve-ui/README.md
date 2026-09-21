@@ -1,5 +1,11 @@
 # KServe Models Web Application Helm Chart
 
+The co-located [platform chart](../../../../applications/kserve/kserve-ui/helm/README.md)
+is the new distribution-default installation path. This experimental chart keeps
+its existing values interface for current users. Both charts own overlapping
+resource names: do not install both, and do not assume an in-place migration is
+validated for customized installations.
+
 This Helm chart deploys the KServe Models Web Application into the `kserve`
 namespace and preserves Kubeflow routing through
 `kubeflow/kubeflow-gateway`.

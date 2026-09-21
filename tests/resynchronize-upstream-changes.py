@@ -19,7 +19,9 @@ path_to_synchronization_script = {
     # change under it regenerates them.
     "applications/kserve/kserve": "scripts/synchronize-kserve-kserve-manifests.sh",
     "scripts/generate-kserve-helm-manifests.py": "scripts/synchronize-kserve-kserve-manifests.sh",
-    "applications/kserve/kserve-ui/upstream": "scripts/synchronize-kserve-ui-manifests.sh",
+    "applications/kserve/kserve-ui": "scripts/synchronize-kserve-ui-manifests.sh",
+    "scripts/generate-kserve-ui-helm-manifests.py": "scripts/synchronize-kserve-ui-manifests.sh",
+    "experimental/helm/charts/kserve-ui": "scripts/synchronize-kserve-ui-manifests.sh",
     "applications/notebooks-v1/upstream": "scripts/synchronize-notebooks-v1-manifests.sh",
     "applications/notebooks-v1/overlays/istio": "scripts/synchronize-notebooks-v1-manifests.sh",
     "applications/notebooks-v1/helm/Chart.yaml": "scripts/synchronize-notebooks-v1-manifests.sh",
@@ -41,6 +43,7 @@ path_to_synchronization_script = {
     "scripts/helm_manifest_generator.py": (
         "scripts/synchronize-dashboard-manifests.sh",
         "scripts/synchronize-kserve-kserve-manifests.sh",
+        "scripts/synchronize-kserve-ui-manifests.sh",
         "scripts/synchronize-notebooks-v1-manifests.sh",
     ),
 }

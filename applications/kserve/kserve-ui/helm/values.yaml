@@ -1,0 +1,5 @@
+# The platform configuration comes from the distribution Kustomize overlay.
+# Source-declared image, identity headers and routing are fixed in this chart.
+
+# -- Supported distribution installation scenario.
+scenario: platform
