@@ -21,6 +21,7 @@ on:
     - tests/knative_serving_install.sh
     - tests/knative_serving_helm_smoke_test.sh
     - tests/knative_serving_helm_lifecycle_test.sh
+    - tests/knative_serving_helm_admission_test.sh
     - .github/workflows/helm_kubeflow_integration_test.yaml
   pull_request:
     branches:
@@ -35,6 +36,7 @@ on:
     - tests/knative_serving_install.sh
     - tests/knative_serving_helm_smoke_test.sh
     - tests/knative_serving_helm_lifecycle_test.sh
+    - tests/knative_serving_helm_admission_test.sh
     - .github/workflows/helm_kubeflow_integration_test.yaml
 
 permissions:

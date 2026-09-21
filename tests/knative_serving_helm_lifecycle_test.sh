@@ -11,10 +11,12 @@ cleanup() {
     kubectl delete authorizationpolicy "$fixture" -n "$namespace" --ignore-not-found
 }
 trap cleanup EXIT
+./tests/knative_serving_helm_admission_test.sh
 KNATIVE_HELM_KEEP_FIXTURE=true ./tests/knative_serving_helm_smoke_test.sh "$namespace"
 uid=$(kubectl get services.serving.knative.dev "$fixture" -n "$namespace" -o jsonpath='{.metadata.uid}')
 namespace_uid=$(kubectl get namespace knative-serving -o jsonpath='{.metadata.uid}')
 helm upgrade knative-serving "$chart" -n kubeflow --wait --timeout 10m
+./tests/knative_serving_helm_admission_test.sh
 revision=$(helm history knative-serving -n kubeflow -o json | python3 -c 'import json,sys; print(json.load(sys.stdin)[-1]["revision"])')
 cp -a "$chart" "$temporary/chart"
 # A disposable candidate changes the controller Pod template, proving a real
@@ -32,8 +34,10 @@ path.write_text(yaml.safe_dump_all(resources, sort_keys=False))
 PYTHON
 helm upgrade knative-serving "$temporary/chart" -n kubeflow --wait --timeout 10m
 kubectl rollout status deployment/controller -n knative-serving --timeout=120s
+./tests/knative_serving_helm_admission_test.sh
 KNATIVE_HELM_KEEP_FIXTURE=true ./tests/knative_serving_helm_smoke_test.sh "$namespace"
 helm rollback knative-serving "$revision" -n kubeflow --wait --timeout 10m
+./tests/knative_serving_helm_admission_test.sh
 KNATIVE_HELM_KEEP_FIXTURE=true ./tests/knative_serving_helm_smoke_test.sh "$namespace"
 helm uninstall knative-serving -n kubeflow --wait --timeout 10m
 [[ $(kubectl get services.serving.knative.dev "$fixture" -n "$namespace" -o jsonpath='{.metadata.uid}') == "$uid" ]]

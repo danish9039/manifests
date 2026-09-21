@@ -2,6 +2,7 @@
 """Knative Serving ownership, bootstrap and literal-payload behavior."""
 
 import os
+import copy
 import shutil
 import subprocess
 import tempfile
@@ -36,7 +37,81 @@ def objects(result):
     return [item for item in yaml.safe_load_all(result.stdout) if item]
 
 
+def fake_commands(temporary):
+    command = temporary / "command"
+    command.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json, os, pathlib, sys\n"
+        "name=pathlib.Path(sys.argv[0]).name; args=sys.argv[1:]\n"
+        "with open(os.environ['COMMAND_LOG'], 'a') as stream: stream.write(json.dumps([name,*args])+'\\n')\n"
+        "if name=='helm' and args[0]=='status': sys.exit(os.environ['PREVIOUS_PHASE']=='absent')\n"
+        "if name=='helm' and args[:2]==['get','values']: print(json.dumps({'installation': {'phase':os.environ['PREVIOUS_PHASE']}}))\n"
+        "mode=os.environ.get('ADMISSION_MODE', 'active')\n"
+        "if name=='kubectl' and args[0]=='wait' and 'webhookconfiguration/' in args[1] and mode=='unregistered': sys.exit(1)\n"
+        "if name=='kubectl' and args[0]=='create':\n"
+        " resource=json.loads(pathlib.Path(args[args.index('-f')+1]).read_text())\n"
+        " invalid=resource['spec']['template'].get('metadata',{}).get('annotations',{}).get('autoscaling.knative.dev/min-scale')=='-1'\n"
+        " if invalid and mode!='accept_invalid':\n"
+        "  print('admission webhook \"validation.webhook.serving.knative.dev\" denied the request' if mode!='wrong_denial' else 'unrelated API error', file=sys.stderr); sys.exit(1)\n"
+        " if mode!='no_default': resource['spec']['template']['spec']['timeoutSeconds']=300\n"
+        " print(json.dumps(resource))\n"
+    )
+    command.chmod(0o755)
+    for name in ("helm", "kubectl"):
+        (temporary / name).symlink_to(command)
+
+
 class ServingChartTest(unittest.TestCase):
+    def test_only_controller_owned_webhook_rules_differ_from_the_baseline(self):
+        baseline = subprocess.run(
+            ["kustomize", "build", "common/knative/knative-serving/overlays/gateways"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        expected = list(yaml.safe_load_all(baseline.stdout))
+        webhook_names = {
+            ("MutatingWebhookConfiguration", "webhook.serving.knative.dev"),
+            (
+                "ValidatingWebhookConfiguration",
+                "validation.webhook.serving.knative.dev",
+            ),
+        }
+        matched = set()
+        for resource in expected:
+            identity = (resource["kind"], resource["metadata"]["name"])
+            if identity in webhook_names:
+                self.assertEqual(
+                    resource["apiVersion"], "admissionregistration.k8s.io/v1"
+                )
+                self.assertEqual(len(resource["webhooks"]), 1)
+                self.assertEqual(resource["webhooks"][0]["name"], identity[1])
+                self.assertTrue(resource["webhooks"][0].pop("rules"))
+                matched.add(identity)
+        self.assertEqual(matched, webhook_names)
+
+        actual = copy.deepcopy(objects(render()))
+        for resource in actual:
+            if resource["kind"] in ("Namespace", "CustomResourceDefinition"):
+                annotations = resource["metadata"]["annotations"]
+                self.assertEqual(annotations.pop("helm.sh/resource-policy"), "keep")
+                if not annotations:
+                    resource["metadata"].pop("annotations")
+
+        def by_identity(resources):
+            return {
+                (
+                    r["apiVersion"],
+                    r["kind"],
+                    r["metadata"].get("namespace"),
+                    r["metadata"]["name"],
+                ): r
+                for r in resources
+            }
+
+        self.assertEqual(by_identity(actual), by_identity(expected))
+
     def test_installer_completes_or_resumes_without_pruning_complete_releases(self):
         # Exercise the real shell control flow without accessing a cluster.
         for previous in ("absent", "definitions", "controllers", "complete"):
@@ -45,18 +120,7 @@ class ServingChartTest(unittest.TestCase):
             ), tempfile.TemporaryDirectory() as directory:
                 temporary = Path(directory)
                 log = temporary / "commands"
-                command = temporary / "command"
-                command.write_text(
-                    "#!/usr/bin/env python3\n"
-                    "import json, os, pathlib, sys\n"
-                    "name=pathlib.Path(sys.argv[0]).name; args=sys.argv[1:]\n"
-                    "with open(os.environ['COMMAND_LOG'], 'a') as stream: stream.write(json.dumps([name,*args])+'\\n')\n"
-                    "if name=='helm' and args[0]=='status': sys.exit(os.environ['PREVIOUS_PHASE']=='absent')\n"
-                    "if name=='helm' and args[:2]==['get','values']: print(json.dumps({'installation': {'phase':os.environ['PREVIOUS_PHASE']}}))\n"
-                )
-                command.chmod(0o755)
-                for name in ("helm", "kubectl"):
-                    (temporary / name).symlink_to(command)
+                fake_commands(temporary)
                 result = subprocess.run(
                     ["bash", str(ROOT / "tests/knative_serving_helm_install.sh")],
                     cwd=ROOT,
@@ -83,6 +147,33 @@ class ServingChartTest(unittest.TestCase):
                 self.assertEqual(
                     any(c[:2] == ["helm", "install"] for c in commands),
                     previous == "absent",
+                )
+
+    def test_inactive_admission_stops_before_creating_consumers(self):
+        import json
+
+        for mode in ("unregistered", "no_default", "accept_invalid", "wrong_denial"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                temporary = Path(directory)
+                log = temporary / "commands"
+                fake_commands(temporary)
+                result = subprocess.run(
+                    ["bash", str(ROOT / "tests/knative_serving_helm_install.sh")],
+                    cwd=ROOT,
+                    env={
+                        **os.environ,
+                        "PATH": str(temporary) + os.pathsep + os.environ["PATH"],
+                        "COMMAND_LOG": str(log),
+                        "PREVIOUS_PHASE": "controllers",
+                        "ADMISSION_MODE": mode,
+                    },
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                commands = [json.loads(line) for line in log.read_text().splitlines()]
+                self.assertFalse(
+                    any("installation.phase=complete" in c for c in commands)
                 )
 
     def test_bootstrap_phases_own_each_object_once(self):

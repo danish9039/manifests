@@ -136,6 +136,16 @@ enforces three rules, in this order of importance:
 | --- | --- |
 | `ignorePodTemplateAnnotations` | ignore the listed pod template annotation keys, typically rollout checksums that replace Kustomize's content-hashed names |
 | `compareDataAsYaml` | parse the listed `data` keys as YAML before comparing, so quoting style does not matter |
+| `controllerOwnedWebhookRules` | list exact webhook entry names whose nonempty `rules` are removed only from the Kustomize side; Helm must omit the key entirely, including empty or null values |
+
+`controllerOwnedWebhookRules` is deliberately narrower than resource patterns:
+its sole action must target an exact `MutatingWebhookConfiguration/name` or
+`ValidatingWebhookConfiguration/name`, with a nonempty reason and unique exact
+webhook names. Wildcards and namespace segments are rejected. Both resources must
+use `admissionregistration.k8s.io/v1`, and each target webhook must exist exactly
+once. Missing or empty baseline rules fail; declaring any Helm rules fails before
+empty-value normalization. The allowance fires only when baseline rules are
+removed. Other fields, webhook entries and resources still compare normally.
 
 Labels in the `helm.sh/` namespace and annotations in the `helm.sh/` and
 `meta.helm.sh/` namespaces are always ignored; they are properties of Helm

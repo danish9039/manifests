@@ -3033,29 +3033,6 @@ webhooks:
       namespace: knative-serving
   failurePolicy: Fail
   name: webhook.serving.knative.dev
-  rules:
-  - apiGroups:
-    - autoscaling.internal.knative.dev
-    - networking.internal.knative.dev
-    - serving.knative.dev
-    apiVersions:
-    - '*'
-    operations:
-    - CREATE
-    - UPDATE
-    resources:
-    - metrics
-    - podautoscalers
-    - certificates
-    - ingresses
-    - serverlessservices
-    - configurations
-    - revisions
-    - routes
-    - services
-    - domainmappings
-    - domainmappings/status
-    scope: '*'
   sideEffects: None
   timeoutSeconds: 10
 ---
@@ -3139,29 +3116,5 @@ webhooks:
       namespace: knative-serving
   failurePolicy: Fail
   name: validation.webhook.serving.knative.dev
-  rules:
-  - apiGroups:
-    - autoscaling.internal.knative.dev
-    - networking.internal.knative.dev
-    - serving.knative.dev
-    apiVersions:
-    - '*'
-    operations:
-    - CREATE
-    - UPDATE
-    - DELETE
-    resources:
-    - metrics
-    - podautoscalers
-    - certificates
-    - ingresses
-    - serverlessservices
-    - configurations
-    - revisions
-    - routes
-    - services
-    - domainmappings
-    - domainmappings/status
-    scope: '*'
   sideEffects: None
   timeoutSeconds: 10

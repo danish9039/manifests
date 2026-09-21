@@ -2,3 +2,29 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
 - ../../overlays/gateways
+# Knative reconciles these rules from its registered API handlers. Helm must
+# not claim the fields before that controller writes them. Keep the distribution
+# overlay unchanged and fail if upstream changes the expected webhook identity.
+patches:
+- target:
+    group: admissionregistration.k8s.io
+    version: v1
+    kind: MutatingWebhookConfiguration
+    name: webhook\.serving\.knative\.dev
+  patch: |-
+    - op: test
+      path: /webhooks/0/name
+      value: webhook.serving.knative.dev
+    - op: remove
+      path: /webhooks/0/rules
+- target:
+    group: admissionregistration.k8s.io
+    version: v1
+    kind: ValidatingWebhookConfiguration
+    name: validation\.webhook\.serving\.knative\.dev
+  patch: |-
+    - op: test
+      path: /webhooks/0/name
+      value: validation.webhook.serving.knative.dev
+    - op: remove
+      path: /webhooks/0/rules

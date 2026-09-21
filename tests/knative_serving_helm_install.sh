@@ -34,6 +34,8 @@ if [[ "$phase" != complete ]]; then
     kubectl rollout status deployment/webhook -n knative-serving --timeout=120s
     kubectl rollout status deployment/net-istio-webhook -n knative-serving --timeout=120s
 fi
+# Deployment readiness alone does not prove admission registration has finished.
+./tests/knative_serving_helm_admission_test.sh
 # Helm may otherwise preserve saved bootstrap values when no new values are given.
 helm upgrade "$release" "$chart" --namespace "$namespace" --reset-values \
     --set installation.phase=complete --wait --timeout 10m

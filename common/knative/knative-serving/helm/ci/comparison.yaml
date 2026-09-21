@@ -2,6 +2,19 @@ component: knative-serving
 releaseName: knative-serving
 namespace: kubeflow
 includeCustomResourceDefinitions: false
+knownDifferences:
+- resource: MutatingWebhookConfiguration/webhook.serving.knative.dev
+  controllerOwnedWebhookRules:
+  - webhook.serving.knative.dev
+  reason: Knative populates admission rules from its registered handlers; Helm
+    omits only this controller-owned field. Installation verifies admission before
+    creating consumers. All other webhook fields remain compared.
+- resource: ValidatingWebhookConfiguration/validation.webhook.serving.knative.dev
+  controllerOwnedWebhookRules:
+  - validation.webhook.serving.knative.dev
+  reason: Knative populates admission rules from its registered handlers; Helm
+    omits only this controller-owned field. Installation verifies admission before
+    creating consumers. All other webhook fields remain compared.
 retainedCustomResourceDefinitions:
   reason: Retain the Serving APIs and user resources when the controller release is
     removed.
