@@ -2566,7 +2566,6 @@ metadata:
   name: pingsource-mt-adapter
   namespace: knative-eventing
 spec:
-  replicas: 0
   selector:
     matchLabels:
       app.kubernetes.io/component: knative-eventing
@@ -2599,32 +2598,18 @@ spec:
             weight: 100
       containers:
       - env:
-        - name: SYSTEM_NAMESPACE
-          value: ''
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: metadata.namespace
         - name: NAMESPACE
           value: ''
           valueFrom:
             fieldRef:
               apiVersion: v1
               fieldPath: metadata.namespace
-        - name: K_OBSERVABILITY_CONFIG
-          value: '{}'
-        - name: K_LOGGING_CONFIG
+        - name: SYSTEM_NAMESPACE
           value: ''
-        - name: K_LEADER_ELECTION_CONFIG
-          value: ''
-        - name: K_NO_SHUTDOWN_AFTER
-          value: ''
-        - name: K_SINK_TIMEOUT
-          value: '-1'
-        - name: POD_NAME
           valueFrom:
             fieldRef:
-              fieldPath: metadata.name
+              apiVersion: v1
+              fieldPath: metadata.namespace
         image: gcr.io/knative-releases/knative.dev/eventing/cmd/mtping@sha256:2fc8713fb4807df0f5d8f9506d03c16c168eed61f19c04e04092266248bd0353
         livenessProbe:
           httpGet:

@@ -2,6 +2,7 @@
 """Eventing core rendering and retained, controller-owned API behavior."""
 
 import os
+import copy
 import shutil
 import subprocess
 import tempfile
@@ -37,6 +38,40 @@ def objects(result):
 
 
 class EventingChartTest(unittest.TestCase):
+    def test_payload_diff_is_limited_to_declared_controller_ownership(self):
+        baseline = list(
+            yaml.safe_load_all(
+                subprocess.check_output(
+                    ["kustomize", "build", str(CHART.parent / "overlays/security")],
+                    text=True,
+                )
+            )
+        )
+        expected = {}
+        for original in baseline:
+            resource = copy.deepcopy(original)
+            if resource["kind"] in ("Namespace", "CustomResourceDefinition"):
+                resource["metadata"].setdefault("annotations", {})[
+                    "helm.sh/resource-policy"
+                ] = "keep"
+            if resource["kind"] == "ClusterRole" and resource.get("aggregationRule"):
+                self.assertEqual(resource.pop("rules"), [])
+            if (
+                resource["kind"] == "Deployment"
+                and resource["metadata"]["name"] == "pingsource-mt-adapter"
+            ):
+                self.assertEqual(resource["spec"].pop("replicas"), 0)
+                container = resource["spec"]["template"]["spec"]["containers"][0]
+                self.assertEqual(container["name"], "dispatcher")
+                by_name = {entry["name"]: entry for entry in container["env"]}
+                container["env"] = [by_name["NAMESPACE"], by_name["SYSTEM_NAMESPACE"]]
+            expected[(resource["kind"], resource["metadata"]["name"])] = resource
+        actual = {
+            (resource["kind"], resource["metadata"]["name"]): resource
+            for resource in objects(render())
+        }
+        self.assertEqual(actual, expected)
+
     def test_installer_completes_or_resumes_without_pruning_complete_releases(self):
         # Exercise the real shell control flow without accessing a cluster.
         for previous in ("absent", "definitions", "complete"):
@@ -53,6 +88,7 @@ class EventingChartTest(unittest.TestCase):
                     "with open(os.environ['COMMAND_LOG'], 'a') as stream: stream.write(json.dumps([name,*args])+'\\n')\n"
                     "if name=='helm' and args[0]=='status': sys.exit(os.environ['PREVIOUS_PHASE']=='absent')\n"
                     "if name=='helm' and args[:2]==['get','values']: print(json.dumps({'installation': {'phase':os.environ['PREVIOUS_PHASE']}}))\n"
+                    "if name=='kubectl' and args[:2]==['get','deployment/pingsource-mt-adapter']: print(json.dumps({'spec': {'replicas':1}, 'status': {'availableReplicas':1}}))\n"
                 )
                 command.chmod(0o755)
                 for name in ("helm", "kubectl"):
