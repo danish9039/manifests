@@ -36,6 +36,22 @@ bundles and service endpoints, and installs the runtime catalog last. It preserv
 the existing JobSet restart workaround. Endpoint and certificate readiness do not
 prove successful admission: the SDK TrainJob integration test is required.
 
+Without `TRAINER_APIS_CHART` the installer installs `trainer-apis` from the
+directory `applications/trainer/helm-crds`, as the workflow does. Set the variable
+to install that release from the packaged parent, or from another chart path,
+instead; the installer fails before its first command when the path does not exist.
+The other two releases and the order do not change.
+
+```sh
+helm package applications/trainer/helm-crds --destination /path/to/packages
+TRAINER_APIS_CHART=/path/to/packages/trainer-apis-0.1.0.tgz ./tests/trainer_helm_install.sh
+```
+
+Arguments name the releases to install, for example
+`./tests/trainer_helm_install.sh trainer` after `helm uninstall trainer`. A named
+release is installed with the same commands and readiness waits as in the complete
+installation, and several named releases keep the order above.
+
 There are three releases, not three revisions of one release. The API chart's
 internal dependency is packaging only and must not be installed separately.
 
