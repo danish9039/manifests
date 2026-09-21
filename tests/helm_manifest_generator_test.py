@@ -13,6 +13,7 @@ import subprocess
 import tempfile
 import unittest
 
+from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
@@ -115,6 +116,35 @@ class HelmManifestGeneratorTest(unittest.TestCase):
     def test_payloads_are_split_only_by_custom_resource_definition(self):
         payloads = engine.generate_payload_contents(self.resources(), configuration())
         self.assertEqual(set(payloads), {CRDS_PAYLOAD, RESOURCES_PAYLOAD, DOCUMENT})
+
+    def test_explicitly_definition_free_component_renders_resources(self):
+        resources = [
+            r for r in self.resources() if r["kind"] != "CustomResourceDefinition"
+        ]
+        payloads = engine.generate_payload_contents(
+            resources, replace(configuration(), crds_payload_filename=None)
+        )
+        self.assertEqual(set(payloads), {RESOURCES_PAYLOAD, DOCUMENT})
+        self.assertIn("name: example-service", payloads[RESOURCES_PAYLOAD])
+
+    def test_definition_free_component_rejects_unexpected_definitions(self):
+        with self.assertRaisesRegex(
+            ValueError, "declares no custom resource definitions"
+        ):
+            engine.generate_payload_contents(
+                self.resources(), replace(configuration(), crds_payload_filename=None)
+            )
+
+    def test_definition_free_component_still_rejects_empty_resource_payload(self):
+        resources = [
+            r for r in self.resources() if r["kind"] == "Deployment" or r.get("data")
+        ]
+        with self.assertRaisesRegex(
+            ValueError, "required generated payloads are empty"
+        ):
+            engine.generate_payload_contents(
+                resources, replace(configuration(), crds_payload_filename=None)
+            )
 
     def test_hand_written_resources_are_excluded_from_payloads(self):
         payloads = engine.generate_payload_contents(self.resources(), configuration())

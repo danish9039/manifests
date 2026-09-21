@@ -47,7 +47,9 @@ class GeneratorConfiguration:
     output_path: Path
     generator_script: str
     synchronize_script: str
-    crds_payload_filename: str = "platform-crds.yaml"
+    # None declares that this component has no definitions. Unexpected CRDs
+    # then fail generation instead of acquiring an unreviewed lifecycle.
+    crds_payload_filename: str | None = "platform-crds.yaml"
     resources_payload_filename: str = "platform-resources.yaml"
     # (kind, name or name prefix, name_is_prefix)
     hand_written_resources: tuple = ()
@@ -236,10 +238,14 @@ def generate_payload_contents(resources, configuration):
             + ", ".join(missing_documents)
         )
 
-    payloads = (
-        (configuration.crds_payload_filename, crd_resources),
-        (configuration.resources_payload_filename, payload_resources),
-    )
+    payloads = [(configuration.resources_payload_filename, payload_resources)]
+    if configuration.crds_payload_filename is None:
+        if crd_resources:
+            raise ValueError(
+                "component declares no custom resource definitions but Kustomize renders them"
+            )
+    else:
+        payloads.insert(0, (configuration.crds_payload_filename, crd_resources))
     empty_payloads = [filename for filename, entries in payloads if not entries]
     if empty_payloads:
         raise ValueError(
