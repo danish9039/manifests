@@ -80,6 +80,12 @@ RUNS = {
     "not disposable": lifecycle(NAMESPACE, "all", TRAINER_HELM_LIFECYCLE_DISPOSABLE=""),
     "no kubeconfig": lifecycle(NAMESPACE, "all", KUBECONFIG=""),
     "unknown scenario": lifecycle(NAMESPACE, "catalog-update"),
+    "long identifier": lifecycle(
+        NAMESPACE, "fixtures", TRAINER_HELM_LIFECYCLE_RUN_IDENTIFIER="a" * 16
+    ),
+    "default identifier": lifecycle(
+        NAMESPACE, "fixtures", TRAINER_HELM_LIFECYCLE_RUN_IDENTIFIER=""
+    ),
     "all with another scenario": lifecycle(NAMESPACE, "all", "smoke"),
     "no argument": lifecycle(),
     "namespace only": lifecycle(NAMESPACE),
@@ -320,6 +326,18 @@ class TrainerLifecycleControlFlowTest(unittest.TestCase):
                 run = self.run_of(name, passes=False)
                 self.assertEqual(run.commands, [])
                 self.assertIn("is not a scenario", run.result.stderr)
+
+    def test_a_fixture_train_job_name_leaves_room_for_the_pod_name(self):
+        # JobSet v0.12.0 denies a JobSet whose Pod names, here
+        # <TrainJob>-node-0-0-<5 characters>, exceed 63 characters.
+        run = self.run_of("long identifier", passes=False)
+        self.assertEqual(run.commands, [])
+        self.assertIn("at most 15 characters", run.result.stderr)
+        run = self.run_of("default identifier", passes=True)
+        names = [key.split("|")[2] for key in run.state["created"]]
+        self.assertEqual(len(names), len(FIXTURES))
+        for name in names:
+            self.assertLessEqual(len(f"{name}-node-0-0-abcde"), 63, name)
 
     def test_without_a_selection_only_the_smoke_scenario_runs(self):
         for name in ("no argument", "namespace only"):
