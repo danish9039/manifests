@@ -20,6 +20,12 @@
 # controller. A ServiceAccount bound to kubeflow-workspaces-edit must still be
 # allowed to create a Workspace in its namespace, and must still not be allowed
 # to read a Secret there.
+#
+# That ServiceAccount and its RoleBinding live in a namespace that this script
+# creates and that is named uniquely for every run, unless
+# WORKSPACES_UPGRADE_AUTHORIZATION_NAMESPACE names it. The script deletes only a
+# namespace that it has created: when the namespace already exists, the script
+# fails and leaves that namespace untouched.
 set -euxo pipefail
 
 CHANGED_CHART="${WORKSPACES_UPGRADE_CHART:?set it to a copy of applications/workspaces/helm with a changed payload}"
@@ -28,7 +34,7 @@ RELEASE_NAME="kubeflow-workspaces"
 RELEASE_NAMESPACE="kubeflow"
 CHART="applications/workspaces/helm"
 AGGREGATED_ROLES=(kubeflow-workspaces-admin kubeflow-workspaces-edit kubeflow-workspaces-view)
-AUTHORIZATION_NAMESPACE="workspaces-upgrade-test"
+AUTHORIZATION_NAMESPACE="${WORKSPACES_UPGRADE_AUTHORIZATION_NAMESPACE:-workspaces-upgrade-test-$(date +%s)-${RANDOM}}"
 EDITOR_SERVICE_ACCOUNT="workspaces-editor"
 
 mkdir -p "${EVIDENCE_DIRECTORY}"
@@ -84,8 +90,12 @@ if diff "${EVIDENCE_DIRECTORY}/chart-render.yaml" "${EVIDENCE_DIRECTORY}/changed
   exit 1
 fi
 
-trap 'kubectl delete namespace "${AUTHORIZATION_NAMESPACE}" --ignore-not-found' EXIT
+# The cleanup is registered only after this run has created the namespace. A
+# failed creation, for example of a namespace that already exists, ends the
+# script here, before anything could delete a namespace that this run does not
+# own.
 kubectl create namespace "${AUTHORIZATION_NAMESPACE}"
+trap 'kubectl delete namespace "${AUTHORIZATION_NAMESPACE}" --ignore-not-found' EXIT
 kubectl create serviceaccount "${EDITOR_SERVICE_ACCOUNT}" -n "${AUTHORIZATION_NAMESPACE}"
 kubectl create rolebinding "${EDITOR_SERVICE_ACCOUNT}" -n "${AUTHORIZATION_NAMESPACE}" \
   --clusterrole=kubeflow-workspaces-edit \
