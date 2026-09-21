@@ -151,18 +151,45 @@ same-owner recovery, controller upgrade/rollback and uninstall/reinstall, runtim
 snapshot update/rollback/retirement behavior, and successful SDK training through
 this Helm installation path on a disposable cluster.
 
-The destructive release-boundary test is opt-in and requires an explicit
-kubeconfig for a disposable cluster that already has the three releases:
+The lifecycle test is opt-in and requires an explicit kubeconfig for a disposable
+cluster that already has the three releases. Arguments after the profile namespace,
+or `TRAINER_HELM_LIFECYCLE_SCENARIOS`, select scenarios. Without a selection only
+`smoke` runs, which changes no release; `all` runs every scenario in this order:
 
 ```sh
 KUBECONFIG=/path/to/disposable.kubeconfig \
   TRAINER_HELM_LIFECYCLE_DISPOSABLE=true \
-  ./tests/trainer_helm_lifecycle_test.sh kubeflow-user-example-com
+  ./tests/trainer_helm_lifecycle_test.sh kubeflow-user-example-com smoke fixtures
 ```
 
-It exercises changed controller rollout/rollback, uninstall/reinstall followed by
-fresh SDK training, catalog removal with a retained suspended fixture, expected
-runtime-dependent admission rejection, CRD retention and same-owner recovery.
-It is not a schema-version compatibility or runtime-image/snapshot update test;
-those acceptance cases remain required independently. A failure leaves cluster
-state in place for diagnosis; use only a disposable cluster.
+| Scenario | Release operation | A pass proves |
+| --- | --- | --- |
+| `smoke` | none | Admission denies an absent runtime and admits `torch-distributed`; an SDK TrainJob completes |
+| `fixtures` | none | A namespaced TrainingRuntime and its TrainJob are admitted; every fixture TrainJob owns a runtime snapshot and a JobSet |
+| `controller-upgrade-rollback` | `trainer` upgrade with a changed Pod template, rollback | Rollout and rollback, then admission and a completed SDK TrainJob |
+| `controller-reinstall` | `trainer` uninstall, installation | Webhook configurations leave with the release, APIs and catalog stay, then admission and a completed SDK TrainJob |
+| `api-upgrade` | `trainer-apis` upgrade with one more optional TrainJob property, upgrade back | The property is served, existing objects stay readable, a new TrainJob is admitted and reconciled |
+| `api-reinstall` | `trainer-apis` uninstall, installation, unchanged upgrade | Definitions and objects are retained; the same release name takes the definitions back and manages them again |
+| `catalog-update-rollback` | `trainer-runtimes` upgrade with a changed `torch-distributed` image, rollback | A new TrainJob resolves the update, the earlier snapshot keeps its content, the rollback restores the live runtime |
+| `retirement-after-snapshot` | `trainer-runtimes` uninstall, installation | With a snapshot, admission denies a validated update while the runtime is absent |
+| `retirement-before-snapshot` | `trainer-runtimes` uninstall, installation | Without a snapshot, admission denies a validated update and a new submission while the runtime is absent |
+
+Every scenario except `smoke` creates an administrator ClusterTrainingRuntime, a
+namespaced TrainingRuntime and two suspended TrainJobs, and asserts their UIDs, the
+UIDs of their snapshots and JobSets, the snapshot contents, the four definitions
+and `kubeflow-system` after every release operation. Object names carry a run
+identifier, an existing name is refused, and only objects that the run has created
+are deleted. Every installation is a call of `tests/trainer_helm_install.sh` with
+the release name, and no command passes a force option. The TrainJob of
+`retirement-before-snapshot` is held without a snapshot by
+`spec.managedBy: kueue.x-k8s.io/multikueue`, so that scenario shows admission, not
+the reconciliation failure of a TrainJob that the Trainer controller manages. The
+`api-upgrade` scenario proves one additive change, not compatibility between
+Trainer versions. A failed scenario can leave a release uninstalled, upgraded to a
+temporary copy or rolled back; use only a disposable cluster.
+
+`tests/trainer_helm_lifecycle_control_flow_test.py` runs the lifecycle test and the
+installer without a cluster, against `tests/trainer_helm_lifecycle_fake_cluster.py`
+as `helm` and `kubectl`: scenario selection, call order, reinstallation through
+the installer, no force option, and deletion of owned objects only. It does not
+replace a run on a cluster.
