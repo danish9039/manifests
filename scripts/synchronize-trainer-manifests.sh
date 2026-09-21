@@ -29,10 +29,23 @@ for chart in helm-crds helm-crds/charts/trainer-api-payload helm helm-runtimes; 
     helm lint "${MANIFESTS_DIRECTORY}/applications/trainer/${chart}" \
         --namespace kubeflow-system
 done
+# Only the paths that this synchronization writes or owns are staged: the
+# imported upstream subtree, the four Chart.yaml files whose appVersion it
+# sets, the three payload directories that the generator replaces, the
+# generator, this script and the README. A payload directory is staged as a
+# directory so that a definition removed upstream is staged as a deletion.
+# The hand-written chart files are not staged; a maintainer who has to correct
+# one of them after an upstream change commits that correction deliberately.
 commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" \
     "$DESTINATION_MANIFESTS_PATH" \
-    applications/trainer/helm-crds applications/trainer/helm \
-    applications/trainer/helm-runtimes \
+    applications/trainer/helm-crds/Chart.yaml \
+    applications/trainer/helm-crds/charts/trainer-api-payload/Chart.yaml \
+    applications/trainer/helm-crds/charts/trainer-api-payload/manifests \
+    applications/trainer/helm/Chart.yaml \
+    applications/trainer/helm/manifests \
+    applications/trainer/helm-runtimes/Chart.yaml \
+    applications/trainer/helm-runtimes/manifests \
     scripts/generate-trainer-helm-manifests.py \
-    scripts/synchronize-trainer-manifests.sh README.md
+    scripts/synchronize-trainer-manifests.sh \
+    README.md
 echo "Synchronization completed successfully."
