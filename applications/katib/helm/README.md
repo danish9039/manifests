@@ -180,14 +180,30 @@ which the first dry run passes, and the install side of
    Observed: afterwards `kubeflow-crd-maintenance` alone owned `.spec.versions`
    of the changed definition, and `helm` kept its other fields. The two
    unchanged definitions had both field managers on every field.
-4. Check that every definition is established, then upgrade the release:
+4. Check that every definition is established and that the intended change is
+   live, and only then upgrade the release. `Established` alone does not prove
+   the content of a definition, so inspect what the target chart changes:
 
    ```bash
    kubectl wait --for=condition=Established \
      crd/experiments.kubeflow.org crd/suggestions.kubeflow.org crd/trials.kubeflow.org
+   # The served versions and, for example, the printer columns of one definition:
+   kubectl get crd trials.kubeflow.org -o jsonpath='{.spec.versions[*].name}'
+   kubectl get crd trials.kubeflow.org \
+     -o jsonpath='{.spec.versions[?(@.name=="v1beta1")].additionalPrinterColumns[*].name}'
+   # The schema as the API server serves it:
+   kubectl explain trials.spec --api-version=kubeflow.org/v1beta1
    helm upgrade katib applications/katib/helm --namespace kubeflow \
      --values applications/katib/helm/ci/values-kubeflow.yaml
    ```
+
+   The three definitions of this chart version carry an open schema
+   (`x-kubernetes-preserve-unknown-fields: true`), so `kubectl explain` lists no
+   fields for them today. It becomes the relevant check when a target chart
+   ships schema properties. Compare the output with `target-crds.yaml`.
+
+   Stop when the check does not show the intended change. The controller of the
+   new chart version expects the new schema.
 
    Keep the same field manager for later updates. One forced handover does not
    rule out later conflicts on fields that are still shared.
