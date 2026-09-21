@@ -10,7 +10,7 @@ COMMIT="v2.3.0"
 REPOSITORY_DIRECTORY="trainer"
 SOURCE_DIRECTORY=${SOURCE_DIRECTORY:=/tmp/kubeflow-${COMPONENT_NAME}}
 BRANCH_NAME=${BRANCH_NAME:=synchronize-${COMPONENT_NAME}-manifests-${COMMIT?}}
-MANIFESTS_DIRECTORY=$(dirname $SCRIPT_DIRECTORY)
+MANIFESTS_DIRECTORY=$(dirname "$SCRIPT_DIRECTORY")
 SOURCE_MANIFESTS_PATH="manifests"
 DESTINATION_MANIFESTS_PATH="applications/${COMPONENT_NAME}/upstream"
 SOURCE_TEXT="\[.*\](https://github.com/${REPOSITORY_NAME}/tree/.*/manifests)"
@@ -20,5 +20,19 @@ clone_and_checkout "$SOURCE_DIRECTORY" "$REPOSITORY_URL" "$REPOSITORY_DIRECTORY"
 mkdir -p "${MANIFESTS_DIRECTORY}/$(dirname "${DESTINATION_MANIFESTS_PATH}")"
 copy_manifests "${SOURCE_DIRECTORY}/${REPOSITORY_DIRECTORY}/${SOURCE_MANIFESTS_PATH}" "${MANIFESTS_DIRECTORY}/${DESTINATION_MANIFESTS_PATH}"
 update_readme "$MANIFESTS_DIRECTORY" "$SOURCE_TEXT" "$DESTINATION_TEXT"
-commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" "$MANIFESTS_DIRECTORY"
+require_helm_major_version 4
+python3 "${SCRIPT_DIRECTORY}/generate-trainer-helm-manifests.py" \
+    --repository-root "$MANIFESTS_DIRECTORY"
+for chart in helm-crds helm-crds/charts/trainer-api-payload helm helm-runtimes; do
+    update_helm_chart_application_version \
+        "${MANIFESTS_DIRECTORY}/applications/trainer/${chart}/Chart.yaml" "$COMMIT"
+    helm lint "${MANIFESTS_DIRECTORY}/applications/trainer/${chart}" \
+        --namespace kubeflow-system
+done
+commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests from ${COMMIT}" \
+    "$DESTINATION_MANIFESTS_PATH" \
+    applications/trainer/helm-crds applications/trainer/helm \
+    applications/trainer/helm-runtimes \
+    scripts/generate-trainer-helm-manifests.py \
+    scripts/synchronize-trainer-manifests.sh README.md
 echo "Synchronization completed successfully."
