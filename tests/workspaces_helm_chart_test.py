@@ -218,11 +218,7 @@ class WorkspacesHelmChartTest(unittest.TestCase):
                     aggregated_roles[name]["aggregationRule"],
                     {
                         "clusterRoleSelectors": [
-                            {
-                                "matchLabels": {
-                                    AGGREGATION_LABEL_PREFIX + name: "true"
-                                }
-                            }
+                            {"matchLabels": {AGGREGATION_LABEL_PREFIX + name: "true"}}
                         ]
                     },
                 )
