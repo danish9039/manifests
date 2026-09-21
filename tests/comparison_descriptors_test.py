@@ -88,6 +88,16 @@ class SiblingChartDiscoveryTest(unittest.TestCase):
                 ],
             )
 
+    def test_nested_common_components_are_discovered_without_dependencies(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chart = self.write_chart(root, "common/knative/serving/helm")
+            self.write_chart(root, "common/knative/serving/helm/charts/payload")
+            self.assertEqual(sorted(comparison.discover(root)), ["serving-helm"])
+            self.assertEqual(comparison.chart_directories(root), [chart])
+            (chart / "ci/comparison.yaml").unlink()
+            self.assertEqual(comparison.charts_without_descriptor(root), [chart])
+
     def test_a_directory_without_a_chart_is_not_discovered(self):
         """A descriptor alone does not make a chart; Helm would fail on it."""
         with tempfile.TemporaryDirectory() as directory:

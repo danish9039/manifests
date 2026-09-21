@@ -1,0 +1,28 @@
+{{- if eq .Values.installation.phase "complete" }}
+apiVersion: caching.internal.knative.dev/v1alpha1
+kind: Image
+metadata:
+  labels:
+    app.kubernetes.io/component: queue-proxy
+    app.kubernetes.io/name: knative-serving
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+  name: queue-proxy
+  namespace: knative-serving
+spec:
+  image: {{ index .Chart.Annotations "kubeflow.org/queue-proxy-image" | required "queue-proxy image metadata is missing" | quote }}
+---
+apiVersion: networking.internal.knative.dev/v1alpha1
+kind: Certificate
+metadata:
+  annotations:
+    networking.knative.dev/certificate.class: cert-manager.certificate.networking.knative.dev
+  labels:
+    networking.knative.dev/certificate-type: system-internal
+  name: routing-serving-certs
+  namespace: knative-serving
+spec:
+  dnsNames:
+  - kn-routing
+  - data-plane.knative.dev
+  secretName: routing-serving-certs
+{{- end }}

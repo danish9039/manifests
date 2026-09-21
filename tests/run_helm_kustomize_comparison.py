@@ -31,6 +31,7 @@ _COMPARATOR_SPEC.loader.exec_module(comparator)
 # component chart of its own.
 CHART_GLOBS = (
     "common/*/helm*",
+    "common/*/*/helm*",
     "applications/*/helm*",
     "applications/*/*/helm*",
     "experimental/helm/charts/*",

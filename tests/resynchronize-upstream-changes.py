@@ -30,6 +30,7 @@ path_to_synchronization_script = {
     "common/cert-manager": "scripts/synchronize-cert-manager-manifests.sh",
     "common/dex": "scripts/synchronize-dex-manifests.sh",
     "common/istio": "scripts/synchronize-istio-manifests.sh",
+    "scripts/generate-knative-serving-helm-manifests.py": "scripts/synchronize-knative-manifests.sh",
     "common/knative": "scripts/synchronize-knative-manifests.sh",
     "common/oauth2-proxy": "scripts/synchronize-oauth2-proxy-manifests.sh",
     "scripts/generate-dashboard-helm-manifests.py": "scripts/synchronize-dashboard-manifests.sh",
@@ -38,6 +39,7 @@ path_to_synchronization_script = {
     "scripts/helm_manifest_generator.py": (
         "scripts/synchronize-dashboard-manifests.sh",
         "scripts/synchronize-notebooks-v1-manifests.sh",
+        "scripts/synchronize-knative-manifests.sh",
     ),
 }
 
