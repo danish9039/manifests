@@ -3,6 +3,7 @@
 SCRIPT_DIRECTORY=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 source "${SCRIPT_DIRECTORY}/library.sh"
 setup_error_handling
+require_helm_major_version 4
 COMPONENT_NAME="knative"
 REPOSITORY_NAME="knative"
 KN_SERVING_RELEASE="v1.23.0"

@@ -93,7 +93,7 @@ jobs:
 
     - name: Install Knative Serving with Helm
       # The istio release already owns the cluster-local gateway and the
-      # Kubeflow Istio resources, so the shared script skips its Istio applies.
+      # Kubeflow Istio resources; the Knative Helm installer never reapplies them.
       env:
         ISTIO_MANAGED_BY_HELM: "true"
       run: ./tests/knative_serving_helm_install.sh
