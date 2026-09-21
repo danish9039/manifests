@@ -34,7 +34,29 @@ namespace_uid=$(kubectl get namespace "$namespace" -o jsonpath='{.metadata.uid}'
 # Both configured conversion APIs must work while the webhook is available.
 kubectl get --raw "$converted_ping_path" >/dev/null
 kubectl get --raw "$converted_eventtype_path" >/dev/null
-helm upgrade knative-eventing "$chart" -n kubeflow --reset-values --set installation.phase=complete --wait --timeout 10m
+kubectl rollout status deployment/pingsource-mt-adapter -n "$namespace" --timeout=120s
+capture_adapter() {
+    kubectl get deployment/pingsource-mt-adapter -n "$namespace" -o json | \
+        python3 -c 'import json,sys
+deployment=json.load(sys.stdin)
+print(json.dumps({"spec":deployment["spec"],"generation":deployment["metadata"]["generation"]}, sort_keys=True))'
+    kubectl get pods -n "$namespace" -l eventing.knative.dev/source=ping-source-controller -o json | \
+        python3 -c 'import json,sys
+pods=[p for p in json.load(sys.stdin)["items"] if not p["metadata"].get("deletionTimestamp")]
+assert pods and all(any(c["type"]=="Ready" and c["status"]=="True" for c in p.get("status",{}).get("conditions",[])) for p in pods), "Expected healthy, active adapter Pods"
+print(json.dumps(sorted(p["metadata"]["uid"] for p in pods)))'
+}
+capture_adapter >"$temporary/adapter-before"
+for attempt in 1 2; do
+    helm upgrade knative-eventing "$chart" -n kubeflow --reset-values --set installation.phase=complete --wait --timeout 10m
+    # A new event gives the adapter time to process work after each upgrade.
+    KNATIVE_HELM_KEEP_FIXTURE=true ./tests/knative_eventing_helm_smoke_test.sh
+    capture_adapter >"$temporary/adapter-after"
+    if ! diff -u "$temporary/adapter-before" "$temporary/adapter-after"; then
+        echo "Unchanged upgrade $attempt rewrote the PingSource adapter or replaced its Pod" >&2
+        exit 1
+    fi
+done
 revision=$(helm history knative-eventing -n kubeflow -o json | python3 -c 'import json,sys; print(json.load(sys.stdin)[-1]["revision"])')
 cp -a "$chart" "$temporary/chart"
 python3 - "$temporary/chart/manifests/platform-resources.yaml" <<'PYTHON'
