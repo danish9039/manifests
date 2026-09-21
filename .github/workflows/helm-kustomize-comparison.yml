@@ -136,6 +136,8 @@ jobs:
       # Every generator's --check mode; it renders local inputs and writes
       # nothing, so a stale committed payload fails here whatever changed.
       run: python tests/helm_payload_freshness_test.py
+    - name: Test Kubeflow platform roles Helm behavior
+      run: python tests/kubeflow_roles_helm_chart_test.py
     - name: Verify release partition groups
       # Sibling charts that split one component into several releases must
       # own their shared baseline exactly once, judged from each release's
