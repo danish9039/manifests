@@ -17,6 +17,8 @@ on:
     - applications/*/*/helm*/**
     - experimental/helm/charts/katib/**
     - tests/*_helm_install.sh
+    - tests/kserve_ui_helm_lifecycle_test.sh
+    - tests/kserve_test.sh
     - tests/knative_serving_install.sh
     - .github/workflows/helm_kubeflow_integration_test.yaml
   pull_request:
@@ -28,6 +30,8 @@ on:
     - applications/*/*/helm*/**
     - experimental/helm/charts/katib/**
     - tests/*_helm_install.sh
+    - tests/kserve_ui_helm_lifecycle_test.sh
+    - tests/kserve_test.sh
     - tests/knative_serving_install.sh
     - .github/workflows/helm_kubeflow_integration_test.yaml
 
