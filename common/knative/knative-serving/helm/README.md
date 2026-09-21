@@ -32,9 +32,10 @@ The installer uses one release with three explicit phases:
 
 These phases are bootstrap mechanics, not selectable product installations.
 Never set a running release back to `definitions` or `controllers`: Helm would
-remove previously rendered resources. Existing releases use a direct complete
-upgrade; the installer does not blindly retry a failed installation. If bootstrap
-is interrupted, inspect `helm status` and resume the missing phase explicitly.
+remove previously rendered resources. Existing complete releases use a direct complete upgrade. The installer reads
+the saved phase and resumes interrupted bootstrap forward, with explicit reset
+values on each upgrade; it never infers readiness merely from release existence.
+Unknown saved phases fail for operator inspection.
 
 There is no generic patch interface. The queue-proxy digest is synchronized from
 upstream into chart metadata, and must equal the generated `config-deployment`
@@ -45,7 +46,7 @@ parity tests.
 ## Upgrade, rollback and removal
 
 ```sh
-helm upgrade knative-serving common/knative/knative-serving/helm -n kubeflow --wait --timeout 10m
+helm upgrade knative-serving common/knative/knative-serving/helm -n kubeflow --reset-values --set installation.phase=complete --wait --timeout 10m
 helm history knative-serving -n kubeflow
 # Choose a previously complete revision at a compatible Knative version.
 helm rollback knative-serving COMPLETE_REVISION -n kubeflow --wait --timeout 10m

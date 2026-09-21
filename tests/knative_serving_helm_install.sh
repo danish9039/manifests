@@ -11,20 +11,32 @@ kubectl get namespace "$namespace" >/dev/null
 kubectl get deployment istiod -n istio-system >/dev/null
 kubectl get service cluster-local-gateway -n istio-system >/dev/null
 
+phase=definitions
 if helm status "$release" --namespace "$namespace" >/dev/null 2>&1; then
-    # Never move a live release back to a bootstrap phase: Helm would prune it.
-    helm upgrade "$release" "$chart" --namespace "$namespace" --wait --timeout 10m
+    phase=$(helm get values "$release" --namespace "$namespace" -o json | \
+        python3 -c 'import json,sys; print((json.load(sys.stdin) or {}).get("installation", {}).get("phase", "complete"))')
 else
     helm install "$release" "$chart" --namespace "$namespace" \
         --set installation.phase=definitions --wait --timeout 5m
-    kubectl wait --for=condition=Established --timeout=120s \
-        -f "$chart/manifests/platform-crds.yaml"
-    helm upgrade "$release" "$chart" --namespace "$namespace" \
+fi
+case "$phase" in
+    definitions)
+        kubectl wait --for=condition=Established --timeout=120s \
+            -f "$chart/manifests/platform-crds.yaml"
+        ;;
+    controllers|complete) ;;
+    *) echo "Unknown saved bootstrap phase: $phase" >&2; exit 1 ;;
+esac
+if [[ "$phase" != complete ]]; then
+    # Resume bootstrap forward; never prune a complete release back to a phase.
+    helm upgrade "$release" "$chart" --namespace "$namespace" --reset-values \
         --set installation.phase=controllers --wait --timeout 10m
     kubectl rollout status deployment/webhook -n knative-serving --timeout=120s
     kubectl rollout status deployment/net-istio-webhook -n knative-serving --timeout=120s
-    helm upgrade "$release" "$chart" --namespace "$namespace" --wait --timeout 10m
 fi
+# Helm may otherwise preserve saved bootstrap values when no new values are given.
+helm upgrade "$release" "$chart" --namespace "$namespace" --reset-values \
+    --set installation.phase=complete --wait --timeout 10m
 for deployment in activator autoscaler controller net-istio-controller net-istio-webhook webhook; do
     kubectl rollout status "deployment/$deployment" -n knative-serving --timeout=120s
 done

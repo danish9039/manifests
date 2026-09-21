@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Knative Serving ownership, bootstrap and literal-payload behavior."""
 
+import os
 import shutil
 import subprocess
 import tempfile
@@ -36,6 +37,54 @@ def objects(result):
 
 
 class ServingChartTest(unittest.TestCase):
+    def test_installer_completes_or_resumes_without_pruning_complete_releases(self):
+        # Exercise the real shell control flow without accessing a cluster.
+        for previous in ("absent", "definitions", "controllers", "complete"):
+            with self.subTest(
+                previous=previous
+            ), tempfile.TemporaryDirectory() as directory:
+                temporary = Path(directory)
+                log = temporary / "commands"
+                command = temporary / "command"
+                command.write_text(
+                    "#!/usr/bin/env python3\n"
+                    "import json, os, pathlib, sys\n"
+                    "name=pathlib.Path(sys.argv[0]).name; args=sys.argv[1:]\n"
+                    "with open(os.environ['COMMAND_LOG'], 'a') as stream: stream.write(json.dumps([name,*args])+'\\n')\n"
+                    "if name=='helm' and args[0]=='status': sys.exit(os.environ['PREVIOUS_PHASE']=='absent')\n"
+                    "if name=='helm' and args[:2]==['get','values']: print(json.dumps({'installation': {'phase':os.environ['PREVIOUS_PHASE']}}))\n"
+                )
+                command.chmod(0o755)
+                for name in ("helm", "kubectl"):
+                    (temporary / name).symlink_to(command)
+                result = subprocess.run(
+                    ["bash", str(ROOT / "tests/knative_serving_helm_install.sh")],
+                    cwd=ROOT,
+                    env={
+                        **os.environ,
+                        "PATH": str(temporary) + os.pathsep + os.environ["PATH"],
+                        "COMMAND_LOG": str(log),
+                        "PREVIOUS_PHASE": previous,
+                    },
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                import json
+
+                commands = [json.loads(line) for line in log.read_text().splitlines()]
+                upgrades = [c for c in commands if c[:2] == ["helm", "upgrade"]]
+                self.assertIn("installation.phase=complete", upgrades[-1])
+                self.assertIn("--reset-values", upgrades[-1])
+                self.assertEqual(
+                    any("installation.phase=controllers" in c for c in upgrades),
+                    previous != "complete",
+                )
+                self.assertEqual(
+                    any(c[:2] == ["helm", "install"] for c in commands),
+                    previous == "absent",
+                )
+
     def test_bootstrap_phases_own_each_object_once(self):
         complete = objects(render())
         definitions = objects(render("--set", "installation.phase=definitions"))
