@@ -15,6 +15,7 @@ UPSTREAM_DEFINITIONS_PATH = (
     REPOSITORY_ROOT / "applications/katib/upstream/components/crd"
 )
 SYNCHRONIZATION_SCRIPT = REPOSITORY_ROOT / "scripts/synchronize-katib-manifests.sh"
+PAYLOAD_PATH = CHART_PATH / "manifests"
 RELEASE_NAMESPACE = "kubeflow"
 PLATFORM_VALUES_FILE = "ci/values-kubeflow.yaml"
 VALUES_FILES = [
@@ -241,6 +242,45 @@ class KatibHelmChartTest(unittest.TestCase):
         self.assertEqual(
             platform_roles[AGGREGATED_ROLE]["aggregationRule"],
             {"clusterRoleSelectors": AGGREGATED_ROLE_SELECTORS},
+        )
+
+    def test_platform_payload_keeps_definitions_and_owns_no_namespace(self):
+        definitions = list(
+            yaml.safe_load_all((PAYLOAD_PATH / "platform-crds.yaml").read_text())
+        )
+        resources = list(
+            yaml.safe_load_all((PAYLOAD_PATH / "platform-resources.yaml").read_text())
+        )
+
+        self.assertEqual(
+            sorted(definition["metadata"]["name"] for definition in definitions),
+            [
+                "experiments.kubeflow.org",
+                "suggestions.kubeflow.org",
+                "trials.kubeflow.org",
+            ],
+        )
+        for definition in definitions:
+            self.assertEqual(
+                definition["metadata"]["annotations"]["helm.sh/resource-policy"],
+                "keep",
+            )
+        # The aggregation controller owns the rules of the aggregated role.
+        aggregated_roles = {
+            resource["metadata"]["name"]: resource
+            for resource in resources
+            if "aggregationRule" in resource
+        }
+        self.assertEqual(list(aggregated_roles), [AGGREGATED_ROLE])
+        self.assertNotIn("rules", aggregated_roles[AGGREGATED_ROLE])
+        # The kubeflow namespace belongs to the platform, never to this chart.
+        self.assertNotIn("Namespace", {resource["kind"] for resource in resources})
+        self.assertEqual(
+            {
+                resource["metadata"].get("namespace", RELEASE_NAMESPACE)
+                for resource in resources
+            },
+            {RELEASE_NAMESPACE},
         )
 
 

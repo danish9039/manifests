@@ -32,6 +32,7 @@ KNOWN_GENERATORS = {
     "scripts/generate-hub-registry-helm-manifests.py",
     "scripts/generate-hub-catalog-helm-manifests.py",
     "scripts/generate-dashboard-helm-manifests.py",
+    "scripts/generate-katib-helm-manifests.py",
     "scripts/generate-kserve-helm-manifests.py",
     "scripts/generate-kserve-ui-helm-manifests.py",
     "scripts/generate-notebooks-v1-helm-manifests.py",
