@@ -159,9 +159,13 @@ API_TEST_PROPERTY=trainerHelmLifecycleTest
 EXTERNAL_MANAGER=kueue.x-k8s.io/multikueue
 SNAPSHOT_ABSENCE_SECONDS=${TRAINER_HELM_LIFECYCLE_SNAPSHOT_ABSENCE_SECONDS:-30}
 
-RUN_IDENTIFIER=${TRAINER_HELM_LIFECYCLE_RUN_IDENTIFIER:-$(date +%s)-${RANDOM}}
-if [[ ! "$RUN_IDENTIFIER" =~ ^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$ ]]; then
-  echo "ERROR: the run identifier ${RUN_IDENTIFIER} does not fit into a TrainJob name." >&2
+# JobSet v0.12.0 denies a JobSet whose Pod names would exceed 63 characters. The
+# Pod of a fixture is named <TrainJob>-node-0-0-<5 characters>, so a TrainJob name
+# has at most 48 characters. The longest one,
+# trainer-lifecycle-<run identifier>-namespaced-job, leaves 15 for the identifier.
+RUN_IDENTIFIER=${TRAINER_HELM_LIFECYCLE_RUN_IDENTIFIER:-$(date +%s)-$((RANDOM % 10000))}
+if [[ ! "$RUN_IDENTIFIER" =~ ^[a-z0-9]([-a-z0-9]{0,13}[a-z0-9])?$ ]]; then
+  echo "ERROR: the run identifier ${RUN_IDENTIFIER} is not a lowercase name of at most 15 characters; the JobSet of a fixture TrainJob would be denied." >&2
   exit 1
 fi
 NAME_PREFIX="trainer-lifecycle-${RUN_IDENTIFIER}"
