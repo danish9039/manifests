@@ -24,6 +24,8 @@ on:
     - tests/knative_serving_helm_smoke_test.sh
     - tests/knative_serving_helm_lifecycle_test.sh
     - tests/knative_serving_helm_admission_test.sh
+    - tests/knative_eventing_helm_smoke_test.sh
+    - tests/knative_eventing_helm_lifecycle_test.sh
     - .github/workflows/helm_kubeflow_integration_test.yaml
   pull_request:
     branches:
@@ -41,6 +43,8 @@ on:
     - tests/knative_serving_helm_smoke_test.sh
     - tests/knative_serving_helm_lifecycle_test.sh
     - tests/knative_serving_helm_admission_test.sh
+    - tests/knative_eventing_helm_smoke_test.sh
+    - tests/knative_eventing_helm_lifecycle_test.sh
     - .github/workflows/helm_kubeflow_integration_test.yaml
 
 permissions:
@@ -104,8 +108,11 @@ jobs:
         ISTIO_MANAGED_BY_HELM: "true"
       run: ./tests/knative_serving_helm_install.sh
 
-    - name: Install Knative Eventing
-      run: ./tests/knative_eventing_install.sh
+    - name: Install Knative Eventing with Helm
+      run: ./tests/knative_eventing_helm_install.sh
+
+    - name: Test Knative Eventing lifecycle and delivery with Helm
+      run: ./tests/knative_eventing_helm_lifecycle_test.sh
 
     - name: Install KServe with Helm
       run: ./tests/kserve_helm_install.sh
