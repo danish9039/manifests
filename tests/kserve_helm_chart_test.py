@@ -55,9 +55,7 @@ def helm_commands(text):
     """Return every Helm command of a script or a document, continuations joined."""
     return [
         command
-        for command in (
-            line.strip() for line in text.replace("\\\n", " ").splitlines()
-        )
+        for command in (line.strip() for line in text.replace("\\\n", " ").splitlines())
         if command.startswith("helm ")
     ]
 
@@ -322,7 +320,9 @@ class KServeHelmChartTest(unittest.TestCase):
             "#aggregated-clusterroles",
             readme,
         )
-        self.assertIn("`helm upgrade --dry-run=server` is not conflict evidence", readme)
+        self.assertIn(
+            "`helm upgrade --dry-run=server` is not conflict evidence", readme
+        )
         self.assertIn("reintroduces `rules: []`", readme)
         self.assertIn("leaves the release without a `deployed` revision", readme)
 
