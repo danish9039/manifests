@@ -19,6 +19,8 @@ on:
     - experimental/helm/charts/katib/**
     - experimental/ray/**
     - tests/ray_helm_lifecycle.sh
+    - tests/hub_helm_lifecycle_test.sh
+    - tests/hub_helm_smoke_test.sh
     - tests/*_helm_install.sh
     - tests/kserve_ui_helm_lifecycle_test.sh
     - tests/kserve_test.sh
@@ -38,6 +40,8 @@ on:
     - experimental/helm/charts/katib/**
     - experimental/ray/**
     - tests/ray_helm_lifecycle.sh
+    - tests/hub_helm_lifecycle_test.sh
+    - tests/hub_helm_smoke_test.sh
     - tests/*_helm_install.sh
     - tests/kserve_ui_helm_lifecycle_test.sh
     - tests/kserve_test.sh
@@ -136,11 +140,18 @@ jobs:
       run: ./tests/ray_helm_install.sh
 
 
-    - name: Install Model Registry
-      run: ./tests/model_registry_install.sh
-
-    - name: Install Model Catalog
-      run: ./tests/model_catalog_install.sh
+    - name: Install Hub model registry and catalog with Helm
+      run: |
+        # One private values file per release, reused by the lifecycle test.
+        umask 077
+        python3 - <<'PYTHON'
+        import os, pathlib, secrets
+        for component in ("registry", "catalog"):
+            path = pathlib.Path(os.environ["RUNNER_TEMP"]) / f"hub-{component}-values.yaml"
+            path.write_text(f"database:\n  password: {secrets.token_urlsafe(32)}\n")
+        PYTHON
+        ./tests/hub_helm_install.sh registry "$RUNNER_TEMP/hub-registry-values.yaml"
+        ./tests/hub_helm_install.sh catalog "$RUNNER_TEMP/hub-catalog-values.yaml"
 
     - name: Install Spark
       run: chmod u+x tests/*.sh && ./tests/spark_install.sh
@@ -269,6 +280,12 @@ jobs:
 
     - name: Run Model Catalog API Tests
       run: ./tests/model_catalog_test.sh
+
+    - name: Test Hub model catalog contents
+      run: ./tests/hub_helm_smoke_test.sh
+
+    - name: Test Hub Helm lifecycle
+      run: ./tests/hub_helm_lifecycle_test.sh "$RUNNER_TEMP/hub-registry-values.yaml" "$RUNNER_TEMP/hub-catalog-values.yaml"
 
     - name: Apply Pod Security Standards Restricted
       run: ./tests/PSS_enable.sh restricted
