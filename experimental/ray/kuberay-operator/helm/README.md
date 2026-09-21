@@ -141,7 +141,8 @@ its original operator owner.
 
 The lifecycle script is destructive to its operator release and requires
 `RUN_HELM_LIFECYCLE_TESTS=true` on a disposable cluster. It holds a RayJob with
-`suspend: true`, waits for `Suspended`, and compares definition schemas, object
+`suspend: true` and the upstream-required `shutdownAfterJobFinishes: true`,
+waits for `Suspended`, and compares definition schemas, object
 UIDs, the Job specification and namespace UIDs across same-version definition
 maintenance, unchanged upgrade, replica change, rollback, uninstall and
 reinstall. It then runs real distributed work after recovery. It leaves the

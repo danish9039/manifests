@@ -33,6 +33,7 @@ yaml.safe_dump({
     "metadata": {"name": "helm-lifecycle-held"},
     "spec": {
         "suspend": True,
+        "shutdownAfterJobFinishes": True,
         "entrypoint": "python -c 'print(42)'",
         "rayClusterSpec": cluster["spec"],
     },
