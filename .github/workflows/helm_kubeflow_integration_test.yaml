@@ -61,7 +61,8 @@ jobs:
     runs-on:
       labels: oracle-vm-16cpu-64gb-x86-64
       # labels: ubuntu-latest-16-cores
-    timeout-minutes: 45
+    # Allow both Knative lifecycle suites in addition to the platform tests.
+    timeout-minutes: 60
     steps:
     - name: Checkout
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
