@@ -15,6 +15,7 @@ path_to_synchronization_script = {
     "applications/dashboard/helm/manifests": "scripts/synchronize-dashboard-manifests.sh",
     "applications/hub/upstream": "scripts/synchronize-hub-manifests.sh",
     "applications/katib/upstream": "scripts/synchronize-katib-manifests.sh",
+    "applications/katib/patches": "scripts/synchronize-katib-manifests.sh",
     "applications/katib/helm/Chart.yaml": "scripts/synchronize-katib-manifests.sh",
     "applications/katib/helm/values.yaml": "scripts/synchronize-katib-manifests.sh",
     "applications/katib/helm/ci": "scripts/synchronize-katib-manifests.sh",
