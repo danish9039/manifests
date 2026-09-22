@@ -68,7 +68,7 @@ there is no blanket `--take-ownership` or force-conflicts procedure.
 
 Payloads use the shared manifest engine and are loaded literally through
 `.Files.Get`; no generated YAML is evaluated as a Helm template. Regenerate and
-review an empty second-run diff instead of hand-editing generated files.
+verify that the second run changes no files instead of hand-editing generated files.
 
 ```sh
 KUBEFLOW_SYNCHRONIZE_NO_COMMIT=true ./scripts/synchronize-hub-manifests.sh
