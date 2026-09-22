@@ -26,8 +26,8 @@ Install the Kubeflow foundation, cert-manager, Istio, OAuth2-Proxy, Profile
 Controller, and required multi-tenancy resources first.
 
 The chart requires its release namespace to be `kubeflow` and refuses to install
-anywhere else. Every resource it renders declares `namespace: kubeflow`, so a
-release installed elsewhere would store its metadata in one namespace while
+anywhere else. Every namespaced resource it renders declares `namespace: kubeflow`,
+so a release installed elsewhere would store its metadata in one namespace while
 modifying another, and `helm uninstall` would then delete resources it does not
 appear to own. It does not create that namespace - the `kubeflow-namespaces`
 foundation chart does.
