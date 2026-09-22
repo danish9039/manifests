@@ -34,7 +34,7 @@ def render(*arguments, chart=CHART, namespace="kubeflow"):
 def objects(result):
     if result.returncode:
         raise AssertionError(result.stderr)
-    return [r for r in yaml.safe_load_all(result.stdout) if r]
+    return [resource for resource in yaml.safe_load_all(result.stdout) if resource]
 
 
 class EventingChartTest(unittest.TestCase):
