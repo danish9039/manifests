@@ -113,7 +113,7 @@ python3 tests/helm_release_size.py knative-eventing
 ./tests/knative_eventing_helm_lifecycle_test.sh
 ```
 
-The workflow gate requires a fresh, exact PingSource event payload, then an
+The workflow gate requires a fresh, exact PingSource event payload, then
 two unchanged upgrades that preserve the adapter specification, generation and
 Pod identities, an actual controller Pod-template rollout, compatible rollback,
 retained PingSource/EventType identities, the expected conversion interruption,

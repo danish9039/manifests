@@ -6,8 +6,8 @@ on:
   # or push. The in-place replacement of the Kustomize gate is a later,
   # separate decision. The workflow includes the experimental Katib chart
   # and co-located Ray wrapper; other experimental charts remain outside it.
-  # The shared Knative Serving script
-  # carries a branch only this workflow runs (ISTIO_MANAGED_BY_HELM).
+  # The dedicated Knative Helm installers preserve the Istio resources
+  # already owned by their Helm releases.
   push:
     branches:
     - master
@@ -117,8 +117,6 @@ jobs:
     - name: Install Knative Serving with Helm
       # The istio release already owns the cluster-local gateway and the
       # Kubeflow Istio resources; the Knative Helm installer never reapplies them.
-      env:
-        ISTIO_MANAGED_BY_HELM: "true"
       run: ./tests/knative_serving_helm_install.sh
 
     - name: Install Knative Eventing with Helm
