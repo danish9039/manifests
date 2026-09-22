@@ -1,0 +1,3 @@
+{{- if ne .Values.scenario "platform" }}
+{{- fail "Models UI supports only the platform scenario" }}
+{{- end }}

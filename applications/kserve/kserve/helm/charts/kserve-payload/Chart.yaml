@@ -1,0 +1,12 @@
+apiVersion: v2
+name: kserve-payload
+description: Generated KServe payload of the kserve chart; not installable on its own
+version: 0.1.0
+appVersion: "v0.20.0"
+home: https://github.com/kubeflow/community-distribution
+sources:
+- https://github.com/kubeflow/community-distribution/tree/master/applications/kserve/kserve
+- https://github.com/kserve/kserve
+annotations:
+  category: Serving
+  licenses: Apache-2.0

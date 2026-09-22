@@ -1,0 +1,42 @@
+# Default values for the KServe chart.
+#
+# The chart vendors the rendered Kustomize component applications/kserve/kserve,
+# including every restricted Pod Security Standard and Kubeflow integration
+# patch that component carries. README.md lists the four controlled transforms
+# of the generator. Kustomize remains the source of truth.
+#
+# Every value lives under payload, the alias of the internal kserve-payload
+# dependency that holds the generated manifests. The top-level keys scenario,
+# customResourceDefinitions and resources are rejected.
+
+payload:
+  # -- Rendered Kustomize parity scenario.
+  # Supported value: platform
+  scenario: platform
+
+  customResourceDefinitions:
+    # -- Render the sixteen KServe custom resource definitions.
+    # They are rendered as ordinary templates rather than from crds/, because
+    # Helm never upgrades or deletes anything in crds/, and they carry
+    # helm.sh/resource-policy: keep so uninstalling the release cannot delete
+    # the definitions or the objects users created from them. Helm's
+    # --skip-crds does not apply to templates; set this to false instead when
+    # an administrator or another release already owns them.
+    enabled: true
+
+  resources:
+    # -- Render the KServe control plane: controllers, webhooks, certificates,
+    # the inference service configuration, cluster serving runtimes and the
+    # Kubeflow integration resources. Set this to false for the first release
+    # revision, so the custom resource definitions are established before the
+    # objects that need them are applied.
+    enabled: true
+
+  clusterServingRuntimes:
+    # -- Render the fourteen bundled ClusterServingRuntime objects, which are
+    # part of the control plane payload. Set this to false for the second
+    # release revision: their validating webhook has failurePolicy: Fail and is
+    # served by kserve-controller-manager, so they cannot be created before
+    # that Deployment is ready. It has no effect while
+    # payload.resources.enabled is false.
+    enabled: true

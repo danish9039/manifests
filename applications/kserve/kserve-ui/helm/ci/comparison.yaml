@@ -1,0 +1,10 @@
+# Keep the legacy experimental component independently discoverable.
+component: kserve-models-web-application-platform
+releaseName: kserve-models-web-application
+namespace: kserve
+includeCustomResourceDefinitions: false
+scenarios:
+  platform:
+    kustomize:
+    - applications/kserve/kserve-ui
+    values: ci/values-platform.yaml

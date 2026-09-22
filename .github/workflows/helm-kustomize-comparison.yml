@@ -115,6 +115,15 @@ jobs:
       run: |
         python tests/istio_helm_chart_test.py
         python tests/istio_document_selection_test.py
+    - name: Test KServe Helm behavior
+      run: |
+        python tests/kserve_helm_chart_test.py
+        python tests/kserve_helm_manifest_generator_test.py
+        ./tests/kserve_helm_lifecycle_functions_test.sh
+    - name: Test Models UI Helm behavior
+      run: |
+        python tests/kserve_ui_helm_chart_test.py
+        python tests/kserve_ui_synchronization_test.py
     - name: Test Dashboard Helm behavior
       run: python tests/dashboard_helm_chart_test.py
     - name: Test Notebooks Helm behavior
@@ -134,6 +143,11 @@ jobs:
         cache: false
     - name: Test Helm release storage size
       run: python tests/helm_release_size_test.py
+    - name: Test KServe definitions-only release size
+      # The first KServe release revision renders the definitions alone and no
+      # descriptor scenario covers it. It compiles the Go encoder, so it runs
+      # after Install Go.
+      run: python tests/kserve_helm_release_size_test.py
     - name: Check that the generated Helm payloads are fresh
       # Every generator's --check mode; it renders local inputs and writes
       # nothing, so a stale committed payload fails here whatever changed.

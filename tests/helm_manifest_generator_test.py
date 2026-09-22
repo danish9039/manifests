@@ -13,6 +13,7 @@ import subprocess
 import tempfile
 import unittest
 
+from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
@@ -121,6 +122,35 @@ class HelmManifestGeneratorTest(unittest.TestCase):
         payloads = engine.generate_payload_contents(self.resources(), configuration())
         self.assertEqual(set(payloads), {CRDS_PAYLOAD, RESOURCES_PAYLOAD, DOCUMENT})
 
+    def test_explicitly_definition_free_component_renders_resources(self):
+        resources = [
+            r for r in self.resources() if r["kind"] != "CustomResourceDefinition"
+        ]
+        payloads = engine.generate_payload_contents(
+            resources, replace(configuration(), crds_payload_filename=None)
+        )
+        self.assertEqual(set(payloads), {RESOURCES_PAYLOAD, DOCUMENT})
+        self.assertIn("name: example-service", payloads[RESOURCES_PAYLOAD])
+
+    def test_definition_free_component_rejects_unexpected_definitions(self):
+        with self.assertRaisesRegex(
+            ValueError, "declares no custom resource definitions"
+        ):
+            engine.generate_payload_contents(
+                self.resources(), replace(configuration(), crds_payload_filename=None)
+            )
+
+    def test_definition_free_component_still_rejects_empty_resource_payload(self):
+        resources = [
+            r for r in self.resources() if r["kind"] == "Deployment" or r.get("data")
+        ]
+        with self.assertRaisesRegex(
+            ValueError, "required generated payloads are empty"
+        ):
+            engine.generate_payload_contents(
+                resources, replace(configuration(), crds_payload_filename=None)
+            )
+
     def test_hand_written_resources_are_excluded_from_payloads(self):
         payloads = engine.generate_payload_contents(self.resources(), configuration())
         rendered = payloads[CRDS_PAYLOAD] + payloads[RESOURCES_PAYLOAD]
@@ -128,9 +158,109 @@ class HelmManifestGeneratorTest(unittest.TestCase):
         self.assertNotIn("example-parameters-", rendered)
 
     def test_orphaned_hand_written_resource_fails(self):
-        resources = [r for r in self.resources() if r["metadata"]["name"] != "example"]
+        resources = [
+            resource
+            for resource in self.resources()
+            if resource["metadata"]["name"] != "example"
+        ]
         with self.assertRaisesRegex(ValueError, "orphaned"):
             engine.generate_payload_contents(resources, configuration())
+
+    def test_custom_resource_definitions_can_be_written_one_per_file(self):
+        resources = self.resources()
+        resources.append(
+            self.resource(
+                "samples.kubeflow.org",
+                kind="CustomResourceDefinition",
+                api_version="apiextensions.k8s.io/v1",
+                namespace=None,
+            )
+        )
+        per_definition = engine.GeneratorConfiguration(
+            **{
+                **configuration().__dict__,
+                "crds_payload_directory": "custom-resource-definitions",
+            }
+        )
+
+        payloads = engine.generate_payload_contents(resources, per_definition)
+
+        self.assertEqual(
+            set(payloads),
+            {
+                "custom-resource-definitions/examples.kubeflow.org.yaml",
+                "custom-resource-definitions/samples.kubeflow.org.yaml",
+                RESOURCES_PAYLOAD,
+                DOCUMENT,
+            },
+        )
+        for filename in payloads:
+            if filename.startswith("custom-resource-definitions/"):
+                self.assertEqual(payloads[filename].count("\nkind: "), 1)
+                self.assertIn("helm.sh/resource-policy: keep", payloads[filename])
+
+    def test_missing_definitions_fail_the_per_file_layout_too(self):
+        resources = [
+            resource
+            for resource in self.resources()
+            if resource["kind"] != "CustomResourceDefinition"
+        ]
+        per_definition = engine.GeneratorConfiguration(
+            **{
+                **configuration().__dict__,
+                "crds_payload_directory": "custom-resource-definitions",
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "custom-resource-definitions/"):
+            engine.generate_payload_contents(resources, per_definition)
+
+    def test_excluded_resources_are_left_out_of_every_payload(self):
+        resources = self.resources()
+        resources.append(
+            self.resource("kserve", kind="Namespace", api_version="v1", namespace=None)
+        )
+        excluding = engine.GeneratorConfiguration(
+            **{
+                **configuration().__dict__,
+                "excluded_resources": (("Namespace", "kserve"),),
+            }
+        )
+
+        payloads = engine.generate_payload_contents(resources, excluding)
+
+        rendered = payloads[CRDS_PAYLOAD] + payloads[RESOURCES_PAYLOAD]
+        self.assertNotIn("kind: Namespace", rendered)
+        self.assertIn("name: example-service\n", rendered)
+
+    def test_stale_exclusion_fails(self):
+        excluding = engine.GeneratorConfiguration(
+            **{
+                **configuration().__dict__,
+                "excluded_resources": (("Namespace", "kserve"),),
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "stale"):
+            engine.generate_payload_contents(self.resources(), excluding)
+
+    def test_per_file_layout_omits_aggregated_rules_and_keeps_exclusions(self):
+        per_definition = engine.GeneratorConfiguration(
+            **{
+                **configuration().__dict__,
+                "crds_payload_directory": "custom-resource-definitions",
+                "excluded_resources": (("ClusterRole", "example-excluded"),),
+            }
+        )
+        resources = [
+            *self.resources(),
+            self.aggregated_cluster_role(rules=[]),
+            self.aggregated_cluster_role(name="example-excluded", rules=[]),
+        ]
+
+        payloads = engine.generate_payload_contents(resources, per_definition)
+
+        self.assertIn("\n  name: example-edit\n", payloads[RESOURCES_PAYLOAD])
+        self.assertNotIn("\nrules:", payloads[RESOURCES_PAYLOAD])
+        self.assertNotIn("example-excluded", "".join(payloads.values()))
 
     def test_generated_name_prefix_requires_a_valid_kustomize_hash(self):
         resources = self.resources()
@@ -142,10 +272,13 @@ class HelmManifestGeneratorTest(unittest.TestCase):
 
     def test_empty_payload_fails(self):
         resources = [
-            r for r in self.resources() if r["kind"] != "CustomResourceDefinition"
+            resource
+            for resource in self.resources()
+            if resource["kind"] != "CustomResourceDefinition"
         ]
-        with self.assertRaisesRegex(ValueError, "empty"):
+        with self.assertRaisesRegex(ValueError, "empty") as raised:
             engine.generate_payload_contents(resources, configuration())
+        self.assertEqual(str(raised.exception).count(CRDS_PAYLOAD), 1)
 
     # --- content --------------------------------------------------------
 
@@ -478,6 +611,73 @@ class HelmManifestGeneratorTest(unittest.TestCase):
                 run.call_args.args[0],
                 ["kustomize", "build", "applications/example/helm/kustomize"],
             )
+
+    def test_freshness_check_covers_the_per_definition_directory(self):
+        """One file per definition is one more directory level; a missing, an
+        extra and a stale definition file are each reported with their path."""
+        yaml = YAML()
+        resources = self.resources()
+        resources.append(
+            self.resource(
+                "samples.kubeflow.org",
+                kind="CustomResourceDefinition",
+                api_version="apiextensions.k8s.io/v1",
+                namespace=None,
+            )
+        )
+        per_definition = engine.GeneratorConfiguration(
+            **{
+                **configuration().__dict__,
+                "crds_payload_directory": "custom-resource-definitions",
+            }
+        )
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            repository_root = Path(temporary_directory)
+            render_path = repository_root / "render.yaml"
+            with render_path.open("w") as stream:
+                yaml.dump_all(resources, stream)
+            completed = subprocess.CompletedProcess(
+                args=[], returncode=0, stdout=render_path.read_text(), stderr=""
+            )
+            definitions = (
+                repository_root
+                / per_definition.output_path
+                / "custom-resource-definitions"
+            )
+
+            with mock.patch.object(engine.subprocess, "run", return_value=completed):
+                engine.generate_manifests(repository_root, per_definition)
+                self.assertEqual(
+                    engine.check_manifests(repository_root, per_definition), []
+                )
+
+                (definitions / "examples.kubeflow.org.yaml").unlink()
+                (definitions / "removed.kubeflow.org.yaml").write_text("kind: x\n")
+                with (definitions / "samples.kubeflow.org.yaml").open("a") as stream:
+                    stream.write("# edited\n")
+
+                self.assertEqual(
+                    engine.check_manifests(repository_root, per_definition),
+                    [
+                        (
+                            "missing",
+                            "custom-resource-definitions/examples.kubeflow.org.yaml",
+                        ),
+                        (
+                            "extra",
+                            "custom-resource-definitions/removed.kubeflow.org.yaml",
+                        ),
+                        (
+                            "stale",
+                            "custom-resource-definitions/samples.kubeflow.org.yaml",
+                        ),
+                    ],
+                )
+
+                engine.generate_manifests(repository_root, per_definition)
+                self.assertEqual(
+                    engine.check_manifests(repository_root, per_definition), []
+                )
 
     def test_failed_kustomize_build_is_reported(self):
         completed = subprocess.CompletedProcess(

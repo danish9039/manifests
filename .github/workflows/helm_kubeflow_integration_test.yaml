@@ -18,6 +18,8 @@ on:
     - applications/*/*/helm*/**
     - experimental/helm/charts/katib/**
     - tests/*_helm_install.sh
+    - tests/kserve_ui_helm_lifecycle_test.sh
+    - tests/kserve_test.sh
     - tests/knative_serving_install.sh
     - tests/knative_serving_helm_smoke_test.sh
     - tests/knative_serving_helm_lifecycle_test.sh
@@ -33,6 +35,8 @@ on:
     - applications/*/*/helm*/**
     - experimental/helm/charts/katib/**
     - tests/*_helm_install.sh
+    - tests/kserve_ui_helm_lifecycle_test.sh
+    - tests/kserve_test.sh
     - tests/knative_serving_install.sh
     - tests/knative_serving_helm_smoke_test.sh
     - tests/knative_serving_helm_lifecycle_test.sh
@@ -103,8 +107,8 @@ jobs:
     - name: Install Knative Eventing
       run: ./tests/knative_eventing_install.sh
 
-    - name: Install KServe
-      run: ./tests/kserve_install.sh
+    - name: Install KServe with Helm
+      run: ./tests/kserve_helm_install.sh
 
     - name: Install Pipelines with SeaweedFS
       run: ./tests/pipelines_install.sh
@@ -236,6 +240,8 @@ jobs:
       run: ./tests/katib_test.sh "${KF_PROFILE}"
 
     - name: Run KServe Test
+      env:
+        KSERVE_UI_MANAGED_BY_HELM: "true"
       run: ./tests/kserve_test.sh ${KF_PROFILE}
 
     - name: Run Spark Test
