@@ -11,6 +11,9 @@ on:
     - common/cert-manager/**
     - common/kubeflow-namespace/**
     - common/kubeflow-roles/**
+    - common/istio/**
+    - common/oauth2-proxy/**
+    - applications/dashboard/upstream/profile-controller/**
     - scripts/generate-pipelines-helm-manifests.py
     - scripts/synchronize-pipelines-manifests.sh
     - tests/pipelines_helm_install.sh
@@ -27,6 +30,9 @@ on:
     - common/cert-manager/**
     - common/kubeflow-namespace/**
     - common/kubeflow-roles/**
+    - common/istio/**
+    - common/oauth2-proxy/**
+    - applications/dashboard/upstream/profile-controller/**
     - scripts/generate-pipelines-helm-manifests.py
     - scripts/synchronize-pipelines-manifests.sh
     - tests/pipelines_helm_install.sh
