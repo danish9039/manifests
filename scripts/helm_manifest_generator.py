@@ -122,8 +122,9 @@ def matches_selector(resource, kind, name, name_is_prefix):
     )
 
 
-def parse_resources(rendered_yaml):
+def parse_resources(rendered_yaml, *, preserve_quotes=False):
     yaml = YAML()
+    yaml.preserve_quotes = preserve_quotes
     yaml.allow_duplicate_keys = False
     resources = []
     for document_number, resource in enumerate(yaml.load_all(rendered_yaml), start=1):
@@ -175,7 +176,10 @@ def omit_aggregated_cluster_role_rules(resource):
         return resource
     if "rules" not in resource:
         return resource
-    if resource["rules"]:
+    rules = resource["rules"]
+    if rules is not None and not isinstance(rules, list):
+        raise ValueError(f"aggregated ClusterRole {name} rules must be null or a list")
+    if rules:
         raise ValueError(
             f"aggregated ClusterRole {name} has nonempty rules; hand-authored "
             "rules on an aggregated ClusterRole are overwritten by the "
@@ -185,6 +189,28 @@ def omit_aggregated_cluster_role_rules(resource):
     aggregated_role = copy.deepcopy(resource)
     del aggregated_role["rules"]
     return aggregated_role
+
+
+def omit_aggregated_cluster_role_rules_from_yaml(rendered_yaml):
+    """Apply the same ownership repair to standalone synchronization streams.
+
+    Leave unaffected streams byte-identical. Preserve comments and quoted values
+    when a stream needs the repair; validate the entire input before emitting it.
+    """
+    resources = parse_resources(rendered_yaml, preserve_quotes=True)
+    repaired_resources = [
+        omit_aggregated_cluster_role_rules(resource) for resource in resources
+    ]
+    if all(
+        original is repaired
+        for original, repaired in zip(resources, repaired_resources)
+    ):
+        return rendered_yaml
+    yaml = YAML()
+    yaml.width = 4096
+    output = io.StringIO()
+    yaml.dump_all(repaired_resources, output)
+    return output.getvalue()
 
 
 def render_payload(resources, header):
@@ -551,3 +577,21 @@ def command_line(configuration, description, default_repository_root, argv=None)
         "are fresh."
     )
     return 0
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Repair generated Helm YAML from stdin."
+    )
+    parser.add_argument(
+        "--omit-aggregated-cluster-role-rules",
+        action="store_true",
+        required=True,
+        help="Omit controller-owned empty rules from aggregated ClusterRoles.",
+    )
+    parser.parse_args()
+    try:
+        sys.stdout.write(omit_aggregated_cluster_role_rules_from_yaml(sys.stdin.read()))
+    except Exception as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        sys.exit(1)

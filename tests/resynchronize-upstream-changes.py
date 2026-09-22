@@ -43,6 +43,7 @@ path_to_synchronization_script = {
     # so a change to it must resynchronize all of them.
     "scripts/helm_manifest_generator.py": (
         "scripts/synchronize-dashboard-manifests.sh",
+        "scripts/synchronize-istio-manifests.sh",
         "scripts/synchronize-kserve-kserve-manifests.sh",
         "scripts/synchronize-kserve-ui-manifests.sh",
         "scripts/synchronize-notebooks-v1-manifests.sh",

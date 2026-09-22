@@ -124,7 +124,9 @@ class HelmManifestGeneratorTest(unittest.TestCase):
 
     def test_explicitly_definition_free_component_renders_resources(self):
         resources = [
-            r for r in self.resources() if r["kind"] != "CustomResourceDefinition"
+            resource
+            for resource in self.resources()
+            if resource["kind"] != "CustomResourceDefinition"
         ]
         payloads = engine.generate_payload_contents(
             resources, replace(configuration(), crds_payload_filename=None)
@@ -142,7 +144,9 @@ class HelmManifestGeneratorTest(unittest.TestCase):
 
     def test_definition_free_component_still_rejects_empty_resource_payload(self):
         resources = [
-            r for r in self.resources() if r["kind"] == "Deployment" or r.get("data")
+            resource
+            for resource in self.resources()
+            if resource["kind"] == "Deployment" or resource.get("data")
         ]
         with self.assertRaisesRegex(
             ValueError, "required generated payloads are empty"
@@ -427,6 +431,57 @@ class HelmManifestGeneratorTest(unittest.TestCase):
             ValueError, "example-hand-authored has nonempty rules.*overwritten"
         ):
             engine.generate_payload_contents([*self.resources(), role], configuration())
+
+    def test_malformed_rules_of_an_aggregated_cluster_role_fail(self):
+        for rules in [{}, "", False, 0, "[]", {"verbs": ["get"]}]:
+            with self.subTest(rules=rules):
+                role = self.aggregated_cluster_role(rules=rules)
+                with self.assertRaisesRegex(ValueError, "rules must be null or a list"):
+                    engine.omit_aggregated_cluster_role_rules(role)
+
+    def test_stream_filter_preserves_unaffected_yaml_bytes(self):
+        rendered = "# Keep formatting\n" + engine.render_payload(self.resources(), "")
+        self.assertEqual(
+            engine.omit_aggregated_cluster_role_rules_from_yaml(rendered), rendered
+        )
+
+    def test_stream_filter_only_omits_aggregated_rules_and_is_idempotent(self):
+        rendered = (
+            "# Generated payload\n"
+            "apiVersion: rbac.authorization.k8s.io/v1\n"
+            "kind: ClusterRole\nmetadata:\n  name: example-aggregate\n"
+            '  labels:\n    example: "true"\n'
+            "aggregationRule:\n  clusterRoleSelectors:\n"
+            "  - matchLabels:\n      example: aggregate\n"
+            "rules: []\n---\n"
+            "apiVersion: rbac.authorization.k8s.io/v1\n"
+            "kind: ClusterRole\nmetadata:\n  name: example-contributor\n"
+            "rules:\n- apiGroups: [apps]\n  resources: [deployments]\n"
+            "  verbs: [get]\n---\n"
+            "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: example\n"
+            "data:\n  example.yaml: |\n    rules: []\n"
+        )
+        filtered = engine.omit_aggregated_cluster_role_rules_from_yaml(rendered)
+        self.assertEqual(filtered, rendered.replace("\nrules: []\n", "\n", 1))
+        self.assertEqual(
+            engine.omit_aggregated_cluster_role_rules_from_yaml(filtered), filtered
+        )
+
+    def test_stream_filter_command_rejects_invalid_rules_without_partial_output(self):
+        for rules in [False, copy.deepcopy(RULES)]:
+            rendered = engine.render_payload(
+                [*self.resources(), self.aggregated_cluster_role(rules=rules)], ""
+            )
+            result = subprocess.run(
+                ["python3", str(ENGINE_PATH), "--omit-aggregated-cluster-role-rules"],
+                input=rendered,
+                text=True,
+                capture_output=True,
+            )
+            with self.subTest(rules=rules):
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+                self.assertIn("aggregated ClusterRole example-edit", result.stderr)
 
     def test_resources_that_are_not_aggregated_cluster_roles_are_unchanged(self):
         aggregation_rule = copy.deepcopy(AGGREGATION_RULE)

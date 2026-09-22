@@ -212,6 +212,13 @@ helm status kubeflow-dashboard --namespace kubeflow
 kubectl get pods --namespace kubeflow
 ```
 
+If that recovery upgrade reports the `caBundle` conflict described above, inspect
+all reported conflicts first. If they are limited to that documented conflict,
+repeat the same upgrade with `--force-conflicts`, preserving the intended values
+and flags, then repeat the status and workload checks. The same CA reinjection
+and admission availability limitations apply. Investigate other field conflicts
+before forcing ownership.
+
 Do not delete release history to work around it.
 
 ### Custom resource definition lifecycle

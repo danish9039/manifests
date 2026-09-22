@@ -67,6 +67,24 @@ class IstioHelmChartTest(unittest.TestCase):
             if provider.get("name") == "oauth2-proxy"
         )
 
+    def test_kubeflow_aggregated_role_leaves_rules_to_the_controller(self):
+        for scenario in ["kubeflow-istio-resources", "platform-full"]:
+            with self.subTest(scenario=scenario):
+                rendered = self.render_chart(
+                    values=CHART_DIRECTORY / f"ci/values-{scenario}.yaml"
+                )
+                self.assertEqual(rendered.returncode, 0, rendered.stderr)
+                roles = {
+                    resource["metadata"]["name"]: resource
+                    for resource in yaml.safe_load_all(rendered.stdout)
+                    if resource and resource.get("kind") == "ClusterRole"
+                }
+                aggregate = roles["kubeflow-istio-admin"]
+                self.assertTrue(aggregate["aggregationRule"]["clusterRoleSelectors"])
+                self.assertNotIn("rules", aggregate)
+                for name in ["kubeflow-istio-edit", "kubeflow-istio-view"]:
+                    self.assertTrue(roles[name]["rules"])
+
     def test_custom_oauth2_proxy_service_and_port_are_rendered(self):
         for values in SUBSTITUTED_PROFILE_VALUES:
             with self.subTest(values=values.name):
