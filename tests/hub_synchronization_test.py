@@ -16,7 +16,10 @@ from pathlib import Path
 import yaml
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-CHART_PATH = Path("applications/hub/helm")
+CHART_PATHS = (
+    Path("applications/hub/helm"),
+    Path("applications/hub/helm-catalog"),
+)
 
 
 class HubSynchronizationTest(unittest.TestCase):
@@ -85,29 +88,34 @@ class HubSynchronizationTest(unittest.TestCase):
             self.assertEqual(git("diff", "--binary"), first_difference)
             self.assertEqual(git("diff", "--cached"), "")
 
-            chart_metadata = root / CHART_PATH / "Chart.yaml"
-            metadata = yaml.safe_load(chart_metadata.read_text())
-            chart_metadata.write_text(
-                chart_metadata.read_text().replace(
-                    f'appVersion: "{metadata["appVersion"]}"', 'appVersion: "v0.0.0"'
+            for chart_path in CHART_PATHS:
+                chart_metadata = root / chart_path / "Chart.yaml"
+                metadata = yaml.safe_load(chart_metadata.read_text())
+                chart_metadata.write_text(
+                    chart_metadata.read_text().replace(
+                        f'appVersion: "{metadata["appVersion"]}"',
+                        'appVersion: "v0.0.0"',
+                    )
                 )
-            )
-            git("add", str(CHART_PATH / "Chart.yaml"))
+                git("add", str(chart_path / "Chart.yaml"))
             git("commit", "-qs", "-m", "Exercise synchronization version repair")
-            template = root / CHART_PATH / "templates/platform.yaml"
-            template.write_text("# manual change\n" + template.read_text())
+            for chart_path in CHART_PATHS:
+                template = root / chart_path / "templates/platform.yaml"
+                template.write_text("# manual change\n" + template.read_text())
             (root / "unrelated.txt").write_text("not component-owned\n")
             environment.pop("KUBEFLOW_SYNCHRONIZE_NO_COMMIT")
             synchronize()
 
             committed = git("show", "--format=", "--name-only", "HEAD").splitlines()
-            self.assertIn(str(CHART_PATH / "Chart.yaml"), committed)
-            self.assertNotIn(str(CHART_PATH / "templates/platform.yaml"), committed)
+            for chart_path in CHART_PATHS:
+                self.assertIn(str(chart_path / "Chart.yaml"), committed)
+                self.assertNotIn(str(chart_path / "templates/platform.yaml"), committed)
+                self.assertIn(
+                    str(chart_path / "templates/platform.yaml"),
+                    git("diff", "--name-only"),
+                )
             self.assertNotIn("unrelated.txt", committed)
             self.assertIn("Signed-off-by:", git("show", "-s", "--format=%B", "HEAD"))
-            self.assertIn(
-                str(CHART_PATH / "templates/platform.yaml"), git("diff", "--name-only")
-            )
             self.assertIn("?? unrelated.txt", git("status", "--short"))
 
 

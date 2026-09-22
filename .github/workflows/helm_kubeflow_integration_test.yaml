@@ -21,6 +21,8 @@ on:
     - tests/ray_helm_lifecycle.sh
     - tests/hub_helm_lifecycle_test.sh
     - tests/hub_helm_smoke_test.sh
+    - tests/model_registry_install.sh
+    - tests/model_catalog_install.sh
     - tests/*_helm_install.sh
     - tests/kserve_ui_helm_lifecycle_test.sh
     - tests/kserve_test.sh
@@ -42,6 +44,8 @@ on:
     - tests/ray_helm_lifecycle.sh
     - tests/hub_helm_lifecycle_test.sh
     - tests/hub_helm_smoke_test.sh
+    - tests/model_registry_install.sh
+    - tests/model_catalog_install.sh
     - tests/*_helm_install.sh
     - tests/kserve_ui_helm_lifecycle_test.sh
     - tests/kserve_test.sh

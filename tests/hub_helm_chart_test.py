@@ -119,6 +119,7 @@ class HubChartTest(unittest.TestCase):
                     "database.password=private-for-this-render",
                 )
             )
+            self.assertEqual(len(baseline), len(changed))
             changes = 0
             for before, after in zip(baseline, changed):
                 if before == after:
