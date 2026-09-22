@@ -88,6 +88,16 @@ class SiblingChartDiscoveryTest(unittest.TestCase):
                 ],
             )
 
+    def test_nested_common_components_are_discovered_without_dependencies(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chart = self.write_chart(root, "common/knative/serving/helm")
+            self.write_chart(root, "common/knative/serving/helm/charts/payload")
+            self.assertEqual(sorted(comparison.discover(root)), ["serving-helm"])
+            self.assertEqual(comparison.chart_directories(root), [chart])
+            (chart / "ci/comparison.yaml").unlink()
+            self.assertEqual(comparison.charts_without_descriptor(root), [chart])
+
     def test_a_directory_without_a_chart_is_not_discovered(self):
         """A descriptor alone does not make a chart; Helm would fail on it."""
         with tempfile.TemporaryDirectory() as directory:
@@ -282,6 +292,59 @@ class MalformedAllowanceTest(unittest.TestCase):
         """Every rejection above must be attributable to the malformed
         allowance, not to the shared boilerplate."""
         self.load("")
+
+    def test_exact_controller_owned_webhook_rules_load(self):
+        for kind in ("MutatingWebhookConfiguration", "ValidatingWebhookConfiguration"):
+            with self.subTest(kind=kind):
+                self.load(
+                    f"knownDifferences:\n- resource: {kind}/webhook.example.com\n"
+                    "  controllerOwnedWebhookRules: [controlled.example.com]\n"
+                    "  reason: The controller owns these admission rules.\n"
+                )
+
+    def test_controller_owned_webhook_rules_reject_broad_or_wrong_resources(self):
+        for resource in (
+            "Deployment/webhook.example.com",
+            "*/webhook.example.com",
+            "MutatingWebhookConfiguration/*",
+            "MutatingWebhookConfiguration/webhook?",
+            "MutatingWebhookConfiguration/[webhook]",
+            "MutatingWebhookConfiguration/n/webhook.example.com",
+        ):
+            with self.subTest(resource=resource):
+                with self.assertRaises(ValueError):
+                    self.load(
+                        f"knownDifferences:\n- resource: '{resource}'\n"
+                        "  controllerOwnedWebhookRules: [controlled.example.com]\n"
+                        "  reason: Controller ownership.\n"
+                    )
+
+    def test_controller_owned_webhook_rules_reject_bad_names_and_missing_reason(self):
+        for names in (
+            "[]",
+            "null",
+            "controlled.example.com",
+            "[1]",
+            "['']",
+            "[' ']",
+            "['*']",
+            "['controlled?.example.com']",
+            "['controlled[12].example.com']",
+            "['namespace/controlled.example.com']",
+            "[controlled.example.com, controlled.example.com]",
+        ):
+            with self.subTest(names=names):
+                with self.assertRaises(ValueError):
+                    self.load(
+                        "knownDifferences:\n- resource: MutatingWebhookConfiguration/webhook.example.com\n"
+                        f"  controllerOwnedWebhookRules: {names}\n"
+                        "  reason: Controller ownership.\n"
+                    )
+        with self.assertRaisesRegex(ValueError, "reason"):
+            self.load(
+                "knownDifferences:\n- resource: MutatingWebhookConfiguration/webhook.example.com\n"
+                "  controllerOwnedWebhookRules: [controlled.example.com]\n"
+            )
 
     def test_a_partition_group_name_is_a_plain_lowercase_label(self):
         """The name also names a working directory, so path syntax, absolute

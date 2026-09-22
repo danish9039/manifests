@@ -125,7 +125,9 @@ class ChartComparisonRules:
         name = metadata.get("name", "")
 
         normalized = self._strip_ignored_metadata(manifest)
-        self._apply_known_differences(normalized, kind, namespace, name)
+        self._apply_known_differences(
+            normalized, kind, namespace, name, is_helm_manifest
+        )
 
         # Kustomize appends a ten-character content hash to generated ConfigMap
         # and Secret names and to every reference to them. The Helm side is only
@@ -277,13 +279,65 @@ class ChartComparisonRules:
         return walk(manifest, True)
 
     def _apply_known_differences(
-        self, normalized: Dict, kind: str, namespace: str, name: str
+        self,
+        normalized: Dict,
+        kind: str,
+        namespace: str,
+        name: str,
+        is_helm_manifest: bool,
     ) -> None:
         for index, entry in enumerate(self.known_differences):
             pattern = entry.get("resource")
             if not pattern or not resource_matches(pattern, kind, namespace, name):
                 continue
             identity = f"knownDifferences[{index}]"
+
+            webhook_names = entry.get("controllerOwnedWebhookRules")
+            if webhook_names:
+                if (
+                    namespace
+                    or normalized.get("apiVersion") != "admissionregistration.k8s.io/v1"
+                ):
+                    raise ValueError(
+                        f"{pattern}: controllerOwnedWebhookRules requires a "
+                        "cluster-scoped admissionregistration.k8s.io/v1 resource"
+                    )
+                webhooks = normalized.get("webhooks")
+                selected = []
+                for webhook_name in webhook_names:
+                    matches = [
+                        webhook
+                        for webhook in (webhooks if isinstance(webhooks, list) else [])
+                        if isinstance(webhook, dict)
+                        and webhook.get("name") == webhook_name
+                    ]
+                    if len(matches) != 1:
+                        raise ValueError(
+                            f"{pattern}: webhook {webhook_name!r} must occur exactly once"
+                        )
+                    webhook = matches[0]
+                    if is_helm_manifest:
+                        if "rules" in webhook:
+                            raise ValueError(
+                                f"{pattern}: Helm must omit rules entirely for "
+                                f"controller-owned webhook {webhook_name!r}"
+                            )
+                    elif (
+                        not isinstance(webhook.get("rules"), list)
+                        or not webhook["rules"]
+                    ):
+                        raise ValueError(
+                            f"{pattern}: Kustomize must contain a non-empty rules "
+                            f"list for controller-owned webhook {webhook_name!r}"
+                        )
+                    selected.append(webhook)
+                # Validate every target first. Helm never fires the allowance:
+                # it may only omit this field, not write an empty value.
+                if not is_helm_manifest:
+                    for webhook in selected:
+                        del webhook["rules"]
+                    self._fired.add(identity)
+                continue
 
             ignored_annotations = entry.get("ignorePodTemplateAnnotations")
             if ignored_annotations:

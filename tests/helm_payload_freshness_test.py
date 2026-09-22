@@ -31,6 +31,7 @@ GENERATOR_GLOB = "scripts/generate-*-helm-manifests.py"
 KNOWN_GENERATORS = {
     "scripts/generate-dashboard-helm-manifests.py",
     "scripts/generate-notebooks-v1-helm-manifests.py",
+    "scripts/generate-knative-serving-helm-manifests.py",
 }
 
 CONFIGURATION = engine.GeneratorConfiguration(

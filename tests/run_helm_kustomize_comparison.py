@@ -31,6 +31,7 @@ _COMPARATOR_SPEC.loader.exec_module(comparator)
 # component chart of its own.
 CHART_GLOBS = (
     "common/*/helm*",
+    "common/*/*/helm*",
     "applications/*/helm*",
     "applications/*/*/helm*",
     "experimental/helm/charts/*",
@@ -67,7 +68,14 @@ _StrictLoader.add_constructor(
 
 
 KNOWN_DIFFERENCE_ACTIONS = frozenset(
-    ("ignorePodTemplateAnnotations", "compareDataAsYaml")
+    ("ignorePodTemplateAnnotations", "compareDataAsYaml", "controllerOwnedWebhookRules")
+)
+WEBHOOK_CONFIGURATION_KINDS = {
+    "MutatingWebhookConfiguration",
+    "ValidatingWebhookConfiguration",
+}
+EXACT_RESOURCE_NAME = re.compile(
+    r"[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*"
 )
 
 
@@ -148,6 +156,23 @@ def _validate_allowances(path, descriptor):
                 or not all(isinstance(item, str) and item for item in value)
             ):
                 raise ValueError(f"{path}: {action} must be a non-empty list of keys")
+        if "controllerOwnedWebhookRules" in actions:
+            segments = entry["resource"].split("/")
+            names = entry["controllerOwnedWebhookRules"]
+            if (
+                actions != {"controllerOwnedWebhookRules"}
+                or len(segments) != 2
+                or segments[0] not in WEBHOOK_CONFIGURATION_KINDS
+                or not EXACT_RESOURCE_NAME.fullmatch(segments[1])
+                or any(not EXACT_RESOURCE_NAME.fullmatch(name) for name in names)
+                or len(names) != len(set(names))
+            ):
+                raise ValueError(
+                    f"{path}: controllerOwnedWebhookRules must be the only action, "
+                    "name an exact MutatingWebhookConfiguration/name or "
+                    "ValidatingWebhookConfiguration/name, and list unique exact "
+                    "webhook names without wildcard or namespace patterns"
+                )
 
     for entry in descriptor.get("helmOnlyResources") or []:
         _validate_reason(path, "helmOnlyResources", entry)
@@ -377,6 +402,9 @@ def compare(component, name, descriptors, rules):
         print(f"ERROR: {' '.join(error.cmd)} exited {error.returncode}")
         if error.stderr:
             print(error.stderr.strip())
+        return False
+    except ValueError as error:
+        print(f"ERROR: {error}")
         return False
 
 

@@ -6,6 +6,8 @@ ignore: |
   common/istio/istio-crds/base/crd.yaml
   common/istio/istio-install/base/install.yaml
   common/*/helm*/templates/**
+  common/*/*/helm*/templates/**
+  common/knative/*/helm/manifests/**
   **/upstream/**
 
 rules:

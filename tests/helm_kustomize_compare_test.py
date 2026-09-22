@@ -394,6 +394,154 @@ class ResourceKeyTest(unittest.TestCase):
         )
 
 
+class ControllerOwnedWebhookRulesTest(unittest.TestCase):
+    def manifest(self):
+        return {
+            "apiVersion": "admissionregistration.k8s.io/v1",
+            "kind": "MutatingWebhookConfiguration",
+            "metadata": {"name": "webhook.example.com"},
+            "webhooks": [
+                {
+                    "name": name,
+                    "failurePolicy": "Fail",
+                    "clientConfig": {
+                        "service": {"name": "webhook", "namespace": "serving"}
+                    },
+                    "rules": [
+                        {
+                            "operations": ["CREATE"],
+                            "apiGroups": ["serving.example.com"],
+                            "apiVersions": ["v1"],
+                            "resources": ["services"],
+                        }
+                    ],
+                }
+                for name in ("controlled.example.com", "unchanged.example.com")
+            ],
+        }
+
+    def allowance(self, kind="MutatingWebhookConfiguration", names=None):
+        return rules(
+            knownDifferences=[
+                {
+                    "resource": f"{kind}/webhook.example.com",
+                    "controllerOwnedWebhookRules": names or ["controlled.example.com"],
+                    "reason": "The controller reconciles admission rules after installation.",
+                }
+            ]
+        )
+
+    def test_only_baseline_rules_are_removed_and_the_input_is_preserved(self):
+        for kind in ("MutatingWebhookConfiguration", "ValidatingWebhookConfiguration"):
+            with self.subTest(kind=kind):
+                baseline = self.manifest()
+                baseline["kind"] = kind
+                helm = copy.deepcopy(baseline)
+                del helm["webhooks"][0]["rules"]
+                comparison_rules = self.allowance(kind)
+                normalized_helm = comparison_rules.normalize(helm, True)
+                self.assertTrue(comparison_rules.unfired())
+                normalized_baseline = comparison_rules.normalize(baseline, False)
+                self.assertEqual(normalized_baseline, normalized_helm)
+                self.assertIn("rules", baseline["webhooks"][0])
+                self.assertIn("rules", normalized_baseline["webhooks"][1])
+                self.assertEqual(comparison_rules.unfired(), [])
+
+    def test_every_present_helm_rules_value_is_rejected(self):
+        for value in ([], None, {}, "", [{"operations": ["CREATE"]}]):
+            with self.subTest(value=value):
+                manifest = self.manifest()
+                manifest["webhooks"][0]["rules"] = value
+                comparison_rules = self.allowance()
+                with self.assertRaisesRegex(ValueError, "Helm.*omit.*rules"):
+                    comparison_rules.normalize(manifest, True)
+                self.assertTrue(comparison_rules.unfired())
+
+    def test_missing_empty_or_malformed_baseline_rules_fail(self):
+        for value in (None, [], {}, "rules", "absent"):
+            with self.subTest(value=value):
+                manifest = self.manifest()
+                if value == "absent":
+                    del manifest["webhooks"][0]["rules"]
+                else:
+                    manifest["webhooks"][0]["rules"] = value
+                comparison_rules = self.allowance()
+                with self.assertRaisesRegex(ValueError, "Kustomize.*non-empty.*rules"):
+                    comparison_rules.normalize(manifest, False)
+                self.assertTrue(comparison_rules.unfired())
+
+    def test_missing_or_duplicate_target_fails_on_either_side(self):
+        for is_helm in (False, True):
+            for mode in ("missing", "duplicate", "missing-list"):
+                with self.subTest(is_helm=is_helm, mode=mode):
+                    manifest = self.manifest()
+                    del manifest["webhooks"][0]["rules"]
+                    if mode == "missing":
+                        manifest["webhooks"].pop(0)
+                    elif mode == "duplicate":
+                        manifest["webhooks"].append(
+                            copy.deepcopy(manifest["webhooks"][0])
+                        )
+                    else:
+                        del manifest["webhooks"]
+                    with self.assertRaisesRegex(ValueError, "exactly once"):
+                        self.allowance().normalize(manifest, is_helm)
+
+    def test_wrong_api_or_namespaced_target_is_rejected(self):
+        for is_helm in (False, True):
+            for mode in ("api", "namespace"):
+                with self.subTest(is_helm=is_helm, mode=mode):
+                    manifest = self.manifest()
+                    if mode == "api":
+                        manifest["apiVersion"] = "other.example.com/v1"
+                    else:
+                        manifest["metadata"]["namespace"] = "serving"
+                    with self.assertRaisesRegex(
+                        ValueError, "cluster-scoped.*admissionregistration"
+                    ):
+                        self.allowance().normalize(manifest, is_helm)
+
+    def test_other_resource_names_and_kinds_keep_their_rules(self):
+        for mode in ("name", "kind"):
+            with self.subTest(mode=mode):
+                manifest = self.manifest()
+                if mode == "name":
+                    manifest["metadata"]["name"] = "other.example.com"
+                else:
+                    manifest["kind"] = "ValidatingWebhookConfiguration"
+                comparison_rules = self.allowance()
+                self.assertEqual(comparison_rules.normalize(manifest, False), manifest)
+                self.assertTrue(comparison_rules.unfired())
+
+    def test_unintended_webhook_changes_remain_visible(self):
+        for mode in ("client", "policy", "other-rules"):
+            with self.subTest(mode=mode):
+                baseline = self.manifest()
+                helm = copy.deepcopy(baseline)
+                del helm["webhooks"][0]["rules"]
+                if mode == "client":
+                    helm["webhooks"][0]["clientConfig"]["service"]["name"] = "other"
+                elif mode == "policy":
+                    helm["webhooks"][0]["failurePolicy"] = "Ignore"
+                else:
+                    helm["webhooks"][1]["rules"][0]["operations"] = ["DELETE"]
+                comparison_rules = self.allowance()
+                self.assertTrue(
+                    helm_kustomize_compare.deep_diff(
+                        comparison_rules.normalize(baseline, False),
+                        comparison_rules.normalize(helm, True),
+                    )
+                )
+
+    def test_all_declared_targets_must_validate_before_the_allowance_fires(self):
+        comparison_rules = self.allowance(
+            names=["controlled.example.com", "missing.example.com"]
+        )
+        with self.assertRaisesRegex(ValueError, "exactly once"):
+            comparison_rules.normalize(self.manifest(), False)
+        self.assertTrue(comparison_rules.unfired())
+
+
 class ManifestSelectionTest(unittest.TestCase):
     def test_a_skip_entry_excludes_only_the_named_resource(self):
         skip_rules = rules(

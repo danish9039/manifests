@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/name: knative-serving
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    istio-injection: enabled
+    pod-security.kubernetes.io/enforce: restricted
+  name: knative-serving
+  annotations:
+    helm.sh/resource-policy: keep

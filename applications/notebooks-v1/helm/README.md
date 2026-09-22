@@ -59,6 +59,32 @@ Because they are templates rather than `crds/` content, Helm's `--skip-crds`
 option has no effect on them. Use `customResourceDefinitions.enabled=false` when
 an administrator or another release already owns them.
 
+The aggregated `notebook-controller-kubeflow-notebooks-admin` cluster role ships
+no `rules` field, because the Kubernetes RBAC aggregation controller owns
+`.rules`. The payload used to ship `rules: []`, and with Helm 4 server-side apply
+a plain `helm upgrade` stopped with
+`conflict with "clusterrole-aggregation-controller": .rules`. Observed on a
+cluster on 2026-09-21 (Helm 4.2.2, Kubernetes 1.36.1, no `--force-conflicts`):
+the upgrade from such a release to the corrected chart, an unchanged upgrade and
+a rollback between corrected revisions succeeded, and the role kept its rules
+throughout.
+
+A chart update does not rewrite the release records that Helm already stored. A
+revision stored before the correction still contains `rules: []`. In the same
+run, `helm rollback` to such a revision failed with the same conflict and left
+the release without a `deployed` revision. An upgrade to the corrected chart
+recovered it. Recover with the intended values, then check the release and the
+workloads:
+
+```bash
+helm upgrade kubeflow-notebooks ./applications/notebooks-v1/helm \
+  --namespace kubeflow --wait    # plus the values and flags of the installation
+helm status kubeflow-notebooks --namespace kubeflow
+kubectl get pods --namespace kubeflow
+```
+
+Do not delete release history to work around it.
+
 Regenerate the payloads from the local Kustomize inputs, or verify them
 without writing:
 

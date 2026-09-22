@@ -173,7 +173,6 @@ metadata:
     app.kubernetes.io/part-of: kubeflow-dashboard
     rbac.authorization.kubeflow.org/aggregate-to-kubeflow-admin: 'true'
   name: poddefaults-webhook-kubeflow-poddefaults-admin
-rules: []
 ---
 aggregationRule:
   clusterRoleSelectors:
@@ -191,7 +190,6 @@ metadata:
     rbac.authorization.kubeflow.org/aggregate-to-kubeflow-edit: 'true'
     rbac.authorization.kubeflow.org/aggregate-to-kubeflow-poddefaults-admin: 'true'
   name: poddefaults-webhook-kubeflow-poddefaults-edit
-rules: []
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

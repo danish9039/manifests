@@ -13,22 +13,30 @@ on:
     - master
     paths:
     - common/*/helm*/**
+    - common/*/*/helm*/**
     - applications/*/helm*/**
     - applications/*/*/helm*/**
     - experimental/helm/charts/katib/**
     - tests/*_helm_install.sh
     - tests/knative_serving_install.sh
+    - tests/knative_serving_helm_smoke_test.sh
+    - tests/knative_serving_helm_lifecycle_test.sh
+    - tests/knative_serving_helm_admission_test.sh
     - .github/workflows/helm_kubeflow_integration_test.yaml
   pull_request:
     branches:
     - master
     paths:
     - common/*/helm*/**
+    - common/*/*/helm*/**
     - applications/*/helm*/**
     - applications/*/*/helm*/**
     - experimental/helm/charts/katib/**
     - tests/*_helm_install.sh
     - tests/knative_serving_install.sh
+    - tests/knative_serving_helm_smoke_test.sh
+    - tests/knative_serving_helm_lifecycle_test.sh
+    - tests/knative_serving_helm_admission_test.sh
     - .github/workflows/helm_kubeflow_integration_test.yaml
 
 permissions:
@@ -82,12 +90,15 @@ jobs:
     - name: Install Dashboard with Helm
       run: ./tests/dashboard_helm_install.sh
 
-    - name: Install Knative Serving
+    - name: Install Knative lifecycle test dependency
+      run: pip3 install PyYAML==6.0.2
+
+    - name: Install Knative Serving with Helm
       # The istio release already owns the cluster-local gateway and the
-      # Kubeflow Istio resources, so the shared script skips its Istio applies.
+      # Kubeflow Istio resources; the Knative Helm installer never reapplies them.
       env:
         ISTIO_MANAGED_BY_HELM: "true"
-      run: ./tests/knative_serving_install.sh
+      run: ./tests/knative_serving_helm_install.sh
 
     - name: Install Knative Eventing
       run: ./tests/knative_eventing_install.sh
@@ -100,6 +111,9 @@ jobs:
 
     - name: Create KF Profile
       run: ./tests/kubeflow_profile_install.sh
+
+    - name: Test Knative Serving lifecycle and routing with Helm
+      run: ./tests/knative_serving_helm_lifecycle_test.sh ${KF_PROFILE}
 
     - name: Install Notebooks v1 with Helm
       run: ./tests/notebooks_helm_install.sh

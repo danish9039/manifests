@@ -10,8 +10,12 @@ literally.
 The resources that carry a value Kustomize already declares - the three
 Deployments and the four ConfigMaps - are rendered from hand-written templates
 instead, so those values can be set through `values.yaml`. Everything else is
-vendored verbatim. Before committing an update, the synchronization script runs
-Helm linting and the Helm/Kustomize parity comparison.
+vendored verbatim. The generator applies two controlled transforms to that
+content: every custom resource definition receives
+`helm.sh/resource-policy: keep`, and an aggregated ClusterRole omits its empty
+`rules` field, because the Kubernetes aggregation controller owns that field.
+Before committing an update, the synchronization script runs Helm linting and
+the Helm/Kustomize parity comparison.
 
 ## Installation
 
@@ -159,26 +163,56 @@ grouping for parity.
 
 ### Upgrading
 
-Helm 4 applies server-side. Two sets of fields in this chart are owned by other
-controllers once the cluster is running:
+Helm 4 applies server-side, so a field that another controller owns on the
+cluster can make `helm upgrade` stop with a field-ownership conflict. This chart
+has had two such fields. One is repaired, one is open.
 
-- the Kubernetes RBAC aggregation controller fills in `.rules` on the aggregated
-  `poddefaults-admin` and `poddefaults-edit` cluster roles, which ship empty;
-- cert-manager's CA injector writes
-  `.webhooks[].clientConfig.caBundle` on the PodDefaults webhook configuration.
+**Repaired: `.rules` of the aggregated cluster roles.** The Kubernetes RBAC
+aggregation controller owns `.rules` on the aggregated `poddefaults-admin` and
+`poddefaults-edit` cluster roles. The payload used to ship `rules: []` on both,
+and a plain `helm upgrade` stopped with
+`conflict with "clusterrole-aggregation-controller": .rules`. The generator now
+omits that empty field. The same repair was verified on a cluster for the
+Notebooks v1 chart and the `kubeflow-platform` chart (2026-09-21, Helm 4.2.2,
+Kubernetes 1.36.1). This chart has not been exercised on a cluster since the
+change.
 
-A plain `helm upgrade` therefore stops with a field-ownership conflict. Pass
-`--force-conflicts`:
+**Open: `caBundle` of the PodDefaults webhook configuration.** The payload
+carries `.webhooks[].clientConfig.caBundle` with an empty value, and
+cert-manager's CA injector writes that field on the cluster. A plain
+`helm upgrade` can therefore still stop with a field-ownership conflict on that
+object. The repair is a separate follow-up for this chart, with its own cluster
+evidence. Until it lands, `--force-conflicts` lets the upgrade proceed:
 
 ```bash
 helm upgrade kubeflow-dashboard ./applications/dashboard/helm \
   --namespace kubeflow --force-conflicts --wait
 ```
 
-This is safe here: both controllers reconcile continuously and restore their
-fields immediately after the apply, which was verified on a live cluster. Note
-that an upgrade which fails on a conflict has already applied the objects it
-processed before the failure, so re-run it rather than assuming nothing changed.
+The flag is not limited to `caBundle`. It takes every conflicting field of every
+object in the release, so first run the upgrade without it and read which fields
+conflict. With the flag, Helm applies the payload value, an empty `caBundle`,
+and the CA injector has to write the field again. How long that takes, and
+whether admission requests fail meanwhile, was not measured. An upgrade that fails on a conflict may already have applied the
+objects it processed before the failure, so check the release and its objects
+instead of assuming that nothing changed.
+
+**Releases installed before the repair.** A chart update does not rewrite the
+release records that Helm already stored. A revision stored before the repair
+still contains `rules: []` on both aggregated roles, so `helm rollback` to such
+a revision can reproduce the `.rules` conflict. On the Notebooks v1 chart that
+rollback failed and left the release without a `deployed` revision (observed
+2026-09-21). Recover with an upgrade to the corrected chart and the intended
+values, then check the release and the workloads:
+
+```bash
+helm upgrade kubeflow-dashboard ./applications/dashboard/helm \
+  --namespace kubeflow --wait    # plus the values and flags of the installation
+helm status kubeflow-dashboard --namespace kubeflow
+kubectl get pods --namespace kubeflow
+```
+
+Do not delete release history to work around it.
 
 ### Custom resource definition lifecycle
 
