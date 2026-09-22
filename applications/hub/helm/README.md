@@ -1,7 +1,8 @@
 # Hub model registry Helm chart
 
 Installs the distribution's `applications/hub/overlays/model-registry` platform
-baseline at Hub v0.3.16. The registry and catalog are independent, simultaneous
+baseline for the Hub version recorded as `appVersion` in [Chart.yaml](Chart.yaml).
+The registry and catalog are independent, simultaneous
 releases, with distinct resources and namespaces. This chart creates no Namespace
 or custom resource definition.
 
