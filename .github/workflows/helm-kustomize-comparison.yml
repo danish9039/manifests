@@ -134,7 +134,6 @@ jobs:
         python tests/dashboard_helm_manifest_generator_test.py
     - name: Test Knative Serving Helm behavior
       run: python tests/knative_serving_helm_chart_test.py
-
     - name: Test KubeRay Helm behavior
       run: python tests/ray_helm_chart_test.py
     - name: Install Go

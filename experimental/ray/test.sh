@@ -9,6 +9,8 @@ RAY_VERSION=2.56.0
 PORT_FORWARD_PROCESS=""
 FIXTURE_CREATED=false
 OPERATOR_APPLIED=false
+NAMESPACE_LABEL_ADDED=false
+PROFILE_NAMESPACE_UID=""
 case "$RAY_MANAGED_BY_HELM" in
   true|false) ;;
   *) echo "RAY_MANAGED_BY_HELM must be true or false" >&2; exit 1 ;;
@@ -38,16 +40,47 @@ cleanup() {
   if [[ "$OPERATOR_APPLIED" == true ]]; then
     kustomize build kuberay-operator/overlays/kubeflow | kubectl -n kubeflow delete --ignore-not-found -f - || status=1
   fi
+  if [[ "$NAMESPACE_LABEL_ADDED" == true ]]; then
+    # Remove only the label added by this invocation, on the same Namespace.
+    # The atomic tests refuse cleanup if either identity or label changed.
+    kubectl patch namespace "$NAMESPACE" --type=json --patch \
+      "[{\"op\":\"test\",\"path\":\"/metadata/uid\",\"value\":\"$PROFILE_NAMESPACE_UID\"},{\"op\":\"test\",\"path\":\"/metadata/labels/istio-injection\",\"value\":\"enabled\"},{\"op\":\"remove\",\"path\":\"/metadata/labels/istio-injection\"}]" \
+      || status=1
+  fi
   exit "$status"
 }
 trap cleanup EXIT
 kubectl get namespace "$NAMESPACE" >/dev/null
-# Do not replace or remove an existing user's cluster with the fixture.
-if kubectl -n "$NAMESPACE" get raycluster kubeflow-raycluster >/dev/null 2>&1; then
-  echo "The test fixture kubeflow-raycluster already exists" >&2
+# A temporary fixture must not overwrite existing Profile configuration.
+ISTIO_INJECTION=$(kubectl get namespace "$NAMESPACE" -o jsonpath='{.metadata.labels.istio-injection}')
+if [[ -n "$ISTIO_INJECTION" && "$ISTIO_INJECTION" != enabled ]]; then
+  echo "The Profile namespace must allow istio-injection=enabled; refusing its existing value" >&2
   exit 1
 fi
-kubectl label namespace "$NAMESPACE" istio-injection=enabled --overwrite
+# Every object in the fixture must be absent before apply and cleanup can own it.
+FIXTURE_RESOURCES=(
+  authorizationpolicy.security.istio.io/allow-ray-workers-head
+  service/raycluster-istio-headless-svc
+)
+# The legacy path can install Ray for the first time. Without its definition,
+# no RayCluster can exist; other read failures must stop the test.
+RAY_DEFINITION=$(kubectl get crd rayclusters.ray.io --ignore-not-found -o name)
+if [[ -n "$RAY_DEFINITION" ]]; then
+  FIXTURE_RESOURCES+=(raycluster/kubeflow-raycluster)
+fi
+for fixture_resource in "${FIXTURE_RESOURCES[@]}"; do
+  existing_fixture=$(kubectl -n "$NAMESPACE" get "$fixture_resource" --ignore-not-found -o name)
+  if [[ -n "$existing_fixture" ]]; then
+    echo "The test fixture $fixture_resource already exists" >&2
+    exit 1
+  fi
+done
+if [[ -z "$ISTIO_INJECTION" ]]; then
+  PROFILE_NAMESPACE_UID=$(kubectl get namespace "$NAMESPACE" -o jsonpath='{.metadata.uid}')
+  [[ -n "$PROFILE_NAMESPACE_UID" ]] || { echo "The Profile Namespace UID is missing" >&2; exit 1; }
+  kubectl label namespace "$NAMESPACE" istio-injection=enabled
+  NAMESPACE_LABEL_ADDED=true
+fi
 if [[ "$RAY_MANAGED_BY_HELM" == false ]]; then
   kustomize build kuberay-operator/overlays/kubeflow | kubectl -n kubeflow apply --server-side -f -
   OPERATOR_APPLIED=true

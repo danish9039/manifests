@@ -9,6 +9,7 @@ trap 'rm -rf "$TEMPORARY_DIRECTORY"' EXIT
 export HELM_CACHE_HOME="$TEMPORARY_DIRECTORY/cache"
 export HELM_CONFIG_HOME="$TEMPORARY_DIRECTORY/config"
 export HELM_DATA_HOME="$TEMPORARY_DIRECTORY/data"
+unset HELM_REPOSITORY_CONFIG HELM_REPOSITORY_CACHE HELM_PLUGINS
 cp -R "$CHART_DIRECTORY" "$TEMPORARY_DIRECTORY/chart"
 helm repo add kuberay https://ray-project.github.io/kuberay-helm/
 helm dependency build "$TEMPORARY_DIRECTORY/chart"

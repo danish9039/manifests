@@ -139,6 +139,13 @@ dashboard version. Its Helm mode never applies or deletes the operator bundle;
 cleanup selects only its RayCluster's Pods. The legacy Kustomize workflow keeps
 its original operator owner.
 
+The fixture leaves an existing `istio-injection=enabled` Profile namespace label
+unchanged and refuses a conflicting value. If the label is absent, it enables
+injection temporarily and removes only that added label during cleanup, with
+atomic checks of the namespace UID and label value. It refuses to run if its
+RayCluster, AuthorizationPolicy or headless Service already exists, and a failed
+identity read stops the test.
+
 The lifecycle script is destructive to its operator release and requires
 `RUN_HELM_LIFECYCLE_TESTS=true` on a disposable cluster. It holds a RayJob with
 `suspend: true` and the upstream-required `shutdownAfterJobFinishes: true`,

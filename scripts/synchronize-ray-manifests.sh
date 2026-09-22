@@ -17,6 +17,7 @@ trap 'rm -rf "$TEMPORARY_DIRECTORY"' EXIT
 export HELM_CACHE_HOME="$TEMPORARY_DIRECTORY/cache"
 export HELM_CONFIG_HOME="$TEMPORARY_DIRECTORY/config"
 export HELM_DATA_HOME="$TEMPORARY_DIRECTORY/data"
+unset HELM_REPOSITORY_CONFIG HELM_REPOSITORY_CACHE HELM_PLUGINS
 update_helm_chart_application_version "$CHART_DIRECTORY/Chart.yaml" "$KUBERAY_RELEASE_VERSION"
 sed -i "s/^  version: .*/  version: \"${KUBERAY_RELEASE_VERSION}\"/" "$CHART_DIRECTORY/Chart.yaml"
 sed -i "s@kuberay/tree/v[^/]*/helm-chart/@kuberay/tree/v${KUBERAY_RELEASE_VERSION}/helm-chart/@" "$CHART_DIRECTORY/Chart.yaml"
