@@ -126,6 +126,16 @@ The flag reapplies the payload value and istiod sets `Fail` again within
 seconds. The Kustomize path never re-applies the webhook, so only Helm
 upgrades meet the conflict.
 
+The generated Kubeflow Istio resources omit the empty `rules` field from
+aggregated ClusterRoles so that the aggregation controller owns it. Contributing
+roles keep their rules, and synchronization rejects malformed or nonempty rules
+on an aggregated role. The Kustomize baseline is unchanged.
+
+Stored release revisions created before this repair still contain `rules: []`.
+Rolling back to one can reproduce the aggregation ownership conflict; a chart
+update does not rewrite release history. Recover by upgrading to the corrected
+chart with the intended values, then check `helm status` and the workloads.
+
 ## Namespace names
 
 Namespace names are fixed to match the Kustomize baseline and `kubeflow-namespaces` foundation chart. Istio workloads use `istio-system`, Istio CNI resources use `kube-system`, and Kubeflow gateway resources refer to `kubeflow`. These names are not configurable.
@@ -154,6 +164,10 @@ to later chart slices.
 
 ## Regenerate Static Manifests
 
+Generation requires Python 3 with `ruamel.yaml==0.19.1`, matching the
+synchronization workflow, for the aggregated-role ownership repair. Install that
+package in your Python environment before running the script.
+
 Run from the repository root:
 
 ```bash
@@ -181,4 +195,3 @@ python3 tests/run_helm_kustomize_comparison.py istio platform-full
 How this chart is compared, including every declared allowance, is in
 [`ci/comparison.yaml`](ci/comparison.yaml); the descriptor format is documented in
 [`tests/README.md`](../../../tests/README.md).
-
