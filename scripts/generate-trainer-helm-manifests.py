@@ -5,6 +5,7 @@ The API dependency is internal packaging, not a fourth installed release.
 Each chart is replaced atomically; --check never writes any of the charts.
 """
 
+import argparse
 import importlib.util
 import sys
 from pathlib import Path
@@ -49,16 +50,29 @@ CONFIGURATIONS = (
 )
 
 
-def main():
+def main(argv=None):
+    description = "Generate the three Trainer chart payloads."
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("--repository-root", type=Path)
+    parser.add_argument("--check", action="store_true")
+    arguments = parser.parse_args(argv)
+    engine_arguments = ["--check"] if arguments.check else []
+    if arguments.repository_root is not None:
+        engine_arguments.extend(["--repository-root", str(arguments.repository_root)])
+
+    exit_status = 0
     for configuration in CONFIGURATIONS:
         status = engine.command_line(
             configuration,
-            "Generate the three Trainer chart payloads.",
+            description,
             Path(__file__).resolve().parents[1],
+            argv=engine_arguments,
         )
         if status:
-            return status
-    return 0
+            if not arguments.check:
+                return status
+            exit_status = status
+    return exit_status
 
 
 if __name__ == "__main__":
