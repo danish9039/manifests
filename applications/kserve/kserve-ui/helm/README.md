@@ -33,9 +33,16 @@ both installation paths against the same objects.
 The only scenario is `platform`. The chart fixes names, namespace, image,
 identity headers, application prefix and routes to the distribution baseline.
 Unknown values fail schema validation; unsupported legacy values are not silently
-ignored. Kustomize's content-hashed ConfigMap name and Deployment reference are
-preserved, so a regenerated configuration change changes the Pod template and
-rolls out the workload without an additional checksum annotation.
+ignored. The baseline uses the fixed ConfigMap name
+`kserve-models-web-application-config`, which this chart preserves. A change to
+that ConfigMap alone does not change the Deployment's Pod template or restart
+its Pods. After upgrading a configuration consumed through environment variables,
+restart the Deployment so new Pods receive the updated values:
+
+```bash
+kubectl rollout restart deployment/kserve-models-web-application --namespace kserve
+kubectl rollout status deployment/kserve-models-web-application --namespace kserve
+```
 
 ## Existing installations and values
 
