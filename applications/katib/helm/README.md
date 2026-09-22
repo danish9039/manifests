@@ -30,9 +30,10 @@ Experiments run in profile namespaces. A profile namespace needs the label
 ## Install
 
 The chart requires its release namespace to be `kubeflow` and refuses to install
-anywhere else. It does not create or own that namespace. Every resource this
-chart renders declares `namespace: kubeflow`, so a release installed elsewhere
-would store its metadata in one namespace while modifying another.
+anywhere else. It does not create or own that namespace. Every namespaced
+resource this chart renders declares `namespace: kubeflow`, so a release
+installed elsewhere would store its metadata in one namespace while modifying
+another.
 
 ```bash
 helm install katib ./applications/katib/helm \
