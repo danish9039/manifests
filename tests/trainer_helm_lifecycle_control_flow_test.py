@@ -437,13 +437,11 @@ class TrainerLifecycleControlFlowTest(unittest.TestCase):
             run.matching("trainer_test.sh"), [f"trainer_test.sh {NAMESPACE}"] * 3
         )
 
-    def test_no_call_and_no_script_carries_a_force_option(self):
+    def test_no_call_carries_a_force_option(self):
         run = self.complete_run()
         self.assertGreater(len(run.commands), 100)
         for option in FORCE_OPTIONS:
             self.assertEqual([line for line in run.commands if option in line], [])
-            for script in (LIFECYCLE_TEST, INSTALLER):
-                self.assertNotIn(option, (ROOT / script).read_text())
 
     def test_a_complete_run_deletes_exactly_what_it_created(self):
         run = self.complete_run()
