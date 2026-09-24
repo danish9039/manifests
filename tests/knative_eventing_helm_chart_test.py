@@ -109,15 +109,22 @@ class EventingChartTest(unittest.TestCase):
                 import json
 
                 commands = [json.loads(line) for line in log.read_text().splitlines()]
-                upgrades = [c for c in commands if c[:2] == ["helm", "upgrade"]]
+                upgrades = [
+                    command
+                    for command in commands
+                    if command[:2] == ["helm", "upgrade"]
+                ]
                 self.assertIn("installation.phase=complete", upgrades[-1])
                 self.assertIn("--reset-values", upgrades[-1])
                 self.assertEqual(
-                    any("installation.phase=controllers" in c for c in upgrades),
+                    any(
+                        "installation.phase=controllers" in command
+                        for command in upgrades
+                    ),
                     False,
                 )
                 self.assertEqual(
-                    any(c[:2] == ["helm", "install"] for c in commands),
+                    any(command[:2] == ["helm", "install"] for command in commands),
                     previous == "absent",
                 )
 
@@ -127,7 +134,8 @@ class EventingChartTest(unittest.TestCase):
         self.assertEqual(len(complete), 105)
         self.assertEqual(len(definitions), 18)
         self.assertEqual(
-            {r["kind"] for r in definitions}, {"Namespace", "CustomResourceDefinition"}
+            {resource["kind"] for resource in definitions},
+            {"Namespace", "CustomResourceDefinition"},
         )
         for resource in definitions:
             self.assertEqual(
@@ -137,12 +145,12 @@ class EventingChartTest(unittest.TestCase):
             len(
                 {
                     (
-                        r["apiVersion"],
-                        r["kind"],
-                        r["metadata"].get("namespace"),
-                        r["metadata"]["name"],
+                        resource["apiVersion"],
+                        resource["kind"],
+                        resource["metadata"].get("namespace"),
+                        resource["metadata"]["name"],
                     )
-                    for r in complete
+                    for resource in complete
                 }
             ),
             105,
@@ -150,9 +158,9 @@ class EventingChartTest(unittest.TestCase):
 
     def test_aggregated_roles_leave_rules_to_the_aggregation_controller(self):
         aggregated = [
-            r
-            for r in objects(render())
-            if r["kind"] == "ClusterRole" and r.get("aggregationRule")
+            resource
+            for resource in objects(render())
+            if resource["kind"] == "ClusterRole" and resource.get("aggregationRule")
         ]
         self.assertEqual(len(aggregated), 5)
         for role in aggregated:
@@ -160,12 +168,14 @@ class EventingChartTest(unittest.TestCase):
 
     def test_webhook_conversion_is_preserved_and_declared(self):
         definitions = [
-            r for r in objects(render()) if r["kind"] == "CustomResourceDefinition"
+            resource
+            for resource in objects(render())
+            if resource["kind"] == "CustomResourceDefinition"
         ]
         conversions = {
-            r["metadata"]["name"]: r["spec"]["conversion"]
-            for r in definitions
-            if r["spec"].get("conversion", {}).get("strategy") == "Webhook"
+            resource["metadata"]["name"]: resource["spec"]["conversion"]
+            for resource in definitions
+            if resource["spec"].get("conversion", {}).get("strategy") == "Webhook"
         }
         self.assertEqual(
             set(conversions),
@@ -183,7 +193,11 @@ class EventingChartTest(unittest.TestCase):
         self.assertNotEqual(
             render("--set", "installation.phase=controllers").returncode, 0
         )
-        namespace = next(r for r in objects(render()) if r["kind"] == "Namespace")
+        namespace = next(
+            resource
+            for resource in objects(render())
+            if resource["kind"] == "Namespace"
+        )
         self.assertEqual(
             namespace["metadata"]["labels"]["pod-security.kubernetes.io/enforce"],
             "restricted",

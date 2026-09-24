@@ -41,10 +41,21 @@ capture_adapter() {
 deployment=json.load(sys.stdin)
 print(json.dumps({"spec":deployment["spec"],"generation":deployment["metadata"]["generation"]}, sort_keys=True))'
     kubectl get pods -n "$namespace" -l eventing.knative.dev/source=ping-source-controller -o json | \
-        python3 -c 'import json,sys
-pods=[p for p in json.load(sys.stdin)["items"] if not p["metadata"].get("deletionTimestamp")]
-assert pods and all(any(c["type"]=="Ready" and c["status"]=="True" for c in p.get("status",{}).get("conditions",[])) for p in pods), "Expected healthy, active adapter Pods"
-print(json.dumps(sorted(p["metadata"]["uid"] for p in pods)))'
+        python3 -c 'import json, sys
+
+pods = [
+    pod
+    for pod in json.load(sys.stdin)["items"]
+    if not pod["metadata"].get("deletionTimestamp")
+]
+assert pods and all(
+    any(
+        condition["type"] == "Ready" and condition["status"] == "True"
+        for condition in pod.get("status", {}).get("conditions", [])
+    )
+    for pod in pods
+), "Expected healthy, active adapter Pods"
+print(json.dumps(sorted(pod["metadata"]["uid"] for pod in pods)))'
 }
 capture_adapter >"$temporary/adapter-before"
 for attempt in 1 2; do
@@ -65,7 +76,13 @@ from pathlib import Path
 import yaml
 path = Path(sys.argv[1])
 resources = list(yaml.safe_load_all(path.read_text()))
-controllers = [r for r in resources if r and r["kind"] == "Deployment" and r["metadata"]["name"] == "eventing-controller"]
+controllers = [
+    resource
+    for resource in resources
+    if resource
+    and resource["kind"] == "Deployment"
+    and resource["metadata"]["name"] == "eventing-controller"
+]
 assert len(controllers) == 1, "Expected one controller Deployment"
 controllers[0]["spec"]["template"]["metadata"].setdefault("annotations", {})["tests.kubeflow.org/lifecycle"] = "changed"
 path.write_text(yaml.safe_dump_all(resources, sort_keys=False))
