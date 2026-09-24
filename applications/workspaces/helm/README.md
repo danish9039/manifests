@@ -250,6 +250,8 @@ How this chart is compared, including the retained definitions, is in
 the comparison.
 
 `tests/workspaces_helm_install.sh` installs the chart on a cluster.
+Run the manual lifecycle and upgrade scripts only on a disposable test cluster.
+The lifecycle fixture overwrites the cluster-wide `jupyterlab` WorkspaceKind.
 `tests/workspaces_helm_lifecycle_test.sh` exercises explicit `Workspace`
 deletion, uninstall with a retained `Workspace`, reinstallation and the refusal
 of a namespace that the release does not own; it is destructive and is not part
