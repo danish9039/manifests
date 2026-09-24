@@ -79,7 +79,7 @@ EOF
 kubectl rollout status "deployment/$fixture" -n "$namespace" --timeout=120s
 kubectl wait --for=condition=Ready "pingsource/$fixture" -n "$namespace" --timeout=180s
 # Use only logs since this invocation, so replay cannot pass on old delivery.
-started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+started=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)
 delivered=false
 for ((attempt=0; attempt<75; attempt++)); do
     if kubectl logs "deployment/$fixture" -n "$namespace" --since-time="$started" | \
