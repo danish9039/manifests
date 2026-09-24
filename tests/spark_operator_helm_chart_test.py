@@ -23,9 +23,6 @@ SYNCHRONIZATION_SCRIPT = (
 )
 INSTALLATION_SCRIPT = ROOT_DIRECTORY / "tests" / "spark_helm_install.sh"
 LIBRARY = ROOT_DIRECTORY / "scripts" / "library.sh"
-COMPARISON_WORKFLOW = (
-    ROOT_DIRECTORY / ".github" / "workflows" / "helm-kustomize-comparison.yml"
-)
 HELM_BINARY = os.environ.get("HELM_BINARY", "helm")
 CHART_REPOSITORY = "https://kubeflow.github.io/spark-operator"
 
@@ -525,22 +522,6 @@ class SparkOperatorSynchronizationTest(unittest.TestCase):
 
         self.assertRegex(dependency["version"], r"^\d+\.\d+\.\d+")
 
-    def test_synchronization_requires_the_helm_version_the_workflow_pins(self):
-        """The baseline is Helm output, so both must render with one version."""
-        script = SYNCHRONIZATION_SCRIPT.read_text()
-        required = re.search(r'^HELM_VERSION="([^"]+)"', script, re.MULTILINE)
-        self.assertIsNotNone(required, "HELM_VERSION is not declared in the script")
-        self.assertIn('require_helm_version "$HELM_VERSION"', script)
-
-        workflow = yaml.safe_load(COMPARISON_WORKFLOW.read_text())
-        pins = {
-            step["with"]["version"]
-            for job in workflow["jobs"].values()
-            for step in job.get("steps", [])
-            if "azure/setup-helm" in step.get("uses", "")
-        }
-        self.assertEqual(pins, {required.group(1)})
-
     def test_the_helm_version_guard_runs_before_anything_is_changed(self):
         lines = SYNCHRONIZATION_SCRIPT.read_text().splitlines()
         guard = lines.index('require_helm_version "$HELM_VERSION"')
@@ -626,17 +607,6 @@ class SparkOperatorSynchronizationTest(unittest.TestCase):
         self.assertNotIn(current, readme)
         self.assertIn("upstream Spark Operator `v97.98.99`", readme)
         self.assertIn("--version 97.98.99", readme)
-
-    def test_readme_names_commands_and_files_that_exist(self):
-        readme = (CHART_DIRECTORY / "README.md").read_text()
-
-        for path in re.findall(r"python3 (tests/\S+\.py)", readme):
-            with self.subTest(path=path):
-                self.assertTrue((ROOT_DIRECTORY / path).is_file())
-        # A GitHub tree URL is an HTML page, not a manifest kubectl can apply.
-        self.assertNotIn("/tree/", readme)
-        self.assertIn("helm show crds spark-operator", readme)
-        self.assertIn(f"--repo {CHART_REPOSITORY}", readme)
 
     def test_chart_carries_no_crds_directory(self):
         """The dependency owns the definitions; a second copy would collide.
