@@ -118,7 +118,12 @@ class KatibHelmChartTest(unittest.TestCase):
         remaining = load_manifests(result.stdout)
 
         self.assertEqual(
-            [m for m in remaining if m["kind"] == "CustomResourceDefinition"], []
+            [
+                manifest
+                for manifest in remaining
+                if manifest["kind"] == "CustomResourceDefinition"
+            ],
+            [],
         )
         self.assertEqual(len(remaining), len(self.manifests) - 3)
 
