@@ -161,6 +161,37 @@ class HelmEnvironmentIsolationTest(unittest.TestCase):
             (Path(environment["HELM_CONFIG_HOME"]) / "repositories.yaml").is_file()
         )
 
+    def test_ordinary_comparison_preserves_caller_state_and_source_chart(self):
+        url = self.serve_repository()
+        chart = self.root / "chart"
+        chart.mkdir()
+        (chart / "Chart.yaml").write_text(
+            "apiVersion: v2\nname: wrapper\nversion: 0.1.0\n"
+            "dependencies:\n- name: example\n  version: 0.1.0\n"
+            f"  repository: {url}\n"
+        )
+        descriptor = {
+            "releaseName": "example",
+            "namespace": "kubeflow",
+            "dependencyRepositories": {"example": url},
+            "scenarios": {"default": {"kustomize": []}},
+        }
+        chart_before = snapshot(chart)
+        with (
+            mock.patch.dict(os.environ, self.sentinels),
+            mock.patch.object(comparison, "render_kustomize"),
+            mock.patch.object(
+                comparison.comparator, "compare_manifests", return_value=True
+            ),
+        ):
+            self.assertTrue(
+                comparison.compare(
+                    "example", "default", {"example": (chart, descriptor)}, {}
+                )
+            )
+        self.assertCallerStateUntouched()
+        self.assertEqual(snapshot(chart), chart_before)
+
     def test_the_library_function_leaves_inherited_helm_paths_untouched(self):
         url = self.serve_repository()
 

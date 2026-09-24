@@ -37,6 +37,7 @@ belongs to exactly one Helm release.
 The release name and the namespace are both fixed.
 
 ```bash
+helm repo add spark-operator https://kubeflow.github.io/spark-operator
 helm dependency build ./applications/spark/spark-operator/helm
 helm install spark-operator ./applications/spark/spark-operator/helm \
   --namespace kubeflow \
