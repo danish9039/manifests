@@ -58,5 +58,5 @@ kubectl -n kubeflow wait \
 kubectl wait --timeout=180s --for='jsonpath={.webhooks[0].clientConfig.caBundle}' \
   mutatingwebhookconfiguration/spark-operator-webhook \
   validatingwebhookconfiguration/spark-operator-webhook
-sleep 10 # some readinessprobes for the webhook are not valid
+sleep 10 # some readiness probes for the webhook are not valid
 kubectl -n kubeflow get pod -l app.kubernetes.io/name=spark-operator
