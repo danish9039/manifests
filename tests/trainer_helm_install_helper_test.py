@@ -86,19 +86,19 @@ if os.environ.get("FAIL_COMMAND") and os.environ["FAIL_COMMAND"] in command: sys
         controller = commands.index(installs[1])
         catalog = commands.index(installs[2])
         established = [
-            i
-            for i, command in enumerate(commands)
+            index
+            for index, command in enumerate(commands)
             if "--for=condition=Established" in command
         ]
         self.assertEqual(len(established), 4)
         self.assertLess(max(established), controller)
         readiness = [
-            i
-            for i, command in enumerate(commands)
+            index
+            for index, command in enumerate(commands)
             if "caBundle" in command or "endpoints/" in command
         ]
         self.assertEqual(len(readiness), 6)
-        self.assertTrue(all(controller < i < catalog for i in readiness))
+        self.assertTrue(all(controller < index < catalog for index in readiness))
 
     def test_failed_definition_establishment_prevents_controller_and_catalog(self):
         result, commands = self.run_installer("--for=condition=Established")
