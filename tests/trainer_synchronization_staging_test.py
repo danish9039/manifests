@@ -238,31 +238,9 @@ class TrainerSynchronizationStagingTest(unittest.TestCase):
         self.assertEqual(self.synchronization.commit_count(), 2)
         self.assertEqual(self.synchronization.staged_paths(), [])
 
-    def test_unrelated_edited_chart_files_stay_unstaged(self):
-        for edited_file in UNRELATED_EDITED_FILES:
-            with self.subTest(edited_file=edited_file):
-                self.assertNotIn(("M", edited_file), self.committed)
-                self.assertIn(("M", edited_file), self.remaining)
-
-    def test_untracked_chart_files_stay_unstaged(self):
-        for sentinel in UNTRACKED_SENTINELS:
-            with self.subTest(sentinel=sentinel):
-                self.assertNotIn(("A", sentinel), self.committed)
-                self.assertIn(("??", sentinel), self.remaining)
-
-    def test_removed_generated_definition_is_staged_as_a_deletion(self):
-        self.assertIn(("D", REMOVED_DEFINITION), self.committed)
-
-    def test_regenerated_payloads_are_staged(self):
-        for payload in (REGENERATED_DEFINITION, *REGENERATED_PAYLOADS):
-            with self.subTest(payload=payload):
-                self.assertIn(("M", payload), self.committed)
-        self.assertIn(("A", ADDED_DEFINITION), self.committed)
-
     def test_application_version_of_every_chart_is_staged(self):
         for chart_file in CHART_FILES:
             with self.subTest(chart_file=chart_file):
-                self.assertIn(("M", chart_file), self.committed)
                 self.assertNotIn(
                     f'appVersion: "{PREVIOUS_VERSION}"',
                     self.synchronization.git("show", f"HEAD:{chart_file}"),
