@@ -136,8 +136,12 @@ class Cluster:
         if kind in NAMESPACED_KINDS:
             metadata["namespace"] = namespace
         if existing:
-            content = {k: v for k, v in existing.items() if k != "metadata"}
-            changed = content != {k: v for k, v in body.items() if k != "metadata"}
+            content = {
+                key: value for key, value in existing.items() if key != "metadata"
+            }
+            changed = content != {
+                key: value for key, value in body.items() if key != "metadata"
+            }
             metadata["uid"] = existing["metadata"]["uid"]
             metadata["generation"] = existing["metadata"]["generation"] + changed
         else:
@@ -412,7 +416,9 @@ def appear(cluster, kind, namespace, name):
         reads[key] = reads.get(key, 0) + 1
         return None
     job = cluster.get("trainjob", namespace, name.removesuffix("-runtime-snapshot"))
-    owner = {"kind": "TrainJob"} | {k: job["metadata"][k] for k in ("name", "uid")}
+    owner = {"kind": "TrainJob"} | {
+        key: job["metadata"][key] for key in ("name", "uid")
+    }
     return cluster.put(
         kind, namespace, name, {"metadata": {"ownerReferences": [owner]}}
     )

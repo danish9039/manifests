@@ -229,7 +229,9 @@ class Run:
         return [command for command in self.commands if command.startswith(beginnings)]
 
     def position(self, fragment):
-        (index,) = [i for i, line in enumerate(self.commands) if fragment in line]
+        (index,) = [
+            index for index, line in enumerate(self.commands) if fragment in line
+        ]
         return index
 
     def deleted(self):
@@ -475,7 +477,8 @@ class TrainerLifecycleControlFlowTest(unittest.TestCase):
         preamble = self.complete_installation[:2]
         self.assertEqual(
             self.complete_installation,
-            preamble + sum((self.installer_commands[r][2:] for r in RELEASES), []),
+            preamble
+            + sum((self.installer_commands[release][2:] for release in RELEASES), []),
         )
         for release, count in by_release.items():
             calls = self.installer_commands[release]
@@ -492,7 +495,9 @@ class TrainerLifecycleControlFlowTest(unittest.TestCase):
                 self.assertEqual(run.commands[start : start + len(calls)], calls)
                 between = run.commands[uninstallation + 1 : start]
                 changing = ("helm install", "helm upgrade", "helm rollback")
-                self.assertEqual([c for c in between if c.startswith(changing)], [])
+                self.assertEqual(
+                    [command for command in between if command.startswith(changing)], []
+                )
         self.assertEqual(len(run.matching("helm install ")), sum(by_release.values()))
         script = (ROOT / LIFECYCLE_TEST).read_text()
         self.assertNotIn("helm install", script)
@@ -529,7 +534,8 @@ class TrainerLifecycleControlFlowTest(unittest.TestCase):
         for upgrade in (changed, unchanged):
             following = run.commands[upgrade + 2 : upgrade + 6]
             self.assertTrue(
-                all("--for=condition=Established" in c for c in following), following
+                all("--for=condition=Established" in command for command in following),
+                following,
             )
         self.assertIn(train_job("api-job"), run.state["reconciled"])
 
@@ -554,7 +560,8 @@ class TrainerLifecycleControlFlowTest(unittest.TestCase):
         )
         submission = run.position("new-submission.yaml")
         denied, admitted = [
-            run.commands.index(c) for c in run.matching(f"kubectl patch trainjob/{job}")
+            run.commands.index(command)
+            for command in run.matching(f"kubectl patch trainjob/{job}")
         ]
         restoration = run.commands.index(
             run.matching("helm install trainer-runtimes ")[0], retirement
@@ -602,7 +609,9 @@ class TrainerLifecycleControlFlowTest(unittest.TestCase):
         snapshot, job_set = (
             ABSENCE_READ.format(resource) for resource in (HELD_SNAPSHOT, HELD_JOB_SET)
         )
-        reads = [index for index, c in enumerate(run.commands) if c == snapshot]
+        reads = [
+            index for index, command in enumerate(run.commands) if command == snapshot
+        ]
         # Two passes of the window, one while the runtime is absent, one at the end.
         self.assertEqual(len(reads), 4)
         for index in reads:
@@ -620,7 +629,14 @@ class TrainerLifecycleControlFlowTest(unittest.TestCase):
         self.assertLess(admitted, reads[3])
         # Nothing but these successful reads establishes the absence: no wait
         # whose failure would pass for it names the held TrainJob.
-        self.assertEqual([c for c in run.matching("kubectl wait") if HELD_JOB in c], [])
+        self.assertEqual(
+            [
+                command
+                for command in run.matching("kubectl wait")
+                if HELD_JOB in command
+            ],
+            [],
+        )
         self.assertEqual([key for key in run.state["objects"] if PREFIX in key], [])
 
     def test_a_failed_read_of_the_held_train_job_is_not_its_absence(self):
@@ -658,7 +674,9 @@ class TrainerLifecycleControlFlowTest(unittest.TestCase):
                 self.assertEqual(len(run.matching("helm uninstall")), int(reads > 1))
                 self.assertEqual(len(run.matching("helm install")), int(reads > 2))
                 # The appeared object left with the TrainJob that owns it.
-                self.assertEqual([k for k in run.state["objects"] if PREFIX in k], [])
+                self.assertEqual(
+                    [key for key in run.state["objects"] if PREFIX in key], []
+                )
 
     def test_no_failed_read_counts_as_an_absent_object(self):
         # What must not follow the failed read of a free fixture name, of a webhook
@@ -742,7 +760,10 @@ class TrainerLifecycleControlFlowTest(unittest.TestCase):
         run = self.run_of("packaged chart", passes=True)
         chart = str(self.packaged_chart)
         self.assertEqual(
-            [c.split()[3] for c in run.matching("helm upgrade trainer-apis ")][1:],
+            [
+                command.split()[3]
+                for command in run.matching("helm upgrade trainer-apis ")
+            ][1:],
             [chart, chart],
         )
         self.assertEqual(
