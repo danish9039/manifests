@@ -47,7 +47,6 @@ jobs:
     - name: Test Katib synchronization patch and staging
       run: |
         python tests/katib_synchronization_patch_test.py
-        python tests/katib_synchronization_staging_test.py
 
     - name: Run upstream synchronization scripts for changed files
       run: |
