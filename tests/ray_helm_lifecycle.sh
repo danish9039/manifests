@@ -6,6 +6,8 @@ set -euo pipefail
   exit 1
 }
 REPOSITORY_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+source "$REPOSITORY_ROOT/scripts/library.sh"
+require_helm_major_version 4
 PROFILE_NAMESPACE=${1:-kubeflow-user-example-com}
 TEMPORARY_DIRECTORY=$(mktemp -d)
 trap 'rm -rf "$TEMPORARY_DIRECTORY"' EXIT

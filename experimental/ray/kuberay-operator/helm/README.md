@@ -2,7 +2,8 @@
 
 This wrapper installs the same upstream KubeRay operator chart that produces
 `experimental/ray/kuberay-operator/base/resources.yaml`. The dependency and
-`Chart.lock` pin version 1.6.2. Upstream values express the distribution's
+`Chart.lock` follow the version pinned in `experimental/ray/Makefile`.
+Upstream values express the distribution's
 init-container and restricted-PSS changes; the only added objects are the three
 Kubeflow RBAC roles. The `kubeflow` comparison scenario covers all 20 objects,
 including four definitions, against the distribution overlay without allowances.
@@ -56,8 +57,9 @@ scenarios merely because the upstream chart exposes those settings.
 
 `kubeflow-kuberay-admin` intentionally keeps `rules: []`: it has aggregate-to
 labels but no `aggregationRule`, so it is not the controller-owned-field exception.
-The shared aggregated-role repair in pull request #3609 is still required for
-upgrading the foundation charts until that change merges.
+The foundation charts in the current distribution omit controller-owned rules.
+A rollback to an older stored revision that still contains `rules: []` can fail;
+recover by upgrading with the corrected chart, rather than forcing conflicts.
 
 ## Definitions and lifecycle
 
@@ -156,6 +158,6 @@ reinstall. It then runs real distributed work after recovery. It leaves the
 operator installed. On failure, inspect the retained fixture and release state;
 there is no automatic forced cleanup or claimed recovery.
 
-This draft has local rendering, size and command-boundary tests. Its cluster
-workflow and lifecycle script must pass before it is described as lifecycle
-validated; neither a template render nor a passing storage-size test proves that.
+Rendering, release-size and chart behavior checks run in the comparison workflow.
+The full Helm integration workflow runs the Ray fixture and lifecycle script;
+these cluster checks cover behavior that rendering and size checks cannot prove.
