@@ -130,6 +130,10 @@ confirm `git diff` is empty.
 
 ## Comparison
 
+The full Helm integration workflow installs this chart and runs the existing
+Katib Experiment test. It does not automate upgrade, rollback, uninstall
+retention or reinstall checks; those lifecycle scenarios remain unverified by CI.
+
 ```bash
 helm lint applications/katib/helm --namespace kubeflow
 python3 tests/run_helm_kustomize_comparison.py katib --all-scenarios
