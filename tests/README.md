@@ -205,3 +205,17 @@ python3 tests/comparison_partitions_test.py -v                # the check and it
 The load-time rejection messages come from `tests/run_helm_kustomize_comparison.py`
 and name the file and the rule that was violated; `tests/comparison_descriptors_test.py`
 exercises each one.
+
+## Helm lifecycle diagnostics
+
+Knative Serving and KServe Models UI lifecycle tests save evidence under
+`logs/knative-serving-lifecycle/` and `logs/kserve-ui-lifecycle/`. Set
+`EVIDENCE_DIRECTORY` to override the destination. Each release mutation is
+preceded by a snapshot of Helm history, resources, events and pod logs. Failed
+operations capture another snapshot; failed Knative fixtures remain for diagnosis.
+The full Helm integration workflow uploads these files with its diagnostic logs.
+Collection is best-effort and bounded; it cannot recover logs already deleted or
+guarantee collection after runner loss or a hard job timeout.
+
+Run `python3 tests/helm_lifecycle_diagnostics_test.py` to check failure preservation
+without a cluster.
