@@ -217,7 +217,6 @@ Trainer uses three releases in `kubeflow-system`: `trainer-apis`, `trainer`, and
 ```sh
 python3 tests/helm_manifest_partitions_test.py
 python3 tests/trainer_helm_chart_test.py
-python3 tests/trainer_helm_install_helper_test.py
 python3 tests/trainer_helm_lifecycle_control_flow_test.py
 python3 scripts/generate-trainer-helm-manifests.py --check
 python3 tests/run_helm_kustomize_comparison.py --partitions

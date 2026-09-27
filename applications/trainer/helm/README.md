@@ -145,7 +145,7 @@ storage is measured for each installable chart, including the packaged API paren
 The APIs are kept in a dependency to reduce the stored release size; archive size
 alone is not the Kubernetes Secret storage limit.
 
-Render, storage and installer-order tests do not establish lifecycle safety.
+Render and storage tests do not establish lifecycle safety.
 Before publishing this chart as ready for use, validate schema retention and
 same-owner recovery, controller upgrade/rollback and uninstall/reinstall, runtime
 snapshot update/rollback/retirement behavior, and successful SDK training through
