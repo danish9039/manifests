@@ -19,8 +19,7 @@ DEFAULT_KUSTOMIZE_BINARY = "kustomize"
 ROLE_BASED_ACCESS_CONTROL_API_GROUP = "rbac.authorization.k8s.io"
 PLATFORM_DATABASE_KUSTOMIZE_PATH = Path("applications/pipeline/overlays")
 PLATFORM_KUBERNETES_NATIVE_KUSTOMIZE_PATH = Path(
-    "applications/pipeline/upstream/env/cert-manager/"
-    "platform-agnostic-multi-user-k8s-native"
+    "applications/pipeline/overlays/k8s-native"
 )
 
 
@@ -281,14 +280,10 @@ def build_generated_payloads(
     )
     common_source_description = (
         "applications/pipeline/overlays and "
-        "applications/pipeline/upstream/env/cert-manager/"
-        "platform-agnostic-multi-user-k8s-native"
+        "applications/pipeline/overlays/k8s-native"
     )
     database_source = "applications/pipeline/overlays"
-    kubernetes_native_source = (
-        "applications/pipeline/upstream/env/cert-manager/"
-        "platform-agnostic-multi-user-k8s-native"
-    )
+    kubernetes_native_source = "applications/pipeline/overlays/k8s-native"
 
     return {
         "common-crds.yaml": render_partition_payload(

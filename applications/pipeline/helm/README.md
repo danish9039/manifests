@@ -163,10 +163,15 @@ profile controller had created a new one.
 ## Kustomize Mapping
 
 - `platform-database`: `applications/pipeline/overlays`
-- `platform-k8s-native`: `applications/pipeline/upstream/env/cert-manager/platform-agnostic-multi-user-k8s-native`
+- `platform-k8s-native`: `applications/pipeline/overlays/k8s-native`
 
 AWS, Google Cloud, MinIO, PostgreSQL, OpenShift, and standalone installation
 variants are intentionally deferred.
+
+The Kubernetes-native overlay excludes only webhook port `8443` from Istio
+sidecar interception, following the distribution's Trainer webhook pattern.
+The webhook still uses its cert-manager TLS certificate; API ports `8888` and
+`8887` keep their existing mesh and authorization settings.
 
 ## Regeneration
 
