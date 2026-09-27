@@ -156,7 +156,6 @@ jobs:
       run: |
         set +e
         helm list --all-namespaces
-        kubectl logs -n kubeflow -l app=ml-pipeline --all-containers=true --tail=200 --prefix=true
         kubectl get pods,services,deployments,statefulsets -A -o wide
         kubectl get customresourcedefinitions
         kubectl get events -A --sort-by=.lastTimestamp

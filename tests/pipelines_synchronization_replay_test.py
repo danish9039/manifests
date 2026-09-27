@@ -14,7 +14,6 @@ SYNCHRONIZATION_SCRIPT = "scripts/synchronize-pipelines-manifests.sh"
 CHART_INPUTS = (
     "applications/pipeline/upstream/base/installs/generic/kustomization.yaml",
     "applications/pipeline/overlays/kustomization.yaml",
-    "applications/pipeline/overlays/k8s-native/kustomization.yaml",
     "applications/pipeline/helm/Chart.yaml",
     "applications/pipeline/helm/manifests/common-resources.yaml",
     "scripts/generate-pipelines-helm-manifests.py",

@@ -16,7 +16,8 @@ GENERATOR_PATH = REPOSITORY_ROOT / GENERATOR_SCRIPT
 OUTPUT_PATH = Path("applications/pipeline/helm/manifests")
 PLATFORM_DATABASE_KUSTOMIZE_PATH = Path("applications/pipeline/overlays")
 PLATFORM_KUBERNETES_NATIVE_KUSTOMIZE_PATH = Path(
-    "applications/pipeline/overlays/k8s-native"
+    "applications/pipeline/upstream/env/cert-manager/"
+    "platform-agnostic-multi-user-k8s-native"
 )
 PAYLOAD_FILE_NAMES = [
     "common-crds.yaml",

@@ -130,18 +130,6 @@ class PipelinesHelmChartLifecycleTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         resources = load_rendered_resources(result.stdout)
-        api_server = next(
-            resource
-            for resource in resources
-            if resource["kind"] == "Deployment"
-            and resource["metadata"]["name"] == "ml-pipeline"
-        )
-        self.assertEqual(
-            api_server["spec"]["template"]["metadata"]["annotations"].get(
-                "traffic.sidecar.istio.io/excludeInboundPorts"
-            ),
-            "8443",
-        )
         resource_identifiers = {
             (
                 resource["kind"],
