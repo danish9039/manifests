@@ -145,62 +145,41 @@ storage is measured for each installable chart, including the packaged API paren
 The APIs are kept in a dependency to reduce the stored release size; archive size
 alone is not the Kubernetes Secret storage limit.
 
-Render and storage tests do not establish lifecycle safety.
-Before publishing this chart as ready for use, validate schema retention and
-same-owner recovery, controller upgrade/rollback and uninstall/reinstall, runtime
-snapshot update/rollback/retirement behavior, and successful SDK training through
-this Helm installation path on a disposable cluster.
+Render and storage tests do not establish lifecycle safety. The full Helm
+integration workflow runs `tests/trainer_test.sh` after installation, then runs
+`tests/trainer_helm_lifecycle_test.sh` after the application tests and before the
+Pod Security Standards check, using the same disposable Kind cluster.
 
-The lifecycle test is opt-in and requires an explicit kubeconfig for a disposable
-cluster that already has the three releases. Arguments after the profile namespace,
-or `TRAINER_HELM_LIFECYCLE_SCENARIOS`, select scenarios. Without a selection only
-`smoke` runs, which changes no release; `all` runs every scenario in this order:
+The lifecycle script runs one fixed sequence:
+
+1. Change the controller Pod templates, verify the live change, and roll back.
+2. Change the catalog image, verify the new TrainJob snapshot and JobSet, and roll
+   back without rewriting existing snapshots. These fixture jobs stay suspended;
+   this checks configuration resolution, not execution of the changed image.
+3. Uninstall and reinstall `trainer-apis`, verifying retention of definitions and
+   custom objects, then upgrade the reinstalled release with the unchanged chart.
+4. Uninstall and reinstall `trainer-runtimes`, verifying admission while the catalog
+   is absent and preservation of administrator and namespaced runtimes.
+5. Uninstall and reinstall `trainer`, verifying webhook removal and retained
+   resources, then run the existing SDK training test again to prove recovery.
+
+For a manual run, first install all three releases and the platform prerequisites
+on a disposable cluster:
 
 ```sh
 KUBECONFIG=/path/to/disposable.kubeconfig \
   TRAINER_HELM_LIFECYCLE_DISPOSABLE=true \
-  ./tests/trainer_helm_lifecycle_test.sh kubeflow-user-example-com smoke fixtures
+  ./tests/trainer_helm_lifecycle_test.sh kubeflow-user-example-com
 ```
 
-| Scenario | Release operation | A pass proves |
-| --- | --- | --- |
-| `smoke` | none | Admission denies an absent runtime and admits `torch-distributed`; an SDK TrainJob completes |
-| `fixtures` | none | A namespaced TrainingRuntime and its TrainJob are admitted; every fixture TrainJob owns a runtime snapshot and a JobSet |
-| `controller-upgrade-rollback` | `trainer` upgrade with a changed Pod template, rollback | Rollout and rollback, then admission and a completed SDK TrainJob |
-| `controller-reinstall` | `trainer` uninstall, installation | Webhook configurations leave with the release, APIs and catalog stay, then admission and a completed SDK TrainJob |
-| `api-upgrade` | `trainer-apis` upgrade with one more optional TrainJob property, upgrade back | The property is served, existing objects stay readable, a new TrainJob is admitted and reconciled |
-| `api-reinstall` | `trainer-apis` uninstall, installation, unchanged upgrade | Definitions and objects are retained; the same release name takes the definitions back and manages them again |
-| `catalog-update-rollback` | `trainer-runtimes` upgrade with a changed `torch-distributed` image, rollback | The snapshot and the JobSet of a new TrainJob hold the update, the earlier snapshot keeps its content, the rollback restores the live runtime |
-| `retirement-after-snapshot` | `trainer-runtimes` uninstall, installation | With a snapshot, admission denies a validated update while the runtime is absent |
-| `retirement-before-snapshot` | `trainer-runtimes` uninstall, installation | The admission question only: without a snapshot and a JobSet, admission denies a validated update and a new submission while the runtime is absent |
+The script saves resource identities, snapshots and logs under
+`logs/trainer-lifecycle/` before destructive operations and on failure. The
+workflow uploads that directory through its existing `logs/` artifact step.
+Collection uses Kubernetes request timeouts and does not mask the failing test.
+Fixtures remain for diagnosis until the disposable cluster is destroyed; a
+failure can leave a release changed or uninstalled. No automatic recovery runs
+on failure because it could hide the cause.
 
-Every scenario except `smoke` creates an administrator ClusterTrainingRuntime, a
-namespaced TrainingRuntime and two suspended TrainJobs, and asserts their UIDs, the
-UIDs of their snapshots and JobSets, the snapshot contents, the four definitions
-and `kubeflow-system` after every release operation. Object names carry a run
-identifier, an existing name is refused, and only objects that the run has created
-are deleted. Every installation is a call of `tests/trainer_helm_install.sh` with
-the release name, and no command passes a force option. The TrainJob of
-`retirement-before-snapshot` is held without a snapshot by
-`spec.managedBy: kueue.x-k8s.io/multikueue`, so that scenario shows admission, not
-the reconciliation failure of a TrainJob that the Trainer controller manages.
-`spec.managedBy` is immutable: that TrainJob cannot be returned to the Trainer
-controller and resumed. Only a successful read that returns nothing counts as
-absence. The snapshot and the JobSet of the held TrainJob are read through a
-bounded window, while the runtime is absent and at the end; a failed read fails
-the scenario, and an unreadable Kueue definition refuses it. The `api-upgrade`
-scenario proves one additive change, not compatibility between Trainer versions. A
-failed scenario can leave a release uninstalled, upgraded to a temporary copy or
-rolled back; use only a disposable cluster.
-
-The catalog update is partly covered: every TrainJob stays suspended, so a snapshot
-and a JobSet show that the configuration is resolved, not that a resumed TrainJob
-runs with it. No scenario runs `helm rollback trainer-apis`; nothing here supports
-a claim that it is safe. The lifecycle evidence so far comes from a minimal
-single-node kind cluster without Istio.
-
-`tests/trainer_helm_lifecycle_control_flow_test.py` runs the lifecycle test and the
-installer without a cluster, against `tests/trainer_helm_lifecycle_fake_cluster.py`
-as `helm` and `kubectl`: scenario selection, call order, reinstallation through
-the installer, no force option, deletion of owned objects only, and that a failed
-read never counts as absence. It does not replace a run on a cluster.
+This sequence does not establish compatibility across Trainer versions, safe API
+schema rollback, or behavior of jobs held before their first runtime snapshot.
+Those require separate migration-specific validation.
