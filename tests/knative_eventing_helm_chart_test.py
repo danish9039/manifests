@@ -38,7 +38,7 @@ def objects(result):
 
 
 class EventingChartTest(unittest.TestCase):
-    def test_payload_diff_is_limited_to_declared_controller_ownership(self):
+    def test_payload_difference_is_limited_to_declared_controller_ownership(self):
         baseline = list(
             yaml.safe_load_all(
                 subprocess.check_output(
