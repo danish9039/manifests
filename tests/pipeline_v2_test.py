@@ -3,6 +3,8 @@
 import kfp
 import sys
 import time
+import tempfile
+from pathlib import Path
 from kfp import dsl
 from kfp import kubernetes
 from kfp_server_api.exceptions import ApiException
@@ -22,25 +24,42 @@ def hello_world_pipeline():
     )
 
 
-def run_pipeline(token, namespace):
+def run_pipeline(token, namespace, upload=False):
     client = kfp.Client(host="http://localhost:8080/pipeline", existing_token=token)
 
     try:
-        pipelines = client.list_pipelines()
+        pipelines = client.list_pipelines(namespace=namespace)
         print(
-            f"Successfully connected to KFP server, found {len(pipelines.pipelines)} pipelines"
+            f"Successfully connected to KFP server, found {len(pipelines.pipelines or [])} pipelines"
         )
 
         experiment = client.create_experiment("v2-pipeline-test", namespace=namespace)
         print(f"Created experiment: v2-pipeline-test in namespace {namespace}")
 
-        run = client.create_run_from_pipeline_func(
-            pipeline_func=hello_world_pipeline,
-            experiment_name="v2-pipeline-test",
-            run_name="v2-test-run",
-            arguments={},
-            namespace=namespace,
-        )
+        if upload:
+            with tempfile.TemporaryDirectory() as directory:
+                package = str(Path(directory) / "pipeline.yaml")
+                kfp.compiler.Compiler().compile(hello_world_pipeline, package)
+                pipeline = client.upload_pipeline(
+                    package, pipeline_name="v2-storage-test", namespace=namespace
+                )
+                version = client.upload_pipeline_version(
+                    package, "v2-storage-version", pipeline_id=pipeline.pipeline_id
+                )
+            run = client.run_pipeline(
+                experiment_id=experiment.experiment_id,
+                job_name="v2-stored-test-run",
+                pipeline_id=pipeline.pipeline_id,
+                version_id=version.pipeline_version_id,
+            )
+        else:
+            run = client.create_run_from_pipeline_func(
+                pipeline_func=hello_world_pipeline,
+                experiment_name="v2-pipeline-test",
+                run_name="v2-test-run",
+                arguments={},
+                namespace=namespace,
+            )
 
         run_id = run.run_id
 
@@ -92,6 +111,8 @@ if __name__ == "__main__":
 
     if action == "run_pipeline":
         run_pipeline(token, namespace)
+    elif action == "run_uploaded_pipeline":
+        run_pipeline(token, namespace, upload=True)
     elif action == "test_unauthorized_access":
         test_unauthorized_access(token, namespace)
     else:

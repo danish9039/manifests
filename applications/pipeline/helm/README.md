@@ -209,6 +209,12 @@ it, and exits with status 1.
 
 ## Validation
 
+The component Helm workflow installs both scenarios, uploads a V2 pipeline and
+version through the API, runs that stored version, and checks unauthorized access.
+For `platform-k8s-native`, it also requires the Pipeline and PipelineVersion
+objects in the Profile namespace. The full Helm workflow retains its existing
+pipeline tests with `platform-database`.
+
 ```bash
 python3 scripts/generate-pipelines-helm-manifests.py --check
 python3 tests/pipelines_helm_manifest_generator_test.py
