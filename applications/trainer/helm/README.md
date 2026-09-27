@@ -15,7 +15,9 @@ imperative hooks. These charts instead preserve the distribution baseline using
 shared generated payloads and ordinary resources. This first implementation
 supports the platform default only. Existing external JobSet ownership, data cache,
 optional runtime selection and arbitrary controller settings are not supported.
-Do not install over an independently managed JobSet installation.
+Do not install over an independently managed JobSet or an existing Kustomize
+Trainer installation. Matching manifests do not transfer resource ownership to
+Helm; migration requires a separately reviewed procedure and is not covered here.
 
 ## Prerequisites and installation
 
