@@ -56,6 +56,16 @@ is a separate change. The other upstream installations (`katib-standalone`,
 `katib-openshift`, `katib-external-db`) remain available through Kustomize; this
 chart does not render them.
 
+The controller mounts `katib-config` through `subPath`, so a configuration-only
+upgrade does not update the running controller's configuration. This matches the
+Kustomize baseline. After regenerating the payloads and applying the changed
+configuration with `helm upgrade`, restart the controller:
+
+```bash
+kubectl rollout restart deployment/katib-controller --namespace kubeflow
+kubectl rollout status deployment/katib-controller --namespace kubeflow --timeout=180s
+```
+
 ## Data and credentials
 
 The chart carries the baseline as it is. **`helm uninstall` deletes the

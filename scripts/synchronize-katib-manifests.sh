@@ -26,21 +26,18 @@ MYSQL_PATCH_PATH="applications/${COMPONENT_NAME}/patches/mysql-image-and-probes.
 MYSQL_MANIFEST_UPSTREAM_SHA256="e2ea06681f26e296df485dcf4833dbf623e4a7d02d5398bb0f31c1828ebfa8af"
 MYSQL_MANIFEST_PATCHED_SHA256="4321726ab8e32187e31c3af683e1b8b0aff5eacecf41aca617b26d36cc40536a"
 
-# commit_changes commits the whole index, so content that is staged before the
-# run would become part of the synchronization commit.
-require_empty_index() {
+# commit_changes stages component paths and commits the whole index.
+# A committing run must not include pre-existing local changes.
+require_clean_worktree() {
     local manifests_directory="$1"
-    local status=0
+    local changes
 
     if [[ "${KUBEFLOW_SYNCHRONIZE_NO_COMMIT:-}" == "true" ]]; then
         return
     fi
-    git -C "$manifests_directory" diff --cached --quiet || status=$?
-    if [[ "$status" -eq 1 ]]; then
-        echo "ERROR: the index of ${manifests_directory} is not empty; unstage or commit those changes first." >&2
-        return 1
-    elif [[ "$status" -ne 0 ]]; then
-        echo "ERROR: could not read the index of ${manifests_directory}." >&2
+    changes="$(git -C "$manifests_directory" status --porcelain --untracked-files=normal)" || return
+    if [[ -n "$changes" ]]; then
+        echo "ERROR: ${manifests_directory} has local changes; commit or stash them before synchronization." >&2
         return 1
     fi
 }
@@ -114,7 +111,7 @@ if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
 fi
 
 require_helm_major_version 4
-require_empty_index "$MANIFESTS_DIRECTORY"
+require_clean_worktree "$MANIFESTS_DIRECTORY"
 create_branch "$BRANCH_NAME"
 clone_and_checkout "$SOURCE_DIRECTORY" "$REPOSITORY_URL" "$REPOSITORY_DIRECTORY" "$COMMIT"
 copy_manifests "${SOURCE_DIRECTORY}/${REPOSITORY_DIRECTORY}/${SOURCE_MANIFESTS_PATH}" "${MANIFESTS_DIRECTORY}/${DESTINATION_MANIFESTS_PATH}"
