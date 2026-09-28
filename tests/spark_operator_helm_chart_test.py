@@ -520,7 +520,7 @@ class SparkOperatorSynchronizationTest(unittest.TestCase):
             if entry["name"] == "spark-operator"
         )
 
-        self.assertRegex(dependency["version"], r"^\d+\.\d+\.\d+")
+        self.assertIsNotNone(re.fullmatch(r"\d+\.\d+\.\d+", dependency["version"]))
 
     def test_the_helm_version_guard_runs_before_anything_is_changed(self):
         lines = SYNCHRONIZATION_SCRIPT.read_text().splitlines()
