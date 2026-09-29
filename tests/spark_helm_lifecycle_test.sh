@@ -73,18 +73,31 @@ definition_identifiers() {
     -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.uid}{"\n"}{end}'
 }
 
+existing_applications=$(kubectl -n "${NAMESPACE}" get sparkapplication \
+  "${RETAINED_APPLICATION}" "${NEW_APPLICATION}" --ignore-not-found -o name)
+if [[ -n "${existing_applications}" ]]; then
+  echo "ERROR: Lifecycle fixture names already exist: ${existing_applications}" >&2
+  exit 1
+fi
+
+CREATED_APPLICATIONS=()
 RELEASE_MANIFEST="$(mktemp)"
 cleanup() {
+  local status=$?
   rm -f "${RELEASE_MANIFEST}"
-  kubectl -n "${NAMESPACE}" delete sparkapplication \
-    "${RETAINED_APPLICATION}" "${NEW_APPLICATION}" --ignore-not-found
+  if [[ ${#CREATED_APPLICATIONS[@]} -gt 0 ]]; then
+    kubectl -n "${NAMESPACE}" delete sparkapplication \
+      "${CREATED_APPLICATIONS[@]}" --ignore-not-found || true
+  fi
+  return "$status"
 }
 trap cleanup EXIT
 
 kubectl label namespace "${NAMESPACE}" istio-injection=enabled --overwrite
 
 # 1. A user SparkApplication that the operator has reconciled to completion.
-kubectl -n "${NAMESPACE}" apply -f "${SPARK_APPLICATION_YAML}"
+kubectl -n "${NAMESPACE}" create -f "${SPARK_APPLICATION_YAML}"
+CREATED_APPLICATIONS+=("${RETAINED_APPLICATION}")
 wait_for_application_state "${RETAINED_APPLICATION}" COMPLETED
 APPLICATION_IDENTIFIER_BEFORE=$(kubectl -n "${NAMESPACE}" get sparkapplication \
   "${RETAINED_APPLICATION}" -o jsonpath='{.metadata.uid}')
@@ -123,7 +136,8 @@ done
 
 # 6. The operator reconciles again: a new application completes.
 sed "s/^  name: ${RETAINED_APPLICATION}\$/  name: ${NEW_APPLICATION}/" "${SPARK_APPLICATION_YAML}" \
-  | kubectl -n "${NAMESPACE}" apply -f -
+  | kubectl -n "${NAMESPACE}" create -f -
+CREATED_APPLICATIONS+=("${NEW_APPLICATION}")
 wait_for_application_state "${NEW_APPLICATION}" COMPLETED
 
 # 7. The new controller reconciles the retained application. A completed

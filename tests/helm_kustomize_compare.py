@@ -147,11 +147,25 @@ class ChartComparisonRules:
             return False
         return kind not in (scenario.get("excludeKinds") or [])
 
-    def should_compare(self, manifest: Dict, scenario: Dict) -> bool:
+    def effective_namespace(self, manifest: Dict, is_helm_manifest: bool) -> str:
+        """Use the Helm release namespace only for proven namespaced resources."""
+        metadata = manifest.get("metadata", {})
+        if (
+            "namespace" not in metadata
+            and is_helm_manifest
+            and self.helm_release_namespace
+            and self._is_proven_namespaced(manifest)
+        ):
+            return self.helm_release_namespace
+        return metadata.get("namespace", "")
+
+    def should_compare(
+        self, manifest: Dict, scenario: Dict, is_helm_manifest: bool = False
+    ) -> bool:
         """Select the resource subset owned by a comparison scenario."""
         kind = manifest.get("kind", "")
         metadata = manifest.get("metadata", {})
-        namespace = metadata.get("namespace", "")
+        namespace = self.effective_namespace(manifest, is_helm_manifest)
         name = metadata.get("name", "")
 
         if not self.selects(scenario, kind):
@@ -168,7 +182,7 @@ class ChartComparisonRules:
         """Normalize one manifest according to universal and declared rules."""
         kind = manifest.get("kind", "")
         metadata = manifest.get("metadata", {})
-        namespace = metadata.get("namespace", "")
+        namespace = self.effective_namespace(manifest, is_helm_manifest)
         name = metadata.get("name", "")
 
         normalized = self._strip_ignored_metadata(manifest)
@@ -196,14 +210,8 @@ class ChartComparisonRules:
         # object differently and each reports the other's copy as missing.
         # Only a kind proven namespaced is filled, and an explicit namespace
         # is never changed.
-        if (
-            is_helm_manifest
-            and self.helm_release_namespace
-            and self._is_proven_namespaced(manifest)
-        ):
-            normalized.setdefault("metadata", {}).setdefault(
-                "namespace", self.helm_release_namespace
-            )
+        if namespace:
+            normalized.setdefault("metadata", {}).setdefault("namespace", namespace)
 
         return remove_empty_values(normalized)
 
@@ -583,7 +591,7 @@ def compare_manifests(
         kustomize_resources[get_resource_key(normalized)] = normalized
 
     for manifest in helm_manifests:
-        if not rules.should_compare(manifest, scenario):
+        if not rules.should_compare(manifest, scenario, is_helm_manifest=True):
             continue
         normalized = rules.normalize(manifest, is_helm_manifest=True)
         helm_resources[get_resource_key(normalized)] = normalized

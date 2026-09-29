@@ -843,6 +843,47 @@ class ReleaseNamespaceTest(unittest.TestCase):
             "Deployment/controller",
         )
 
+    def test_namespace_qualified_allowances_use_the_helm_release_namespace(self):
+        baseline = self.manifest("v1", "ConfigMap", namespace="kubeflow")
+        baseline["data"] = {"configuration": "enabled: true\n"}
+        sentinel = self.manifest("v1", "Namespace", "kubeflow")
+        for allowance in (
+            {"skip": "ConfigMap/kubeflow/example", "reason": "test"},
+            {
+                "resource": "ConfigMap/kubeflow/example",
+                "compareDataAsYaml": ["configuration"],
+                "reason": "test",
+            },
+        ):
+            for namespace in (None, "other"):
+                with self.subTest(allowance=allowance, namespace=namespace):
+                    rendered = self.manifest("v1", "ConfigMap", namespace=namespace)
+                    rendered["data"] = {"configuration": "enabled: true"}
+                    with tempfile.TemporaryDirectory() as directory:
+                        baseline_path = Path(directory) / "baseline.yaml"
+                        rendered_path = Path(directory) / "rendered.yaml"
+                        baseline_path.write_text(
+                            yaml.safe_dump_all([sentinel, baseline])
+                        )
+                        rendered_path.write_text(
+                            yaml.safe_dump_all([sentinel, rendered])
+                        )
+                        comparison_rules = rules(
+                            namespace="kubeflow",
+                            helmUsesReleaseNamespace=True,
+                            knownDifferences=[allowance],
+                        )
+                        with contextlib.redirect_stdout(io.StringIO()):
+                            matched = helm_kustomize_compare.compare_manifests(
+                                str(baseline_path),
+                                str(rendered_path),
+                                comparison_rules,
+                                {},
+                            )
+                    self.assertEqual(matched, namespace is None)
+                    if namespace is None:
+                        self.assertNotIn("namespace", rendered["metadata"])
+
     def test_compare_manifests_reads_the_definitions_from_the_helm_render(self):
         """End to end: the Helm file omits the namespace on a built-in and on
         a custom resource whose definition it carries; the Kustomize file
