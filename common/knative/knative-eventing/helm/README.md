@@ -106,12 +106,13 @@ helm lint common/knative/knative-eventing/helm -n kubeflow
 python3 tests/run_helm_kustomize_comparison.py knative-eventing --all-scenarios
 python3 tests/knative_eventing_helm_chart_test.py
 python3 tests/helm_release_size.py knative-eventing
-./tests/knative_eventing_helm_smoke_test.sh
 # Destructive: only on a disposable integration cluster. Requires PyYAML.
 ./tests/knative_eventing_helm_lifecycle_test.sh
 ```
 
-The workflow gate requires a fresh, exact PingSource event payload, then
+The lifecycle script creates one receiver and PingSource, reused for fresh event
+checks after each Helm operation. The workflow gate requires a fresh, exact
+PingSource event payload, then
 two unchanged upgrades that preserve the adapter specification, generation and
 Pod identities, an actual controller Pod-template rollout, compatible rollback,
 retained PingSource/EventType identities, the expected conversion interruption,

@@ -25,7 +25,105 @@ cleanup() {
     exit "$status"
 }
 trap cleanup EXIT
-KNATIVE_HELM_KEEP_FIXTURE=true ./tests/knative_eventing_helm_smoke_test.sh
+# Create the receiver and retained PingSource once for the whole lifecycle.
+kubectl apply -n "$namespace" -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: $fixture
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {helm-test: $fixture}
+  template:
+    metadata:
+      labels: {helm-test: $fixture}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+      - name: receiver
+        image: python:3.12-alpine
+        command: [python3, -u, -c]
+        args:
+        - |
+          import http.server, json
+          class Receiver(http.server.BaseHTTPRequestHandler):
+              def do_POST(self):
+                  body = self.rfile.read(int(self.headers['Content-Length']))
+                  print(json.dumps({'type': self.headers.get('Ce-Type'), 'data': body.decode()}), flush=True)
+                  self.send_response(204)
+                  self.end_headers()
+          http.server.HTTPServer(('0.0.0.0', 8080), Receiver).serve_forever()
+        ports:
+        - containerPort: 8080
+        resources:
+          requests: {cpu: 50m, memory: 32Mi}
+          limits: {cpu: 200m, memory: 128Mi}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: $fixture
+spec:
+  selector: {helm-test: $fixture}
+  ports:
+  - port: 80
+    targetPort: 8080
+---
+apiVersion: sources.knative.dev/v1
+kind: PingSource
+metadata:
+  name: $fixture
+spec:
+  schedule: "* * * * *"
+  contentType: application/json
+  data: '{"message":"knative-helm-event-ok"}'
+  sink:
+    ref:
+      apiVersion: v1
+      kind: Service
+      name: $fixture
+EOF
+kubectl rollout status "deployment/$fixture" -n "$namespace" --timeout=120s
+kubectl wait --for=condition=Ready "pingsource/$fixture" -n "$namespace" --timeout=180s
+check_event_delivery() {
+    # Use only logs since this invocation, so replay cannot pass on old delivery.
+    local started
+    started=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)
+    local delivered=false attempt
+    for ((attempt=0; attempt<75; attempt++)); do
+        if kubectl logs "deployment/$fixture" -n "$namespace" --since-time="$started" | \
+            python3 -c 'import json,sys
+count=0
+for line in sys.stdin:
+    try:
+        event=json.loads(line)
+        count += event.get("type")=="dev.knative.sources.ping" and json.loads(event.get("data", "null"))=={"message":"knative-helm-event-ok"}
+    except (ValueError, TypeError, AttributeError):
+        pass
+print("Matching newly delivered CloudEvents:", count)
+sys.exit(count < 1)'; then
+            delivered=true
+            break
+        fi
+        sleep 2
+    done
+    if [[ "$delivered" != true ]]; then
+        echo "No matching fresh PingSource CloudEvent arrived within 150 seconds" >&2
+        exit 1
+    fi
+    echo "Eventing delivered the exact PingSource CloudEvent payload."
+}
+check_event_delivery
 kubectl apply -n "$namespace" -f - <<EOF
 apiVersion: eventing.knative.dev/v1beta2
 kind: EventType
@@ -77,7 +175,7 @@ capture_diagnostics before-upgrades
 for attempt in 1 2; do
     helm upgrade knative-eventing "$chart" -n kubeflow --reset-values --set installation.phase=complete --wait --timeout 10m
     # A new event gives the adapter time to process work after each upgrade.
-    KNATIVE_HELM_KEEP_FIXTURE=true ./tests/knative_eventing_helm_smoke_test.sh
+    check_event_delivery
     capture_adapter >"$temporary/adapter-after"
     if ! diff -u "$temporary/adapter-before" "$temporary/adapter-after"; then
         echo "Unchanged upgrade $attempt rewrote the PingSource adapter or replaced its Pod" >&2
@@ -105,9 +203,9 @@ path.write_text(yaml.safe_dump_all(resources, sort_keys=False))
 PYTHON
 helm upgrade knative-eventing "$temporary/chart" -n kubeflow --wait --timeout 10m
 kubectl rollout status deployment/eventing-controller -n "$namespace" --timeout=120s
-KNATIVE_HELM_KEEP_FIXTURE=true ./tests/knative_eventing_helm_smoke_test.sh
+check_event_delivery
 helm rollback knative-eventing "$revision" -n kubeflow --wait --timeout 10m
-KNATIVE_HELM_KEEP_FIXTURE=true ./tests/knative_eventing_helm_smoke_test.sh
+check_event_delivery
 capture_diagnostics before-uninstall
 helm uninstall knative-eventing -n kubeflow --wait --timeout 10m
 [[ $(kubectl get --raw "$ping_path" | python3 -c 'import json,sys; print(json.load(sys.stdin)["metadata"]["uid"])') == "$uid" ]]
@@ -137,5 +235,5 @@ for path in "$converted_ping_path" "$converted_eventtype_path"; do
 done
 [[ $(kubectl get --raw "$ping_path" | python3 -c 'import json,sys; print(json.load(sys.stdin)["metadata"]["uid"])') == "$uid" ]]
 [[ $(kubectl get --raw "$eventtype_path" | python3 -c 'import json,sys; print(json.load(sys.stdin)["metadata"]["uid"])') == "$eventtype_uid" ]]
-KNATIVE_HELM_KEEP_FIXTURE=true ./tests/knative_eventing_helm_smoke_test.sh
+check_event_delivery
 echo "Eventing upgrades, rollback, retention, conversion interruption/recovery and fresh delivery passed."
