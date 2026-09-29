@@ -73,7 +73,6 @@ KNOWN_DIFFERENCE_ACTIONS = frozenset(
         "ignorePodTemplateAnnotations",
         "compareDataAsYaml",
         "controllerOwnedWebhookRules",
-        "controllerOwnedPingSourceAdapter",
     )
 )
 WEBHOOK_CONFIGURATION_KINDS = {
@@ -162,17 +161,6 @@ def _validate_allowances(path, descriptor):
                 or not all(isinstance(item, str) and item for item in value)
             ):
                 raise ValueError(f"{path}: {action} must be a non-empty list of keys")
-        if "controllerOwnedPingSourceAdapter" in actions:
-            if (
-                actions != {"controllerOwnedPingSourceAdapter"}
-                or entry["resource"] != comparator.PING_SOURCE_ADAPTER_RESOURCE
-                or entry["controllerOwnedPingSourceAdapter"] != ["dispatcher"]
-            ):
-                raise ValueError(
-                    f"{path}: controllerOwnedPingSourceAdapter must be the only "
-                    "action, target Deployment/knative-eventing/pingsource-mt-adapter "
-                    "exactly, and contain only dispatcher"
-                )
         if "controllerOwnedWebhookRules" in actions:
             segments = entry["resource"].split("/")
             names = entry["controllerOwnedWebhookRules"]

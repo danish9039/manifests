@@ -38,7 +38,7 @@ def objects(result):
 
 
 class EventingChartTest(unittest.TestCase):
-    def test_payload_difference_is_limited_to_declared_controller_ownership(self):
+    def test_payload_matches_distribution_overlay(self):
         baseline = list(
             yaml.safe_load_all(
                 subprocess.check_output(
@@ -56,21 +56,18 @@ class EventingChartTest(unittest.TestCase):
                 ] = "keep"
             if resource["kind"] == "ClusterRole" and resource.get("aggregationRule"):
                 self.assertEqual(resource.pop("rules"), [])
-            if (
-                resource["kind"] == "Deployment"
-                and resource["metadata"]["name"] == "pingsource-mt-adapter"
-            ):
-                self.assertEqual(resource["spec"].pop("replicas"), 0)
-                container = resource["spec"]["template"]["spec"]["containers"][0]
-                self.assertEqual(container["name"], "dispatcher")
-                by_name = {entry["name"]: entry for entry in container["env"]}
-                container["env"] = [by_name["NAMESPACE"], by_name["SYSTEM_NAMESPACE"]]
             expected[(resource["kind"], resource["metadata"]["name"])] = resource
         actual = {
             (resource["kind"], resource["metadata"]["name"]): resource
             for resource in objects(render())
         }
         self.assertEqual(actual, expected)
+        adapter = actual[("Deployment", "pingsource-mt-adapter")]["spec"]
+        self.assertNotIn("replicas", adapter)
+        environment = adapter["template"]["spec"]["containers"][0]["env"]
+        self.assertEqual(
+            [entry["name"] for entry in environment], ["NAMESPACE", "SYSTEM_NAMESPACE"]
+        )
 
     def test_installer_completes_or_resumes_without_pruning_complete_releases(self):
         # Exercise the real shell control flow without accessing a cluster.

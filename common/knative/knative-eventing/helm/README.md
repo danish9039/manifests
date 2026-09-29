@@ -36,25 +36,20 @@ Namespace is a hand-written, parity-checked template.
 
 ### PingSource adapter ownership
 
-The Helm-only Kustomize wrapper also omits `spec.replicas` and the controller's
-bootstrap environment entries on `Deployment/pingsource-mt-adapter`: the five
-`K_*` configuration entries and `POD_NAME`. The two namespace downward references
-remain in the controller's order. The comparison descriptor permits only this
-exact transformation and compares the remaining Deployment fields, including its
-image, service account, probes and restricted security context.
+The chart is generated directly from the distribution's security overlay. Both
+installation paths omit `spec.replicas` and the PingSource controller's bootstrap
+environment entries on `Deployment/pingsource-mt-adapter`. The controller supplies
+its runtime configuration when a PingSource is reconciled. Helm continues to
+install and remove the Deployment, which the controller requires to exist.
 
-This has one deliberate startup difference: Kubernetes defaults the adapter to
-**one idle Pod**, while the distribution's unmodified manifest starts at zero.
-The idle adapter uses upstream configuration defaults until the first PingSource
-causes the controller to populate its environment. Event delivery still requires
-a PingSource. The controller requires the Deployment to exist; Helm continues to
-install and remove it. Budget its existing 125m CPU/64Mi memory request even before
-creating a source. The source overlay and upstream bundle remain unchanged.
+Kubernetes starts one idle adapter Pod, requesting 125m CPU and 64Mi memory,
+before the first PingSource exists. The controller does not scale it back to zero
+when the last source is deleted. See the [shared ownership and Kustomize upgrade
+notes](../../README.md#pingsource-adapter-ownership).
 
 The [pinned PingSource controller](https://github.com/knative/eventing/blob/d6139ffb2175b4a7387f56a8b2c589a17c631719/pkg/reconciler/pingsource/pingsource.go#L159)
 replaces that environment and scales the adapter. Reapplying the original
-replicas and environment makes Helm 4 server-side apply conflict with `controller`.
-Switching to client-side apply also resets this live state, so it is not a fix.
+bootstrap fields conflicts with its ownership under Helm 4 server-side apply.
 
 ## Lifecycle and API conversion
 
@@ -73,6 +68,9 @@ remains usable: PingSource (`v1` storage, `v1beta2` converted) and EventType
 (`v1beta2` storage, `v1beta1`/`v1beta3` converted) require the removed
 `eventing-webhook` service for conversion. Restore the same release name and
 namespace before expecting converted-version operations or delivery to recover.
+The reinstall creates a new webhook certificate. Ready webhook Pods do not prove
+that the API server has picked up the corresponding trust configuration; check
+converted-version operations before resuming clients that depend on them.
 
 Only a previously complete, schema-compatible revision is an operational rollback
 target. Bootstrap revisions and schema downgrades have different risks. Never
@@ -118,7 +116,11 @@ two unchanged upgrades that preserve the adapter specification, generation and
 Pod identities, an actual controller Pod-template rollout, compatible rollback,
 retained PingSource/EventType identities, the expected conversion interruption,
 recovered converted-version reads and fresh delivery after reinstall. This uses
-only core Eventing; it does not create a Broker. A controller-template change is
+only core Eventing; it does not create a Broker. After reinstall, it retries each
+converted API for 120 seconds, with a 10-second timeout per request.
+It saves diagnostics before upgrades and uninstall under
+`logs/knative-eventing-lifecycle/`, which the workflow uploads, and preserves
+fixtures and failure diagnostics when a check fails. A controller-template change is
 not proof of cross-version schema downgrade safety.
 
 Local parity, chart behavior and release-size tests do not establish these live

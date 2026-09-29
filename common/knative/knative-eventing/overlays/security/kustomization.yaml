@@ -9,3 +9,10 @@ resources:
 patches:
 - path: namespace-patch.yaml
 - path: patches/request-reply-security-context.yaml
+- target:
+    group: apps
+    version: v1
+    kind: Deployment
+    name: pingsource-mt-adapter
+    namespace: knative-eventing
+  path: patches/pingsource-adapter-ownership.yaml

@@ -5,9 +5,24 @@ chart=common/knative/knative-eventing/helm
 namespace=knative-eventing
 fixture=knative-helm-events
 temporary=$(mktemp -d)
+capture_diagnostics() {
+    local directory="logs/knative-eventing-lifecycle/$1"
+    mkdir -p "$directory" || return 0
+    kubectl get deployments,pods,events -n "$namespace" --request-timeout=10s -o yaml >"$directory/resources.yaml" 2>&1 || true
+    for deployment in eventing-controller eventing-webhook pingsource-mt-adapter "$fixture"; do
+        kubectl logs "deployment/$deployment" -n "$namespace" --request-timeout=10s --tail=100 >"$directory/$deployment.log" 2>&1 || true
+    done
+}
 cleanup() {
+    local status=$?
     rm -rf "$temporary"
-    kubectl delete pingsource,eventtype,service,deployment "$fixture" -n "$namespace" --ignore-not-found
+    if (( status != 0 )); then
+        capture_diagnostics failure
+        echo "Preserving Eventing fixtures after failure; see logs/knative-eventing-lifecycle/." >&2
+    else
+        kubectl delete pingsource,eventtype,service,deployment "$fixture" -n "$namespace" --ignore-not-found || status=$?
+    fi
+    exit "$status"
 }
 trap cleanup EXIT
 KNATIVE_HELM_KEEP_FIXTURE=true ./tests/knative_eventing_helm_smoke_test.sh
@@ -58,6 +73,7 @@ assert pods and all(
 print(json.dumps(sorted(pod["metadata"]["uid"] for pod in pods)))'
 }
 capture_adapter >"$temporary/adapter-before"
+capture_diagnostics before-upgrades
 for attempt in 1 2; do
     helm upgrade knative-eventing "$chart" -n kubeflow --reset-values --set installation.phase=complete --wait --timeout 10m
     # A new event gives the adapter time to process work after each upgrade.
@@ -92,6 +108,7 @@ kubectl rollout status deployment/eventing-controller -n "$namespace" --timeout=
 KNATIVE_HELM_KEEP_FIXTURE=true ./tests/knative_eventing_helm_smoke_test.sh
 helm rollback knative-eventing "$revision" -n kubeflow --wait --timeout 10m
 KNATIVE_HELM_KEEP_FIXTURE=true ./tests/knative_eventing_helm_smoke_test.sh
+capture_diagnostics before-uninstall
 helm uninstall knative-eventing -n kubeflow --wait --timeout 10m
 [[ $(kubectl get --raw "$ping_path" | python3 -c 'import json,sys; print(json.load(sys.stdin)["metadata"]["uid"])') == "$uid" ]]
 [[ $(kubectl get --raw "$eventtype_path" | python3 -c 'import json,sys; print(json.load(sys.stdin)["metadata"]["uid"])') == "$eventtype_uid" ]]
@@ -106,8 +123,18 @@ for path in "$converted_ping_path" "$converted_eventtype_path"; do
     grep -Eiq 'conversion|webhook|service.*not found' "$temporary/conversion.err"
 done
 ./tests/knative_eventing_helm_install.sh
-kubectl get --raw "$converted_ping_path" >/dev/null
-kubectl get --raw "$converted_eventtype_path" >/dev/null
+# Pod readiness does not verify the API server's trust of the new webhook
+# certificate. Wait for real conversions of both retained objects to recover.
+for path in "$converted_ping_path" "$converted_eventtype_path"; do
+    deadline=$((SECONDS + 120))
+    until kubectl get --request-timeout=10s --raw "$path" >/dev/null; do
+        if (( SECONDS >= deadline )); then
+            echo "Conversion did not recover within 120 seconds: $path" >&2
+            exit 1
+        fi
+        sleep 2
+    done
+done
 [[ $(kubectl get --raw "$ping_path" | python3 -c 'import json,sys; print(json.load(sys.stdin)["metadata"]["uid"])') == "$uid" ]]
 [[ $(kubectl get --raw "$eventtype_path" | python3 -c 'import json,sys; print(json.load(sys.stdin)["metadata"]["uid"])') == "$eventtype_uid" ]]
 KNATIVE_HELM_KEEP_FIXTURE=true ./tests/knative_eventing_helm_smoke_test.sh

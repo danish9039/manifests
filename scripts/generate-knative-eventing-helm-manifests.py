@@ -12,7 +12,7 @@ from helm_manifest_generator import GeneratorConfiguration, command_line
 
 CONFIGURATION = GeneratorConfiguration(
     component_name="Knative Eventing",
-    kustomize_path=Path("common/knative/knative-eventing/helm/kustomize"),
+    kustomize_path=Path("common/knative/knative-eventing/overlays/security"),
     output_path=Path("common/knative/knative-eventing/helm/manifests"),
     generator_script="scripts/generate-knative-eventing-helm-manifests.py",
     synchronize_script="scripts/synchronize-knative-manifests.sh",
