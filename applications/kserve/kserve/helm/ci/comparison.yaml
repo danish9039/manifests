@@ -6,7 +6,7 @@ namespace: kserve
 includeCustomResourceDefinitions: false
 retainedCustomResourceDefinitions:
   reason: >
-    helm uninstall must leave the sixteen KServe definitions behind, and with
+    helm uninstall must leave the KServe definitions behind, and with
     them the objects that users created from them. The ClusterServingRuntime
     and ClusterStorageContainer objects that the chart provides are
     release-owned without a retention policy and are deleted.
@@ -19,6 +19,10 @@ retainedCustomResourceDefinitions:
   - inferencepools.inference.networking.k8s.io
   - inferencepools.inference.networking.x-k8s.io
   - inferenceservices.serving.kserve.io
+  - kernelcachecaptures.serving.kserve.io
+  - kernelcachenodegroups.serving.kserve.io
+  - kernelcachenodes.serving.kserve.io
+  - kernelcaches.serving.kserve.io
   - llminferenceserviceconfigs.serving.kserve.io
   - llminferenceservices.serving.kserve.io
   - localmodelcaches.serving.kserve.io

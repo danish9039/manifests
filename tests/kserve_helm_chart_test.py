@@ -27,7 +27,7 @@ HELM_COMMAND_SOURCES = (
     REPOSITORY_ROOT / "tests/kserve_helm_lifecycle_test.sh",
 )
 OWNED_NAMESPACE = "kserve"
-CUSTOM_RESOURCE_DEFINITION_COUNT = 16
+CUSTOM_RESOURCE_DEFINITION_COUNT = 20
 HELM_BINARY = os.environ.get("HELM_BINARY", "helm")
 
 

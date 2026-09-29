@@ -6,8 +6,7 @@ The synchronization script builds the component once and writes deterministic
 payloads under `charts/kserve-payload/manifests/`, which one small template
 loads with `.Files.Get`: `platform-resources.yaml` for the control plane and one
 file per custom resource definition under `custom-resource-definitions/`,
-because Helm refuses any chart file above 5 MiB and the sixteen definitions
-together weigh 6.7 MB.
+because the combined definitions exceed Helm's 5 MiB limit for a chart file.
 
 ## Packaging
 
@@ -69,10 +68,10 @@ and removes the `pod-security.kubernetes.io/enforce: restricted` label.
 Install in three release revisions, because Helm does not wait between the
 objects of one revision:
 
-1. the sixteen custom resource definitions alone, which must be established
+1. the custom resource definitions alone, which must be established
    before the cluster serving runtimes and the cluster storage container of the
    payload can be created;
-2. the control plane without the fourteen `ClusterServingRuntime` objects. Their
+2. the control plane without the bundled `ClusterServingRuntime` objects. Their
    validating webhook, `clusterservingruntime.serving.kserve.io`, has
    `failurePolicy: Fail` and is served by `kserve-controller-manager`, so the
    API server rejects every one of them with `connection refused` until that
@@ -123,9 +122,9 @@ The Models Web Application is a separate component, `applications/kserve/kserve-
 | Value | Default | Purpose |
 | --- | --- | --- |
 | `payload.scenario` | `platform` | Rendered Kustomize parity scenario. Only `platform` is supported. |
-| `payload.customResourceDefinitions.enabled` | `true` | Render the sixteen KServe custom resource definitions. |
+| `payload.customResourceDefinitions.enabled` | `true` | Render the KServe custom resource definitions. |
 | `payload.resources.enabled` | `true` | Render the control plane. Set to `false` for the first release revision. |
-| `payload.clusterServingRuntimes.enabled` | `true` | Render the fourteen bundled `ClusterServingRuntime` objects of the control plane. Set to `false` for the second release revision. No effect while `payload.resources.enabled` is `false`. |
+| `payload.clusterServingRuntimes.enabled` | `true` | Render the bundled `ClusterServingRuntime` objects of the control plane. Set to `false` for the second release revision. No effect while `payload.resources.enabled` is `false`. |
 
 These four keys are the whole interface. The chart fails when `scenario`,
 `customResourceDefinitions` or `resources` is set at the top level, and names
@@ -141,7 +140,7 @@ which is a separate change.
 
 ### Custom resource definitions
 
-The sixteen definitions are rendered from `templates/` and carry
+The definitions are rendered from `templates/` and carry
 `helm.sh/resource-policy: keep`. This deviates from Helm's documented
 recommendation to place custom resource definitions in `crds/`, deliberately:
 Helm never upgrades or deletes anything in `crds/`, which would freeze every
@@ -222,14 +221,14 @@ the operation had ended and completed successfully.
 
 ### Uninstall and reinstall
 
-The retention policy protects the sixteen definitions, and with them the
+The retention policy protects the definitions, and with them the
 objects that users created from them, such as every `InferenceService`,
 `ServingRuntime` and `TrainedModel`. It protects nothing else. Everything else
 the release owns is deleted, including the `ClusterServingRuntime` and
 `ClusterStorageContainer` objects that the chart itself provides, the
 controllers, the webhooks and the inference service configuration.
 
-| operation | sixteen definitions | objects created by users | objects provided by the chart |
+| operation | definitions | objects created by users | objects provided by the chart |
 | --- | --- | --- | --- |
 | `helm install` | created | none yet | created |
 | `helm upgrade` | updated | kept | updated |
