@@ -52,7 +52,7 @@ path = Path(sys.argv[1])
 resources = list(yaml.safe_load_all(path.read_text()))
 controller = next(item for item in resources if item and item["kind"] == "Deployment" and item["metadata"]["name"] == "katib-controller")
 controller["spec"]["template"]["metadata"].setdefault("annotations", {})["tests.kubeflow.org/lifecycle"] = "changed"
-path.write_text(yaml.safe_dump_all(resources, sort_keys=False))
+path.write_text(yaml.safe_dump_all(resources, sort_keys=False, explicit_start=True))
 PYTHON
 capture_diagnostics before-upgrade
 helm upgrade katib "$temporary/chart" -n "$namespace" --wait --timeout 5m
