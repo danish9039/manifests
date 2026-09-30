@@ -141,8 +141,20 @@ confirm `git diff` is empty.
 ## Comparison
 
 The full Helm integration workflow installs this chart and runs the existing
-Katib Experiment test. It does not automate upgrade, rollback, uninstall
-retention or reinstall checks; those lifecycle scenarios remain unverified by CI.
+Katib Experiment test once. After the functional tests, a lifecycle step exercises
+a controller-template upgrade and rollback, checks retained CRD, Experiment and
+Trial identities, verifies deletion of the database PVC and credentials on
+uninstall, and reinstalls the chart. It checks workload readiness after reinstall;
+it does not run a second Experiment or establish database recovery or cross-version
+schema rollback safety. Diagnostics are saved before destructive operations and
+on failure under `logs/katib-lifecycle/` for the existing artifact upload.
+
+To run the destructive lifecycle check on a disposable cluster after
+`tests/katib_test.sh` has succeeded:
+
+```bash
+./tests/katib_helm_lifecycle_test.sh kubeflow-user-example-com
+```
 
 ```bash
 helm lint applications/katib/helm --namespace kubeflow

@@ -24,6 +24,7 @@ on:
     - tests/model_registry_install.sh
     - tests/model_catalog_install.sh
     - tests/*_helm_install.sh
+    - tests/katib_helm_lifecycle_test.sh
     - tests/kserve_ui_helm_lifecycle_test.sh
     - tests/kserve_test.sh
     - tests/knative_serving_install.sh
@@ -48,6 +49,7 @@ on:
     - tests/model_registry_install.sh
     - tests/model_catalog_install.sh
     - tests/*_helm_install.sh
+    - tests/katib_helm_lifecycle_test.sh
     - tests/kserve_ui_helm_lifecycle_test.sh
     - tests/kserve_test.sh
     - tests/knative_serving_install.sh
@@ -326,6 +328,9 @@ jobs:
         echo "==== Resource Usage Table ===="
         pip3 install -q PyYAML
         python3 tests/metrics-server_resource_table.py
+
+    - name: Test Katib Helm lifecycle
+      run: ./tests/katib_helm_lifecycle_test.sh "${KF_PROFILE}"
 
     - name: Collect Logs on Failure
       if: failure()
