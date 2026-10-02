@@ -65,7 +65,7 @@ This repository periodically synchronizes all official Kubeflow components from 
 | Kubeflow Dashboard | applications/dashboard/upstream/ | [v2.0.0](https://github.com/kubeflow/dashboard/tree/v2.0.0/) | 10m | 302Mi | 0GB |
 | Katib | applications/katib/upstream | [v0.19.0](https://github.com/kubeflow/katib/tree/v0.19.0/manifests/v1beta1) | 13m | 476Mi | 10GB |
 | KServe UI | applications/kserve/kserve-ui | [v1.0.5](https://github.com/kserve/models-web-app/tree/v1.0.5/manifests/kustomize) | 6m | 259Mi | 0GB |
-| KServe | applications/kserve/kserve | [v0.20.0](https://github.com/kserve/kserve/tree/v0.20.0) | 600m | 1200Mi | 0GB |
+| KServe | applications/kserve/kserve | [v0.21.0](https://github.com/kserve/kserve/tree/v0.21.0) | 600m | 1200Mi | 0GB |
 | Kubeflow Pipelines | applications/pipeline/upstream | [2.17.2](https://github.com/kubeflow/pipelines/tree/2.17.2/manifests/kustomize) | 970m | 3552Mi | 35GB |
 | Kubeflow Hub | applications/hub/upstream | [v0.3.17](https://github.com/kubeflow/hub/tree/v0.3.17/manifests/kustomize) | 510m | 2112Mi | 20GB |
 | Spark Operator | applications/spark/spark-operator | [2.5.2](https://github.com/kubeflow/spark-operator/tree/v2.5.2) | 9m | 41Mi | 0GB |

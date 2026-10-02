@@ -31,9 +31,8 @@ CONFIGURATION = engine.GeneratorConfiguration(
     output_path=Path("applications/kserve/kserve/helm/charts/kserve-payload/manifests"),
     generator_script="scripts/generate-kserve-helm-manifests.py",
     synchronize_script="scripts/synchronize-kserve-kserve-manifests.sh",
-    # Together the sixteen definitions weigh 6.7 MB and Helm refuses any chart
-    # file above 5 MiB, so each definition is written to its own file; the
-    # largest single one is about 2.2 MB.
+    # The definitions together exceed Helm's 5 MiB limit for a chart file,
+    # so each definition is written to its own file.
     crds_payload_directory="custom-resource-definitions",
     # The Kustomize component creates Namespace/kserve; on the Helm side the
     # kubeflow-namespaces foundation chart owns every platform namespace, and a

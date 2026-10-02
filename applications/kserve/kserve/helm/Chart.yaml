@@ -2,7 +2,7 @@ apiVersion: v2
 name: kserve
 description: A Helm chart for the KServe platform resources of the Kubeflow Community Distribution
 version: 0.1.0
-appVersion: "v0.20.0"
+appVersion: "v0.21.0"
 keywords:
 - kubeflow
 - kserve

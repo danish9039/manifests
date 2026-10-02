@@ -147,3 +147,31 @@ patches:
           "disableIngressCreation": false,
           "pathTemplate": "/serving/{{ .Namespace }}/{{ .Name }}"
         }
+
+# KServe v0.21.0 ships a kernelcache prefetchImage that reuses the KServe
+# version as the ubi-minimal tag, which does not exist in the registry. Pin an
+# existing tag. This replaces the whole kernelcache value, so every key upstream
+# ships must be repeated here; compare against upstream/kserve.yaml on each
+# synchronization.
+# Ref: https://github.com/kserve/kserve/issues/6334
+- patch: |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: inferenceservice-config
+      namespace: kserve
+    data:
+      kernelcache: |-
+        {
+          "enabled": false,
+          "defaultSidecarInjection": true,
+          "defaultMountType": "oci",
+          "defaultNodeGroup": "",
+          "jobNamespace": "kserve-kernelcache-jobs",
+          "mcvImage": "kserve/kserve-mcv:v0.21.0-minimal",
+          "prefetchImage": "registry.access.redhat.com/ubi9/ubi-minimal:9.8",
+          "abandonedCapturePolicy": "retain",
+          "jobTTLSecondsAfterFinished": 600,
+          "mcvCaptureReadinessTimeoutSeconds": 600,
+          "reconcileIntervalSeconds": 300
+        }

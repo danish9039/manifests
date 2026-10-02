@@ -6,7 +6,7 @@ setup_error_handling
 COMPONENT_NAME="kserve"
 REPOSITORY_NAME="kserve/kserve"
 REPOSITORY_URL="https://github.com/kserve/kserve.git"
-COMMIT="v0.20.0"
+COMMIT="v0.21.0"
 REPOSITORY_DIRECTORY="kserve"
 SOURCE_DIRECTORY=${SOURCE_DIRECTORY:=/tmp/${COMPONENT_NAME}}
 BRANCH_NAME=${BRANCH_NAME:=synchronize-${COMPONENT_NAME}-manifests-${COMMIT?}}
@@ -66,6 +66,7 @@ find "$DESTINATION_DIRECTORY" -maxdepth 1 -name '*.sh' -delete
 update_readme "$MANIFESTS_DIRECTORY" "$SOURCE_TEXT" "$DESTINATION_TEXT"
 update_kserve_helm_chart
 validate_kserve_helm_chart
+
 # The generated payloads follow the upstream bundle and the component's own
 # patches, so both are staged together with the chart files that consume them.
 commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests to version ${COMMIT}" \
@@ -77,4 +78,5 @@ commit_changes "$MANIFESTS_DIRECTORY" "Update ${REPOSITORY_NAME} manifests to ve
     "${SCRIPT_DIRECTORY}/generate-kserve-helm-manifests.py" \
     "${SCRIPT_DIRECTORY}/synchronize-kserve-kserve-manifests.sh" \
     "${MANIFESTS_DIRECTORY}/README.md"
+
 echo "Synchronization completed successfully."

@@ -6,11 +6,8 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.21.0
     helm.sh/resource-policy: keep
-  labels:
-    app.kubernetes.io/component: kserve
-    app.kubernetes.io/name: kserve
   name: servingruntimes.serving.kserve.io
 spec:
   group: serving.kserve.io
@@ -1340,6 +1337,22 @@ spec:
                 type: array
               replicas:
                 type: integer
+              resourceClaims:
+                items:
+                  properties:
+                    name:
+                      type: string
+                    resourceClaimName:
+                      type: string
+                    resourceClaimTemplateName:
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
               schedulerName:
                 type: string
               storageHelper:
@@ -1989,6 +2002,10 @@ spec:
                                     type: integer
                                   signerName:
                                     type: string
+                                  userAnnotations:
+                                    additionalProperties:
+                                      type: string
+                                    type: object
                                 required:
                                 - keyType
                                 - signerName
@@ -3368,6 +3385,22 @@ spec:
                     type: object
                   pipelineParallelSize:
                     type: integer
+                  resourceClaims:
+                    items:
+                      properties:
+                        name:
+                          type: string
+                        resourceClaimName:
+                          type: string
+                        resourceClaimTemplateName:
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
                   schedulerName:
                     type: string
                   tensorParallelSize:
@@ -3997,6 +4030,10 @@ spec:
                                         type: integer
                                       signerName:
                                         type: string
+                                      userAnnotations:
+                                        additionalProperties:
+                                          type: string
+                                        type: object
                                     required:
                                     - keyType
                                     - signerName

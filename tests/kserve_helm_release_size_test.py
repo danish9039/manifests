@@ -27,7 +27,7 @@ _MODULE_SPEC.loader.exec_module(sizing)
 
 COMPONENT = "kserve"
 DEFINITIONS_ONLY = "payload.resources.enabled=false"
-CUSTOM_RESOURCE_DEFINITION_COUNT = 16
+CUSTOM_RESOURCE_DEFINITION_COUNT = 20
 
 
 def rendered_kinds(release_record):
